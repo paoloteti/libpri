@@ -236,6 +236,7 @@ typedef struct pri_event_ring {
 	int cref;					/* Call Reference Number */
 	int ctype;					/* Call type (see PRI_TRANS_CAP_* */
 	int layer1;				/* User layer 1 */
+	int complete;				/* Have we seen "Complete" i.e. no more number? */
 	q931_call *call;			/* Opaque call pointer */
 } pri_event_ring;
 

@@ -229,6 +229,7 @@ struct q931_call {
 	int  calledplan;
 	int nonisdn;
 	char callednum[256];	/* Called Number */
+	int complete;			/* no more digits coming */
 
 	int redirectingplan;
 	int redirectingpres;
@@ -1134,7 +1135,8 @@ static void dump_sending_complete(q931_ie *ie, int len, char prefix)
 
 static int receive_sending_complete(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
-	/* Do nothing */
+	/* We've got a "Complete" message: Exect no further digits. */
+	call->complete = 1; 
 	return 0;
 }
 
@@ -1643,6 +1645,7 @@ int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int ex
 	c->slotmap = -1;
 	c->ds1no = -1;
 	c->nonisdn = nonisdn;
+	c->complete = 0; 
 		
 	if (exclusive) 
 		c->chanflags = FLAG_EXCLUSIVE;
@@ -1872,6 +1875,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.cref = c->cr;
 		pri->ev.ring.call = c;
 		pri->ev.ring.layer1 = c->userl1;
+		pri->ev.ring.complete = 0; 
 		if (c->transmoderate != TRANS_MODE_64_CIRCUIT) {
 			q931_release(pri, c, PRI_CAUSE_BEARERCAPABILITY_NOTIMPL);
 			break;
@@ -1976,6 +1980,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	case Q931_INFORMATION:
 		/* XXX We're handling only INFORMATION messages that contain
 		       overlap dialing received digit
+		       +  the "Complete" msg which is basically an EOF on further digits
 		   XXX */
 		if (c->ourcallstate!=Q931_CALL_STATE_OVERLAP_RECEIVING)
 			break;
@@ -1983,6 +1988,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.call = c;
 		pri->ev.ring.channel = c->channelno;
 		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum) - 1);
+		pri->ev.ring.complete = c->complete; 	/* this covers IE 33 (Sending Complete) */
 		return Q931_RES_HAVEEVENT;
 	case Q931_STATUS_ENQUIRY:
 		q931_status(pri,c);
