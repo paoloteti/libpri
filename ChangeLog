@@ -1,3 +1,4 @@
+libpri 1.0.3
 -- Fix Endian to compile for FreeBSD
 
 ...
