@@ -1526,7 +1526,7 @@ static char *ie2str(int ie)
 	}
 }	
 
-static inline int ielen(q931_ie *ie)
+static inline unsigned int ielen(q931_ie *ie)
 {
 	if ((ie->ie & 0x80) != 0)
 		return 1;
