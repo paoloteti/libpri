@@ -71,6 +71,7 @@
 #define PRI_EVENT_SETUP_ACK	14	/* When we get SETUP_ACKNOWLEDGE */
 #define PRI_EVENT_HANGUP_REQ	15	/* Requesting the higher layer to hangup */
 #define PRI_EVENT_NOTIFY	16	/* Notification received */
+#define PRI_EVENT_PROGRESS	17	/* When we get CALL_PROCEEDING or PROGRESS */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0

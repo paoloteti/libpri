@@ -2431,6 +2431,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_destroycall(pri, c->cr);
 			break;
 		}
+		pri->ev.e = PRI_EVENT_PROGRESS;
 		/* Fall through */
 	case Q931_CALL_PROCEEDING:
 		if (c->newcall) {
@@ -2444,9 +2445,9 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_status(pri,c,PRI_CAUSE_WRONG_MESSAGE);
 			break;
 		}
-		pri->ev.e = PRI_EVENT_PROCEEDING;
 		pri->ev.proceeding.channel = c->channelno | (c->ds1no << 8);
 		if (mh->msg == Q931_CALL_PROCEEDING) {
+			pri->ev.e = PRI_EVENT_PROCEEDING;
 			c->ourcallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
 			c->peercallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
 		}
