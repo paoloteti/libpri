@@ -432,6 +432,7 @@ void pri_error(char *fmt, ...)
 	else
 		fprintf(stderr, tmp);
 }
+
 /* Set overlap mode */
 void pri_set_overlapdial(struct pri *pri,int state)
 {
@@ -443,37 +444,41 @@ int pri_fd(struct pri *pri)
 	return pri->fd;
 }
 
-void pri_dump_info(struct pri *pri)
+char *pri_dump_info_str(struct pri *pri)
 {
+	char buf[4096];
+	int len = 0;
 #ifdef LIBPRI_COUNTERS
 	struct q921_frame *f;
 	int q921outstanding = 0;
 #endif
 	if (!pri)
-		return;
+		return NULL;
 
 	/* Might be nice to format these a little better */
-	pri_message("Switchtype: %s\n", pri_switch2str(pri->switchtype));
-	pri_message("Type: %s\n", pri_node2str(pri->localtype));
+	len += sprintf(buf + len, "Switchtype: %s\n", pri_switch2str(pri->switchtype));
+	len += sprintf(buf + len, "Type: %s\n", pri_node2str(pri->localtype));
 #ifdef LIBPRI_COUNTERS
 	/* Remember that Q921 Counters include Q931 packets (and any retransmissions) */
-	pri_message("Q931 RX: %d\n", pri->q931_rxcount);
-	pri_message("Q931 TX: %d\n", pri->q931_txcount);
-	pri_message("Q921 RX: %d\n", pri->q921_rxcount);
-	pri_message("Q921 TX: %d\n", pri->q921_txcount);
+	len += sprintf(buf + len, "Q931 RX: %d\n", pri->q931_rxcount);
+	len += sprintf(buf + len, "Q931 TX: %d\n", pri->q931_txcount);
+	len += sprintf(buf + len, "Q921 RX: %d\n", pri->q921_rxcount);
+	len += sprintf(buf + len, "Q921 TX: %d\n", pri->q921_txcount);
 	f = pri->txqueue;
 	while (f) {
 		q921outstanding++;
 		f = f->next;
 	}
-	pri_message("Q921 Outstanding: %d\n", q921outstanding);
+	len += sprintf(buf + len, "Q921 Outstanding: %d\n", q921outstanding);
 #endif
-	pri_message("Window Length: %d/%d\n", pri->windowlen, pri->window);
-	pri_message("Sentrej: %d\n", pri->sentrej);
-	pri_message("SolicitFbit: %d\n", pri->solicitfbit);
-	pri_message("Retrans: %d\n", pri->retrans);
-	pri_message("Busy: %d\n", pri->busy);
-	pri_message("Overlap Dial: %d\n", pri->overlapdial);
+	len += sprintf(buf + len, "Window Length: %d/%d\n", pri->windowlen, pri->window);
+	len += sprintf(buf + len, "Sentrej: %d\n", pri->sentrej);
+	len += sprintf(buf + len, "SolicitFbit: %d\n", pri->solicitfbit);
+	len += sprintf(buf + len, "Retrans: %d\n", pri->retrans);
+	len += sprintf(buf + len, "Busy: %d\n", pri->busy);
+	len += sprintf(buf + len, "Overlap Dial: %d\n", pri->overlapdial);
+
+	return strdup(buf);
 }
 
 int pri_get_crv(struct pri *pri, q931_call *call, int *callmode)
