@@ -100,10 +100,22 @@ if [ $append = 1 ]; then
 		rm -rf $DTMP
 		exit 1
 	fi
-else
-	mv $TMP $D
+	cat $TMP | sed -e 's/\.o:/.lo:/g' >>$D
 	if [ $? != 0 ]; then
-		echo 'mkdep: rename failed.'
+		echo 'mkdep: append failed.'
+		rm -rf $DTMP
+		exit 1
+	fi
+else
+	cat $TMP > $D
+	if [ $? != 0 ]; then
+		echo 'mkdep: overwrite failed.'
+		rm -rf $DTMP
+		exit 1
+	fi
+	cat $TMP | sed -e 's/\.o:/.lo:/g' >>$D
+	if [ $? != 0 ]; then
+		echo 'mkdep: append failed.'
 		rm -rf $DTMP
 		exit 1
 	fi
