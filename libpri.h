@@ -212,6 +212,25 @@
 
 #define PRI_COPY_DIGITS_CALLED_NUMBER
 
+/* Network Specific Facilities (AT&T) */
+#define PRI_NSF_NONE                   -1
+#define PRI_NSF_SID_PREFERRED          0xB1
+#define PRI_NSF_ANI_PREFERRED          0xB2
+#define PRI_NSF_SID_ONLY               0xB3
+#define PRI_NSF_ANI_ONLY               0xB4
+#define PRI_NSF_CALL_ASSOC_TSC         0xB9
+#define PRI_NSF_NOTIF_CATSC_CLEARING   0xBA
+#define PRI_NSF_OPERATOR               0xB5
+#define PRI_NSF_PCCO                   0xB6
+#define PRI_NSF_SDN                    0xE1
+#define PRI_NSF_TOLL_FREE_MEGACOM      0xE2
+#define PRI_NSF_MEGACOM                        0xE3
+#define PRI_NSF_ACCUNET                        0xE6
+#define PRI_NSF_LONG_DISTANCE_SERVICE  0xE7
+#define PRI_NSF_INTERNATIONAL_TOLL_FREE        0xE8
+#define PRI_NSF_ATT_MULTIQUEST         0xF0
+#define PRI_NSF_CALL_REDIRECTION_SERVICE       0xF7
+
 typedef struct q931_call q931_call;
 
 typedef struct pri_event_generic {
@@ -326,6 +345,9 @@ struct pri_sr;
    must be NON-BLOCKING! Frames received on the fd should include FCS.  Nodetype 
    must be one of PRI_NETWORK or PRI_CPE.  switchtype should be PRI_SWITCH_* */
 extern struct pri *pri_new(int fd, int nodetype, int switchtype);
+
+/* Set Network Specific Facility for PRI */
+extern void pri_set_nsf(struct pri *pri, int nsf);
 
 /* Set debug parameters on PRI -- see above debug definitions */
 extern void pri_set_debug(struct pri *pri, int debug);

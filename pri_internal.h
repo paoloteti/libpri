@@ -48,6 +48,7 @@ struct pri {
 	int debug;			/* Debug stuff */
 	int state;			/* State of D-channel */
 	int switchtype;		/* Switch type */
+	int nsf;		/* Network-Specific Facility (if any) */
 	int localtype;		/* Local network type (unknown, network, cpe) */
 	int remotetype;		/* Remote network type (unknown, network, cpe) */
 

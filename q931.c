@@ -133,6 +133,25 @@ struct msgtype causes[] = {
 	{ PRI_CAUSE_INTERWORKING, "Interworking, unspecified" },
 };
 
+struct msgtype facilities[] = {
+       { PRI_NSF_SID_PREFERRED, "CPN (SID) preferred" },
+       { PRI_NSF_ANI_PREFERRED, "BN (ANI) preferred" },
+       { PRI_NSF_SID_ONLY, "CPN (SID) only" },
+       { PRI_NSF_ANI_ONLY, "BN (ANI) only" },
+       { PRI_NSF_CALL_ASSOC_TSC, "Call Associated TSC" },
+       { PRI_NSF_NOTIF_CATSC_CLEARING, "Notification of CATSC Clearing or Resource Unavailable" },
+       { PRI_NSF_OPERATOR, "Operator" },
+       { PRI_NSF_PCCO, "Pre-subscribed Common Carrier Operator (PCCO)" },
+       { PRI_NSF_SDN, "SDN (including GSDN)" },
+       { PRI_NSF_TOLL_FREE_MEGACOM, "Toll Free MEGACOM" },
+       { PRI_NSF_MEGACOM, "MEGACOM" },
+       { PRI_NSF_ACCUNET, "ACCUNET Switched Digital Service" },
+       { PRI_NSF_LONG_DISTANCE_SERVICE, "Long Distance Service" },
+       { PRI_NSF_INTERNATIONAL_TOLL_FREE, "International Toll Free Service" },
+       { PRI_NSF_ATT_MULTIQUEST, "AT&T MultiQuest" },
+       { PRI_NSF_CALL_REDIRECTION_SERVICE, "Call Redirection Service" }
+};
+
 #define FLAG_PREFERRED 2
 #define FLAG_EXCLUSIVE 4
 
@@ -1184,6 +1203,34 @@ static FUNC_DUMP(dump_facility)
 	pri_message(" ]\n");
 }
 
+static FUNC_DUMP(dump_network_spec_fac)
+{
+       pri_message("%c Network-Specific Facilities (len=%2d) [ ", prefix, ie->len);
+       if (ie->data[0] == 0x00) {
+               pri_message (code2str(ie->data[1], facilities, sizeof(facilities) / sizeof(facilities[0])));
+       }
+       else
+               dump_ie_data(ie->data, ie->len);
+       pri_message(" ]\n");
+}
+
+static FUNC_RECV(receive_network_spec_fac)
+{
+       return 0;
+}
+
+static FUNC_SEND(transmit_network_spec_fac)
+{
+       if (pri->nsf != PRI_NSF_NONE) {
+               ie->data[0] = 0x00;
+               ie->data[1] = pri->nsf;
+               return 4;
+       } else {
+               /* Leave off */
+               return 0;
+       }
+}
+
 char *pri_cause2str(int cause)
 {
 	return code2str(cause, causes, sizeof(causes) / sizeof(causes[0]));
@@ -1377,7 +1424,7 @@ struct ie ies[] = {
 	{ Q931_CALL_STATE, "Call State", dump_call_state, receive_call_state, transmit_call_state },
 	{ Q931_CHANNEL_IDENT, "Channel Identification", dump_channel_id, receive_channel_id, transmit_channel_id },
 	{ Q931_PROGRESS_INDICATOR, "Progress Indicator", dump_progress_indicator, receive_progress_indicator, transmit_progress_indicator },
-	{ Q931_NETWORK_SPEC_FAC, "Network-Specific Facilities" },
+	{ Q931_NETWORK_SPEC_FAC, "Network-Specific Facilities", dump_network_spec_fac, receive_network_spec_fac, transmit_network_spec_fac },
 	{ Q931_INFORMATION_RATE, "Information Rate" },
 	{ Q931_TRANSIT_DELAY, "End-to-End Transit Delay" },
 	{ Q931_TRANS_DELAY_SELECT, "Transmit Delay Selection and Indication" },
@@ -2120,7 +2167,7 @@ int q931_disconnect(struct pri *pri, q931_call *c, int cause)
 		return 0;
 }
 
-static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR, Q931_DISPLAY,
+static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR, Q931_NETWORK_SPEC_FAC, Q931_DISPLAY,
 	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_SENDING_COMPLETE, Q931_IE_ORIGINATING_LINE_INFO, -1 };
 
 static int gr303_setup_ies[] =  { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, -1 };

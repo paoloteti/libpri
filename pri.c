@@ -122,6 +122,12 @@ struct pri *pri_new(int fd, int node, int switchtype)
 	return __pri_new(fd, node, switchtype, NULL);
 }
 
+void pri_set_nsf(struct pri *pri, int nsf)
+{
+	if (pri)
+		pri->nsf = nsf;
+}
+
 char *pri_event2str(int id)
 {
 	switch(id) {
