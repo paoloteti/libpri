@@ -368,6 +368,7 @@ void pri_dump_info(struct pri *pri)
 	}
 	pri_message("Q921 Outstanding: %d\n", q921outstanding);
 #endif
+	pri_message("Window Length: %d/%d\n", pri->windowlen, pri->window);
 	pri_message("Sentrej: %d\n", pri->sentrej);
 	pri_message("SolicitFbit: %d\n", pri->solicitfbit);
 	pri_message("Retrans: %d\n", pri->retrans);
