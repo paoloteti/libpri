@@ -74,6 +74,7 @@ static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *maste
 		p->cref = 1;
 		p->sapi = Q921_SAPI_CALL_CTRL;
 		p->tei = 0;
+		p->nsf = PRI_NSF_NONE;
 		p->protodisc = Q931_PROTOCOL_DISCRIMINATOR;
 		p->master = master;
 		p->callpool = &p->localpool;
