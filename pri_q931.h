@@ -234,5 +234,5 @@ extern q931_call *q931_new_call(struct pri *pri);
 extern int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
 					int nonisdn, char *caller, int callerplan, int callerpres, char *called,
 					int calledplan, int ulay1);
-
+extern void q931_dump(q931_h *h, int len, int txrx);
 #endif

@@ -38,6 +38,12 @@ install: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 	install -m 644 $(STATIC_LIBRARY) /usr/lib
 	/sbin/ldconfig
 
+pritest: pritest.o
+	$(CC) -o pritest pritest.o -L. -lpri -lzap
+
+pridump: pridump.o
+	$(CC) -o pridump pridump.o -L. -lpri -lzap
+
 %.lo : %.c
 	$(CC) -fPIC $(CFLAGS) -o $@ -c $<
 
@@ -53,3 +59,4 @@ $(DYNAMIC_LIBRARY): $(DYNAMIC_OBJS)
 clean:
 	rm -f *.o *.so *.lo 
 	rm -f testpri $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
+	rm -f pritest pridump
