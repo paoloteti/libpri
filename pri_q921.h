@@ -26,7 +26,11 @@
 #define _PRI_Q921_H
 
 #include <sys/types.h>
+#if defined(__linux__)
 #include <endian.h>
+#elif defined(__FreeBSD__)
+#include <sys/endian.h>
+#endif
 
 /* Timer values */
 

@@ -42,7 +42,11 @@
 #include <sys/time.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#if defined(__linux__)
 #include <linux/zaptel.h>
+#elif defined(__FreeBSD__)
+#include <zaptel.h>
+#endif
 #include <zap.h>
 #include <pthread.h>
 #include <sys/select.h>

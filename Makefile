@@ -27,6 +27,8 @@
 # Uncomment if you want libpri to count number of Q921/Q931 sent/received
 #LIBPRI_COUNTERS=-DLIBPRI_COUNTERS
 
+OSARCH=$(shell uname -s)
+
 TOBJS=testpri.o
 T2OBJS=testprilib.o
 STATIC_LIBRARY=libpri.a
@@ -35,6 +37,14 @@ STATIC_OBJS=pri.o q921.o prisched.o q931.o
 DYNAMIC_OBJS=pri.lo q921.lo prisched.lo q931.lo
 CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g $(ALERTING) $(LIBPRI_COUNTERS)
 INSTALL_PREFIX=
+ifeq (${OSARCH},Linux)
+LDCONFIG_FLAGS=-n
+else
+ifeq (${OSARCH},FreeBSD)
+LDCONFIG_FLAGS=-m
+CFLAGS += -I../zaptel -I../zapata
+endif
+endif
 
 all: depend $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 
@@ -81,7 +91,7 @@ $(STATIC_LIBRARY): $(STATIC_OBJS)
 
 $(DYNAMIC_LIBRARY): $(DYNAMIC_OBJS)
 	$(CC) -shared -Wl,-soname,libpri.so.1 -o $@ $(DYNAMIC_OBJS)
-	/sbin/ldconfig -n .
+	/sbin/ldconfig $(LDCONFIG_FLAGS) .
 	ln -sf libpri.so.1 libpri.so
 
 clean:

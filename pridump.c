@@ -36,7 +36,12 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
+#include <sys/types.h>
+#if defined(__linux__)
 #include <linux/zaptel.h>
+#elif defined(__FreeBSD__)
+#include <zaptel.h>
+#endif
 #include "libpri.h"
 #include "pri_q921.h"
 #include "pri_q931.h"
