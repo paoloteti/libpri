@@ -1743,12 +1743,15 @@ int q931_hangup(struct pri *pri, q931_call *c, int cause)
 	if (!pri || !c)
 		return -1;
 	if (cause == 34 || cause == 44 || cause == 82 || cause == 1) {
+		/* We'll send RELEASE_COMPLETE with these causes */
 		disconnect = 0;
 		release_compl = 1;
 	}
-	if (cause == 6) {
+	if (cause == 6 || cause == 7 || cause == 26) {
+		/* We'll send RELEASE with these causes */
 		disconnect = 0;
 	}
+	/* All other causes we send with DISCONNECT */
 	switch(c->ourcallstate) {
 	case Q931_CALL_STATE_NULL:
 		if (c->peercallstate == Q931_CALL_STATE_NULL)
@@ -1778,7 +1781,7 @@ int q931_hangup(struct pri *pri, q931_call *c, int cause)
 	case Q931_CALL_STATE_OVERLAP_RECEIVING:
 		/* received SETUP_ACKNOWLEDGE */
 		/* send DISCONNECT in general */
-		if (disconnect && (c->peercallstate == Q931_CALL_STATE_DISCONNECT_REQUEST || c->peercallstate <= 11))
+		if (disconnect && c->peercallstate != Q931_CALL_STATE_NULL && c->peercallstate != Q931_CALL_STATE_DISCONNECT_REQUEST && c->peercallstate != Q931_CALL_STATE_DISCONNECT_INDICATION && c->peercallstate != Q931_CALL_STATE_RELEASE_REQUEST && c->peercallstate != Q931_CALL_STATE_RESTART_REQUEST && c->peercallstate != Q931_CALL_STATE_RESTART)
 			q931_disconnect(pri,c,cause);
 		else if (release_compl && c->peercallstate == Q931_CALL_STATE_CALL_INITIATED)
 			q931_release_complete(pri,c,cause);
