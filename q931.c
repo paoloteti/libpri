@@ -641,14 +641,15 @@ static int transmit_bearer_capability(struct pri *pri, q931_call *call, int msgt
 	ie->data[1] = call->transmoderate | 0x80;
 	if (call->transmoderate != TRANS_MODE_PACKET) {
 		/* If you have an AT&T 4ESS, you don't send any more info */
-		if (pri->switchtype == PRI_SWITCH_ATT4ESS)
+		if ((pri->switchtype != PRI_SWITCH_ATT4ESS) && (call->userl1 > -1)) {
+			ie->data[2] = call->userl1 | 0x80; /* XXX Ext bit? XXX */
+			if (call->userl1 == PRI_LAYER_1_ITU_RATE_ADAPT) {
+				ie->data[3] = call->rateadaption | 0x80;
+				return 6;
+			}
+			return 5;
+		} else
 			return 4;
-		ie->data[2] = call->userl1 | 0x80; /* XXX Ext bit? XXX */
-		if (call->userl1 == PRI_LAYER_1_ITU_RATE_ADAPT) {
-			ie->data[3] = call->rateadaption | 0x80;
-			return 6;
-		}
-		return 5;
 	} else {
 		ie->data[2] = 0x80 | call->userl2;
 		ie->data[3] = 0x80 | call->userl3;
