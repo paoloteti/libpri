@@ -243,9 +243,9 @@ extern int q931_receive(struct pri *pri, q931_h *h, int len);
 
 extern int q931_alerting(struct pri *pri, q931_call *call, int channel, int info);
 
-extern int q931_call_progress(struct pri *pri, q931_call *call, int info);
+extern int q931_call_progress(struct pri *pri, q931_call *call, int channel, int info);
 
-extern int q931_call_proceeding(struct pri *pri, q931_call *call, int info);
+extern int q931_call_proceeding(struct pri *pri, q931_call *call, int channel, int info);
 
 extern int q931_setup_ack(struct pri *pri, q931_call *call, int channel, int nonisdn);
 

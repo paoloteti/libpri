@@ -360,6 +360,8 @@ static int receive_channel_id(struct pri *pri, q931_call *call, int msgtype, q93
 static int transmit_channel_id(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	int pos=0;
+	if (!call->channelno)
+		return 0;
 	/* Start with standard stuff */
 	ie->data[pos] = 0xa1;
 	/* Add exclusive flag if necessary */
@@ -1569,8 +1571,11 @@ static int call_progress_ies[] = { Q931_CHANNEL_IDENT, -1 };
 static int call_progress_ies[] = { Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR, -1 };
 #endif
 
-int q931_call_progress(struct pri *pri, q931_call *c, int info)
+int q931_call_progress(struct pri *pri, q931_call *c, int channel, int info)
 {
+	if (!c->proc) 
+		q931_call_proceeding(pri, c, channel, 0);
+	c->channelno = 0;		
 	c->ourcallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
 	c->peercallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
 	if (info) {
@@ -1579,8 +1584,6 @@ int q931_call_progress(struct pri *pri, q931_call *c, int info)
 		c->progress = Q931_PROG_INBAND_AVAILABLE;
 	} else
 		c->progress = -1;
-	if (!c->proc)
-		q931_call_proceeding(pri, c, 0);
 	c->proc = 1;
 	c->alive = 1;
 	return send_message(pri, c, Q931_PROGRESS, call_progress_ies);
@@ -1592,8 +1595,12 @@ static int call_proceeding_ies[] = { Q931_CHANNEL_IDENT, -1 };
 static int call_proceeding_ies[] = { Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR, -1 };
 #endif
 
-int q931_call_proceeding(struct pri *pri, q931_call *c, int info)
+int q931_call_proceeding(struct pri *pri, q931_call *c, int channel, int info)
 {
+	if (channel) 
+		c->channelno = channel;		
+	c->chanflags &= ~FLAG_PREFERRED;
+	c->chanflags |= FLAG_EXCLUSIVE;
 	c->ourcallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
 	c->peercallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
 	if (info) {
@@ -1614,18 +1621,14 @@ static int alerting_ies[] = { Q931_CHANNEL_IDENT, -1 };
 
 int q931_alerting(struct pri *pri, q931_call *c, int channel, int info)
 {
-	if (channel) 
-		c->channelno = channel;		
-	c->chanflags &= ~FLAG_PREFERRED;
-	c->chanflags |= FLAG_EXCLUSIVE;
+	if (!c->proc) 
+		q931_call_proceeding(pri, c, channel, 0);
 	if (info) {
 		c->progloc = LOC_PRIV_NET_LOCAL_USER;
 		c->progcode = CODE_CCITT;
 		c->progress = Q931_PROG_INBAND_AVAILABLE;
 	} else
 		c->progress = -1;
-	if (!c->proc)
-		q931_call_proceeding(pri, c, 0);
 	c->ourcallstate = Q931_CALL_STATE_CALL_RECEIVED;
 	c->peercallstate = Q931_CALL_STATE_CALL_DELIVERED;
 	c->alive = 1;
