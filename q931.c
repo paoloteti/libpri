@@ -990,9 +990,7 @@ static FUNC_SEND(transmit_facility)
 	struct rose_component *comp;
 	unsigned char namelen = strlen(call->callername);
 
-	if ((pri->switchtype == PRI_SWITCH_QSIG)
-		|| (pri->switchtype == PRI_SWITCH_ATT4ESS)
-		|| (pri->switchtype == PRI_SWITCH_NI2)) {
+	if ((namelen > 0) && (pri->switchtype == PRI_SWITCH_QSIG)) {
 		ie->data[i] = ROSE_NETWORK_EXTENSION;
 		i++;
 		/* Interpretation component */
