@@ -888,10 +888,7 @@ extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call)
 		rose_diverting_leg_information2_encode(pri, call);
 	}
 
-#if 0
 	if (pri->localtype == PRI_NETWORK) {
-#endif
-	if (1) {
 		switch (pri->switchtype) {
 			case PRI_SWITCH_NI2:
 				add_callername_facility_ies(pri, call);
