@@ -346,6 +346,16 @@ extern int pri_release(struct pri *pri, q931_call *call, int cause);
 extern int pri_disconnect(struct pri *pri, q931_call *call, int cause);
 #endif
 
+#undef pri_release
+#undef pri_disconnect
+
+/* backwards compatibility for those who don't use asterisk with libpri */
+#define pri_release(a,b,c) \
+	pri_hangup(a,b,c)
+
+#define pri_disconnect(a,b,c) \
+	pri_hangup(a,b,c)
+
 /* Hangup a call */
 #define PRI_HANGUP
 extern int pri_hangup(struct pri *pri, q931_call *call, int cause);
