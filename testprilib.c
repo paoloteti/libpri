@@ -44,13 +44,19 @@
 #include <sys/socket.h>
 #if defined(__linux__)
 #include <linux/zaptel.h>
-#elif defined(__FreeBSD__)
+#elif defined(__FreeBSD__) || defined(SOLARIS)
 #include <zaptel.h>
 #endif
+#ifndef SOLARIS
 #include <zap.h>
+#endif
 #include <pthread.h>
 #include <sys/select.h>
 #include "libpri.h"
+
+#ifndef AF_LOCAL
+#define AF_LOCAL AF_UNIX
+#endif
 
 #define DEBUG_LEVEL	PRI_DEBUG_ALL
 

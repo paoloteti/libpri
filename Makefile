@@ -27,6 +27,8 @@
 # Uncomment if you want libpri to count number of Q921/Q931 sent/received
 #LIBPRI_COUNTERS=-DLIBPRI_COUNTERS
 
+CC=gcc
+
 OSARCH=$(shell uname -s)
 PROC=$(shell uname -m)
 
@@ -38,6 +40,7 @@ STATIC_OBJS=pri.o q921.o prisched.o q931.o pri_facility.o
 DYNAMIC_OBJS=pri.lo q921.lo prisched.lo q931.lo pri_facility.lo
 CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g $(ALERTING) $(LIBPRI_COUNTERS)
 INSTALL_PREFIX=
+INSTALL_BASE=/usr
 ifeq (${OSARCH},Linux)
 LDCONFIG_FLAGS=-n
 else
@@ -45,6 +48,15 @@ ifeq (${OSARCH},FreeBSD)
 LDCONFIG_FLAGS=-m
 CFLAGS += -I../zaptel -I../zapata
 endif
+endif
+ifeq (${OSARCH},SunOS)
+CFLAGS += -DSOLARIS -I../zaptel-solaris -lsocket -lnsl
+SOFLAGS = 
+LDCONFIG = echo
+INSTALL_BASE = /usr/local
+else
+SOFLAGS = -Wl,-soname,libpri.so.1
+LDCONFIG = /sbin/ldconfig
 endif
 
 #The problem with sparc is the best stuff is in newer versions of gcc (post 3.0) only.
@@ -62,20 +74,20 @@ update:
 	@cvs update -d
 
 install: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
-	mkdir -p $(INSTALL_PREFIX)/usr/lib
-	mkdir -p $(INSTALL_PREFIX)/usr/include
-	install -m 644 libpri.h $(INSTALL_PREFIX)/usr/include
-	install -m 755 $(DYNAMIC_LIBRARY) $(INSTALL_PREFIX)/usr/lib
-	( cd $(INSTALL_PREFIX)/usr/lib ; ln -sf libpri.so.1 libpri.so )
-	install -m 644 $(STATIC_LIBRARY) $(INSTALL_PREFIX)/usr/lib
-	/sbin/ldconfig
+	mkdir -p $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib
+	mkdir -p $(INSTALL_PREFIX)/$(INSTALL_BASE)/include
+	install -m 644 libpri.h $(INSTALL_PREFIX)/$(INSTALL_BASE)/include
+	install -m 755 $(DYNAMIC_LIBRARY) $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib
+	( cd $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib ; ln -sf libpri.so.1 libpri.so )
+	install -m 644 $(STATIC_LIBRARY) $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib
+	$(LDCONFIG)
 
 uninstall:
 	@echo "Removing Libpri"
-	rm -f $(INSTALL_PREFIX)/usr/lib/libpri.so.1.0
-	rm -f $(INSTALL_PREFIX)/usr/lib/libpri.so
-	rm -f $(INSTALL_PREFIX)/usr/lib/libpri.a
-	rm -f $(INSTALL_PREFIX)/usr/include/libpri.h
+	rm -f $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib/libpri.so.1.0
+	rm -f $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib/libpri.so
+	rm -f $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib/libpri.a
+	rm -f $(INSTALL_PREFIX)/$(INSTALL_BASE)/include/libpri.h
 
 pritest: pritest.o
 	$(CC) -o pritest pritest.o -L. -lpri -lzap $(CFLAGS)
@@ -99,8 +111,8 @@ $(STATIC_LIBRARY): $(STATIC_OBJS)
 	ranlib $(STATIC_LIBRARY)
 
 $(DYNAMIC_LIBRARY): $(DYNAMIC_OBJS)
-	$(CC) -shared -Wl,-soname,libpri.so.1 -o $@ $(DYNAMIC_OBJS)
-	/sbin/ldconfig $(LDCONFIG_FLAGS) .
+	$(CC) -shared $(SOFLAGS) -o $@ $(DYNAMIC_OBJS)
+	$(LDCONFIG) $(LDCONFIG_FLAGS) .
 	ln -sf libpri.so.1 libpri.so
 
 clean:

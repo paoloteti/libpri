@@ -22,6 +22,7 @@
  *
  */
  
+#include "compat.h"
 #include "libpri.h"
 #include "pri_internal.h"
 #include "pri_q921.h"
