@@ -2223,6 +2223,9 @@ int q931_hangup(struct pri *pri, q931_call *c, int cause)
 		pri_message("NEW_HANGUP DEBUG: Calling q931_hangup, ourstate %s, peerstate %s\n",callstate2str(c->ourcallstate),callstate2str(c->peercallstate));
 	if (!pri || !c)
 		return -1;
+	/* If mandatory IE was missing, insist upon that cause code */
+	if (c->cause == PRI_CAUSE_MANDATORY_IE_MISSING)
+		cause = c->cause;
 	if (cause == 34 || cause == 44 || cause == 82 || cause == 1 || cause == 81) {
 		/* We'll send RELEASE_COMPLETE with these causes */
 		disconnect = 0;
@@ -2731,8 +2734,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		break;
 	case Q931_RELEASE:
 		if (missingmand) {
-			q931_release_complete(pri, c, PRI_CAUSE_MANDATORY_IE_MISSING);
-			break;
+			/* Force cause to be mandatory IE missing */
+			c->cause = PRI_CAUSE_MANDATORY_IE_MISSING;
 		}
 		if (c->ourcallstate == Q931_CALL_STATE_RELEASE_REQUEST) 
 			c->peercallstate = Q931_CALL_STATE_NULL;
@@ -2754,8 +2757,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		break;
 	case Q931_DISCONNECT:
 		if (missingmand) {
-			q931_release(pri, c, PRI_CAUSE_MANDATORY_IE_MISSING);
-			break;
+			/* Still let user call release */
+			c->cause = PRI_CAUSE_MANDATORY_IE_MISSING;
 		}
 		if (c->newcall) {
 			q931_release_complete(pri,c,PRI_CAUSE_INVALID_CALL_REFERENCE);
