@@ -1237,7 +1237,9 @@ static FUNC_RECV(receive_sending_complete)
 
 static FUNC_SEND(transmit_sending_complete)
 {
-	if (!pri->overlapdial && ((pri->switchtype == PRI_SWITCH_EUROISDN_E1) || (pri->switchtype == PRI_SWITCH_EUROISDN_T1))) {
+	if ((pri->overlapdial && call->complete) || /* Explicit */
+		(!pri->overlapdial && ((pri->switchtype == PRI_SWITCH_EUROISDN_E1) || 
+		/* Implicit */   	   (pri->switchtype == PRI_SWITCH_EUROISDN_T1)))) {
 		/* Include this single-byte IE */
 		return 1;
 	}
@@ -2060,6 +2062,7 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 	c->slotmap = -1;
 	c->nonisdn = req->nonisdn;
 	c->newcall = 0;		
+	c->complete = req->numcomplete; 
 	if (req->exclusive) 
 		c->chanflags = FLAG_EXCLUSIVE;
 	else
