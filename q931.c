@@ -3170,6 +3170,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->cause = -1;
 		c->causecode = -1;
 		c->causeloc = -1;
+		c->aoc_units = -1;
 		if (c->retranstimer)
 			pri_schedule_del(pri, c->retranstimer);
 		c->retranstimer = 0;
@@ -3183,6 +3184,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->causecode = -1;
 		c->causeloc = -1;
 		c->sugcallstate = -1;
+		c->aoc_units = -1;
 		break;
 	case Q931_RESTART_ACKNOWLEDGE:
 		c->channelno = -1;
@@ -3538,6 +3540,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.hangup.cref = c->cr;
 		pri->ev.hangup.cause = c->cause;
 		pri->ev.hangup.call = c;
+		pri->ev.hangup.aoc_units = c->aoc_units;
 		/* Don't send release complete if they send us release 
 		   while we sent it, assume a NULL state */
 		if (c->newcall)
@@ -3563,6 +3566,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.hangup.cref = c->cr;
 		pri->ev.hangup.cause = c->cause;
 		pri->ev.hangup.call = c;
+		pri->ev.hangup.aoc_units = c->aoc_units;
 		if (c->alive)
 			return Q931_RES_HAVEEVENT;
 		else

@@ -32,10 +32,20 @@
 #define COMP_TYPE_NFE						0xAA
 
 /* Operation ID values */
-/* Q.952 ROSE operations */
+/* Q.952 ROSE operations (Diverting) */
 #define ROSE_DIVERTING_LEG_INFORMATION1		18
 #define ROSE_DIVERTING_LEG_INFORMATION2		15
 #define ROSE_DIVERTING_LEG_INFORMATION3		19
+/* Q.956 ROSE operations (Advice Of Charge) */
+#define ROSE_AOC_NO_CHARGING_INFO_AVAILABLE	26
+#define ROSE_AOC_CHARGING_REQUEST			30
+#define ROSE_AOC_AOCS_CURRENCY				31
+#define ROSE_AOC_AOCS_SPECIAL_ARR			32
+#define ROSE_AOC_AOCD_CURRENCY				33
+#define ROSE_AOC_AOCD_CHARGING_UNIT			34
+#define ROSE_AOC_AOCE_CURRENCY				35
+#define ROSE_AOC_AOCE_CHARGING_UNIT			36
+#define ROSE_AOC_IDENTIFICATION_OF_CHARGE	37
 /* Q.SIG operations */
 #define SS_CNID_CALLINGNAME					0
 #define SS_DIVERTING_LEG_INFORMATION2		22
@@ -48,14 +58,15 @@
 #define INVOKE_LINKED_IDENTIFIER	0x80
 #define INVOKE_NULL_IDENTIFIER		__USE_ASN1_NULL
 
-/* ASN.1 Data types */
+/* ASN.1 Identifier Octet - Data types */
+#define ASN1_TYPE_MASK			0x1f
 #define ASN1_BOOLEAN			0x01
 #define ASN1_INTEGER			0x02
 #define ASN1_BITSTRING			0x03
 #define ASN1_OCTETSTRING		0x04
 #define ASN1_NULL				0x05
 #define ASN1_OBJECTIDENTIFIER	0x06
-#define ASN1_OBJECTDESCRIPTER	0x07
+#define ASN1_OBJECTDESCRIPTOR	0x07
 #define ASN1_EXTERN				0x08
 #define ASN1_REAL				0x09
 #define ASN1_ENUMERATED			0x0a
@@ -71,6 +82,31 @@
 #define ASN1_IA5STRING			0x16
 #define ASN1_UTCTIME			0x17
 #define ASN1_GENERALIZEDTIME	0x18
+
+/* ASN.1 Identifier Octet - Tags */
+#define ASN1_TAG_0				0x00
+#define ASN1_TAG_1				0x01
+#define ASN1_TAG_2				0x02
+#define ASN1_TAG_3				0x03
+#define ASN1_TAG_4				0x04
+#define ASN1_TAG_5				0x05
+#define ASN1_TAG_6				0x06
+#define ASN1_TAG_7				0x07
+#define ASN1_TAG_8				0x08
+#define ASN1_TAG_9				0x09
+
+/* ASN.1 Identifier Octet - Primitive/Constructor Bit */
+#define ASN1_PC_MASK			0x20
+#define ASN1_PRIMITIVE			0x00
+#define ASN1_CONSTRUCTOR		0x20
+
+/* ASN.1 Identifier Octet - Clan Bits */
+#define ASN1_CLAN_MASK			0xc0
+#define ASN1_UNIVERSAL			0x00
+#define ASN1_APPLICATION		0x40
+#define ASN1_CONTEXT_SPECIFIC	0x80
+#define ASN1_PRIVATE			0xc0
+
 
 #define INVOKE_OPERATION_INT	__USE_ASN1_INTEGER
 #define INVOKE_OBJECT_ID		__USE_ASN1_OBJECTIDENTIFIER
@@ -103,7 +139,7 @@ struct rose_component {
 };
 
 #define GET_COMPONENT(component, idx, ptr, length) \
-	if ((idx)+2 >= (length)) \
+	if ((idx)+2 > (length)) \
 		break; \
 	(component) = (struct rose_component*)&((ptr)[idx]); \
 	if ((idx)+(component)->len+2 > (length)) { \
@@ -128,7 +164,7 @@ struct rose_component {
 	(idx) += 2
 
 #define CHECK_COMPONENT(component, comptype, message) \
-	if ((component)->type && ((component)->type&0x1f) != (comptype)) { \
+	if ((component)->type && ((component)->type & ASN1_TYPE_MASK) != (comptype)) { \
 		pri_message((message), (component)->type); \
 		break; \
 	}

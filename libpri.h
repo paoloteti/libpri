@@ -37,7 +37,8 @@
 #define PRI_DEBUG_Q931_DUMP		(1 << 5)	/* Show interpreted Q.931 frames */
 #define PRI_DEBUG_Q931_STATE	(1 << 6)	/* Debug Q.931 state machine changes */
 #define	PRI_DEBUG_Q931_ANOMALY 	(1 << 7)	/* Show unexpected events */
-#define PRI_DEBUG_APDU		(1 << 8)	/* Debug of APDU components such as ROSE */
+#define PRI_DEBUG_APDU			(1 << 8)	/* Debug of APDU components such as ROSE */
+#define PRI_DEBUG_AOC			(1 << 9)	/* Debug of Advice of Charge ROSE Messages */
 
 #define PRI_DEBUG_ALL			(0xffff)	/* Everything */
 
@@ -53,7 +54,7 @@
 #define PRI_SWITCH_GR303_EOC		8	/* GR-303 Embedded Operations Channel */
 #define PRI_SWITCH_GR303_TMC		9	/* GR-303 Timeslot Management Channel */
 #define PRI_SWITCH_QSIG			10	/* QSIG Switch */
-/* Switchtypes 10 - 20 are reserved for internal use */
+/* Switchtypes 11 - 20 are reserved for internal use */
 
 
 /* PRI D-Channel Events */
@@ -322,6 +323,7 @@ typedef struct pri_event_hangup {
 	int cause;
 	int cref;
 	q931_call *call;			/* Opaque call pointer */
+	long aoc_units;				/* Advise of Charge number of charged units */
 } pri_event_hangup;	
 
 typedef struct pri_event_restart_ack {

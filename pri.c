@@ -474,6 +474,9 @@ int pri_channel_bridge(q931_call *call1, q931_call *call2)
 			call2->pri->switchtype != PRI_SWITCH_LUCENT5E)
 		return -1;
 
+	/* Check for bearer capability */
+	if (call1->transcapability != call2->transcapability)
+		return -1;
 	/* Check to see if calls are on the same PRI dchannel
 	 * Currently only support calls on the same dchannel
 	 */

@@ -219,6 +219,8 @@ struct q931_call {
         int useruserprotocoldisc;
 	char useruserinfo[256];
 	char callingsubaddr[256];	/* Calling parties sub address */
+	
+	long aoc_units;				/* Advice of Charge Units */
 
 	struct apdu_event *apdus;	/* APDU queue for call */
 };
