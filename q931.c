@@ -255,6 +255,8 @@ struct q931_call {
 	int callerpres;			/* Caller presentation */
 	char callernum[256];	/* Caller */
 	char callername[256];
+
+	int ani2;               /* ANI II */
 	
 	int  calledplan;
 	int nonisdn;
@@ -1415,6 +1417,7 @@ static FUNC_DUMP(dump_line_information)
 
 static FUNC_RECV(receive_line_information)
 {
+	call->ani2 = ie->data[0];
 	return 0;
 }
 
@@ -2646,6 +2649,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.channel = c->channelno | (c->ds1no << 8);
 		pri->ev.ring.callingpres = c->callerpres;
 		pri->ev.ring.callingplan = c->callerplan;
+		pri->ev.ring.ani2 = c->ani2;
 		strncpy(pri->ev.ring.callingnum, c->callernum, sizeof(pri->ev.ring.callingnum) - 1);
 		strncpy(pri->ev.ring.callingname, c->callername, sizeof(pri->ev.ring.callingname) - 1);
 		pri->ev.ring.calledplan = c->calledplan;

@@ -279,6 +279,7 @@ typedef struct pri_event_ring {
 	char callingnum[256];		/* Calling number */
 	char callingname[256];		/* Calling name (if provided) */
 	int calledplan;				/* Dialing plan of Called number */
+	int ani2;                   /* ANI II */
 	char callednum[256];		/* Called number */
 	char redirectingnum[256];		/* Redirecting number */
 	char useruserinfo[256];			/* User->User info */
