@@ -199,6 +199,13 @@ int pri_disconnect(struct pri *pri, q931_call *call, int cause)
 	return q931_disconnect(pri, call, cause);
 }
 
+int pri_reset(struct pri *pri, int channel)
+{
+	if (!pri)
+		return -1;
+	return q931_restart(pri, channel);
+}
+
 q931_call *pri_new_call(struct pri *pri)
 {
 	if (!pri)

@@ -229,6 +229,8 @@ extern int q931_release(struct pri *pri, q931_call *call, int cause);
 
 extern int q931_disconnect(struct pri *pri, q931_call *call, int cause);
 
+extern int q931_restart(struct pri *pri, int channel);
+
 extern q931_call *q931_new_call(struct pri *pri);
 
 extern int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
