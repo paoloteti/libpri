@@ -390,4 +390,7 @@ extern void pri_set_overlapdial(struct pri *pri,int state);
 #define PRI_DUMP_INFO
 extern void pri_dump_info(struct pri *pri);
 
+/* Get file descriptor */
+extern int pri_fd(struct pri *pri);
+
 #endif

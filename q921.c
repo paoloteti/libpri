@@ -170,6 +170,22 @@ static int q921_ack_packet(struct pri *pri, int num)
 			free(f);
 			/* Reset retransmission counter if we actually acked something */
 			pri->retrans = 0;
+			/* Decrement window size */
+			pri->windowlen--;
+			/* Search for something to send */
+			f = pri->txqueue;
+			while(f) {
+				if (!f->transmitted) {
+					/* Send it now... */
+					if (pri->debug & PRI_DEBUG_Q921_STATE)
+						pri_message("-- Finally transmitting %d, since window opened up\n", f->h.n_s);
+					f->transmitted++;
+					pri->windowlen++;
+					q921_transmit(pri, (q921_h *)(&f->h), f->len);
+					break;
+				}
+				f = f->next;
+			}
 			return 1;
 		}
 		prev = f;
@@ -319,8 +335,11 @@ static void t200_expire(void *vpri)
             pri_message("-- Retransmitting %d bytes\n", pri->txqueue->len);
 		if (pri->busy) 
 			q921_rr(pri, 1, 0);
-		else
+		else {
+			if (!pri->txqueue->transmitted) 
+				pri_error("!! Not good - head of queue has not been transmitted yet\n");
 			q921_transmit(pri, (q921_h *)&pri->txqueue->h, pri->txqueue->len);
+		}
          if (pri->debug & PRI_DEBUG_Q921_STATE) 
                pri_message("-- Rescheduling retransmission (%d)\n", pri->retrans);
          pri->t200_timer = pri_schedule_event(pri, T_200, t200_expire, pri);
@@ -362,6 +381,7 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 		break;
 		}
 		f->next = NULL;
+		f->transmitted = 0;
 		f->len = len + 4;
 		memcpy(f->h.data, buf, len);
 		f->h.n_s = pri->v_s;
@@ -374,9 +394,18 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 			prev->next = f;
 		else
 			pri->txqueue = f;
-		/* Immediately transmit unless we're in a recovery state */
+		/* Immediately transmit unless we're in a recovery state, or the window
+		   size is too big */
 		if (!pri->retrans && !pri->busy) {
-			q921_transmit(pri, (q921_h *)(&f->h), f->len);
+			if (pri->windowlen < pri->window) {
+				pri->windowlen++;
+				q921_transmit(pri, (q921_h *)(&f->h), f->len);
+				f->transmitted++;
+			} else {
+				if (pri->debug & PRI_DEBUG_Q921_STATE)
+					pri_message("Delaying transmission of %d, window is %d/%d long\n", 
+						f->h.n_s, pri->windowlen, pri->window);
+			}
 		}
 		if (pri->t203_timer) {
 			if (pri->debug & PRI_DEBUG_Q921_STATE)
@@ -468,7 +497,7 @@ void q921_dump(q921_h *h, int len, int showraw, int txrx)
 		pri_message("\n%c [", direction_tag);
 		for (x=0;x<len;x++) 
 			pri_message("%02x ",h->raw[x]);
-		pri_message("]");
+		pri_message("]\n");
 	}
 
 	switch (h->h.data[0] & Q921_FRAMETYPE_MASK) {
@@ -627,6 +656,7 @@ void q921_reset(struct pri *pri)
 	pri->v_r = 0;
 	pri->v_na = 0;
 	pri->window = 7;
+	pri->windowlen = 0;
 	pri_schedule_del(pri, pri->sabme_timer);
 	pri_schedule_del(pri, pri->t203_timer);
 	pri_schedule_del(pri, pri->t200_timer);
@@ -731,8 +761,9 @@ static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 		 sendnow = 0;
          /* Resend the proper I-frame */
          for(f=pri->txqueue;f;f=f->next) {
-               if (sendnow || (f->h.n_s == h->s.n_r)) {
-                     /* Matches the request, or follows in our window */
+               if ((sendnow || (f->h.n_s == h->s.n_r)) && f->transmitted) {
+                     /* Matches the request, or follows in our window, and has
+					    already been transmitted. */
 					 sendnow = 1;
 					 pri_error("!! Got reject for frame %d, retransmitting frame %d now, updating n_r!\n", h->s.n_r, f->h.n_s);
 				     f->h.n_r = pri->v_r;

@@ -72,8 +72,8 @@ struct pri *pri_new(int fd, int node, int switchtype)
 		p->q931_rxcount = 0;
 		p->q931_txcount = 0;
 #endif
-		/* Start Q.921 layer */
-		q921_start(p, 1);
+		/* Start Q.921 layer, Wait if we're the network */
+		q921_start(p, p->localtype == PRI_CPE);
 	}
 	return p;
 }
@@ -336,6 +336,11 @@ void pri_error(char *fmt, ...)
 void pri_set_overlapdial(struct pri *pri,int state)
 {
 	pri->overlapdial = state;
+}
+
+int pri_fd(struct pri *pri)
+{
+	return pri->fd;
 }
 
 void pri_dump_info(struct pri *pri)

@@ -28,6 +28,7 @@
 #LIBPRI_COUNTERS=-DLIBPRI_COUNTERS
 
 TOBJS=testpri.o
+T2OBJS=testprilib.o
 STATIC_LIBRARY=libpri.a
 DYNAMIC_LIBRARY=libpri.so.1.0
 STATIC_OBJS=pri.o q921.o prisched.o q931.o
@@ -60,6 +61,12 @@ uninstall:
 pritest: pritest.o
 	$(CC) -o pritest pritest.o -L. -lpri -lzap
 
+testprilib.o: testprilib.c
+	$(CC) $(CFLAGS) -D_REENTRANT -D_GNU_SOURCE -o $@ -c $<
+
+testprilib: testprilib.o
+	$(CC) -o testprilib testprilib.o -L. -lpri -lpthread
+
 pridump: pridump.o
 	$(CC) -o pridump pridump.o -L. -lpri -lzap
 
@@ -77,5 +84,5 @@ $(DYNAMIC_LIBRARY): $(DYNAMIC_OBJS)
 
 clean:
 	rm -f *.o *.so *.lo *.so.1 *.so.1.0
-	rm -f testpri $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
+	rm -f testpri testprilib $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 	rm -f pritest pridump

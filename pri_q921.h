@@ -134,6 +134,7 @@ typedef union {
 typedef struct q921_frame {
 	struct q921_frame *next;	/* Next in list */
 	int len;					/* Length of header + body */
+	int transmitted;			/* Have we been transmitted */
 	q921_i h;
 } q921_frame;
 

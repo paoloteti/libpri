@@ -52,6 +52,7 @@ struct pri {
 	/* Q.921 State */
 	int q921_state;	
 	int window;			/* Max window size */
+	int windowlen;		/* Fullness of window */
 	int v_s;			/* Next N(S) for transmission */
 	int v_a;			/* Last acknowledged frame */
 	int v_r;			/* Next frame expected to be received */
