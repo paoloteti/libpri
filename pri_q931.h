@@ -123,6 +123,7 @@ typedef struct q931_ie {
 #define Q931_CONNECT_ACKNOWLEDGE	0x0f
 #define Q931_PROGRESS				0x03
 #define Q931_SETUP					0x05
+#define Q931_SETUP_ACKNOWLEDGE		0x0d
 
 /* Call Disestablishment Messages */
 #define Q931_DISCONNECT				0x45
@@ -134,9 +135,29 @@ typedef struct q931_ie {
 /* Miscellaneous Messages */
 #define Q931_STATUS					0x7d
 #define Q931_STATUS_ENQUIRY			0x75
+#define Q931_USER_INFORMATION		0x20
+#define Q931_SEGMENT				0x60
+#define Q931_CONGESTION_CONTROL		0x79
+#define Q931_INFORMATION			0x7b
+#define Q931_FACILITY				0x62
+#define Q931_NOTIFY					0x6e
+
+/* Call Management Messages */
+#define Q931_HOLD					0x24
+#define Q931_HOLD_ACKNOWLEDGE		0x28
+#define Q931_HOLD_REJECT			0x30
+#define Q931_RETRIEVE				0x31
+#define Q931_RETRIEVE_ACKNOWLEDGE	0x33
+#define Q931_RETRIEVE_REJECT		0x37
+#define Q931_RESUME					0x26
+#define Q931_RESUME_ACKNOWLEDGE		0x2e
+#define Q931_RESUME_REJECT			0x22
+#define Q931_SUSPEND				0x25
+#define Q931_SUSPEND_ACKNOWLEDGE	0x2d
+#define Q931_SUSPEND_REJECT			0x21
 
 /* Maintenance messages (codeset 0 only) */
-#define NATIONAL_SERVICE		0x0f
+#define NATIONAL_SERVICE			0x0f
 #define NATIONAL_SERVICE_ACKNOWLEDGE	0x07
 
 /* Special codeset 0 IE */
@@ -168,6 +189,30 @@ typedef struct q931_ie {
 #define Q931_RESTART_INDICATOR		0x79
 #define Q931_LOW_LAYER_COMPAT		0x7c
 #define Q931_HIGH_LAYER_COMPAT		0x7d
+
+#define Q931_IE_SEGMENTED_MSG			0x00
+#define Q931_IE_CHANGE_STATUS			0x01
+#define Q931_IE_CONNECTED_NUM			0x0C
+#define Q931_IE_CALL_IDENTITY			0x10
+#define Q931_IE_FACILITY				0x1c
+#define Q931_IE_ENDPOINT_ID				0x26
+#define Q931_IE_NOTIFY_IND				0x27
+#define Q931_IE_DISPLAY					0x28
+#define Q931_IE_TIME_DATE				0x29
+#define Q931_IE_KEYPAD_FACILITY			0x2c
+#define Q931_IE_CALL_STATUS				0x2d
+#define Q931_IE_UPDATE                  0x31
+#define Q931_IE_INFO_REQUEST            0x32
+#define Q931_IE_SIGNAL					0x34
+#define Q931_IE_SWITCHHOOK				0x36
+#define Q931_IE_FEATURE_ACTIVATE		0x38
+#define Q931_IE_FEATURE_IND				0x39
+#define Q931_IE_ORIGINAL_CALLED_NUMBER 	0x73
+#define Q931_IE_REDIRECTION_NUMBER		0x76
+#define Q931_IE_REDIRECTION_SUBADDR		0x77
+#define Q931_IE_USER_USER_FACILITY		0x7A
+#define Q931_IE_USER_USER				0x7E
+#define Q931_IE_ESCAPE_FOR_EXT			0x7F
 
 extern int q931_receive(struct pri *pri, q931_h *h, int len);
 
