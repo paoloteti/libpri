@@ -65,6 +65,7 @@
 #define PRI_EVENT_INFO_RECEIVED 12	/* Additional info (keypad) received */
 #define PRI_EVENT_PROCEEDING	13	/* When we get CALL_PROCEEDING or PROGRESS */
 #define PRI_EVENT_SETUP_ACK	14	/* When we get SETUP_ACKNOWLEDGE */
+#define PRI_EVENT_HANGUP_REQ	15	/* Requesting the higher layer to hangup */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
