@@ -1,3 +1,6 @@
+-- Fix Endian to compile for FreeBSD
+
+...
 libpri 0.3.0
 -- Fix talking to switch
 -- Add pri dump
