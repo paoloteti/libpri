@@ -1376,13 +1376,25 @@ static FUNC_DUMP(dump_cause)
 	pri_message("%c                  Ext: %d  Cause: %s (%d), class = %s (%d) ]\n",
 		prefix, (ie->data[1] >> 7), pri_cause2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f, 
 			pri_causeclass2str((ie->data[1] & 0x7f) >> 4), (ie->data[1] & 0x7f) >> 4);
-	if((ie->data[1] & 0x7f) == 0x63) { /* Cause: Inf. element nonexists or not implemented */
+	/* Dump cause data in readable form */
+	switch(ie->data[1] & 0x7f) {
+	case PRI_CAUSE_IE_NONEXIST:
 		for (x=2;x<ie->len;x++) 
 			pri_message("%c              Cause data %d: %02x (%d, %s IE)\n", prefix, x-1, ie->data[x], ie->data[x], ie2str(ie->data[x]));
-	}
-	else {
+		break;
+	case PRI_CAUSE_RECOVERY_ON_TIMER_EXPIRE:
+		pri_message("%c              Cause data:", prefix);
+		for (x=2;x<ie->len;x++)
+			pri_message(" %02x", ie->data[x]);
+		pri_message(" (Timer T");
+		for (x=2;x<ie->len;x++)
+			pri_message("%c", ((ie->data[x] >= ' ') && (ie->data[x] < 0x7f)) ? ie->data[x] : '.');
+		pri_message(")\n");
+		break;
+	default:
 		for (x=2;x<ie->len;x++) 
 			pri_message("%c              Cause data %d: %02x (%d)\n", prefix, x-1, ie->data[x], ie->data[x]);
+		break;
 	}
 }
 
