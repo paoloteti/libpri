@@ -60,6 +60,8 @@
 #define PRI_EVENT_ANSWER	 	8	/* Call has been answered */
 #define PRI_EVENT_HANGUP_ACK	9	/* Call hangup has been acknowledged */
 #define PRI_EVENT_RESTART_ACK	10	/* Restart complete on a given channel */
+#define PRI_EVENT_FACNAME	11	/* Caller*ID Name received on Facility */
+#define PRI_EVENT_INFO_RECEIVED 12	/* Additional info (keypad) received */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
@@ -205,14 +207,26 @@ typedef struct pri_event_answer {
 	q931_call *call;
 } pri_event_answer;
 
+typedef struct pri_event_facname {
+	int e;
+	char callingname[256];
+	char callingnum[256];
+	int channel;
+	int cref;
+	q931_call *call;
+} pri_event_facname;
+
 typedef struct pri_event_ring {
 	int e;
 	int channel;				/* Channel requested */
 	int callingpres;			/* Presentation of Calling CallerID */
 	int callingplan;			/* Dialing plan of Calling entity */
 	char callingnum[256];		/* Calling number */
+	char callingname[256];		/* Calling name (if provided) */
 	int calledplan;				/* Dialing plan of Called number */
 	char callednum[256];		/* Called number */
+	char redirectingnum[256];		/* Redirecting number */
+	char useruserinfo[256];			/* User->User info */
 	int flexible;				/* Are we flexible with our channel selection? */
 	int cref;					/* Call Reference Number */
 	int ctype;					/* Call type (see PRI_TRANS_CAP_* */
@@ -238,6 +252,7 @@ typedef union {
 	pri_event_generic gen;		/* Generic view */
 	pri_event_restart restart;	/* Restart view */
 	pri_event_error	  err;		/* Error view */
+	pri_event_facname facname;	/* Caller*ID Name on Facility */
 	pri_event_ring	  ring;		/* Ring */
 	pri_event_hangup  hangup;	/* Hang up */
 	pri_event_ringing ringing;	/* Ringing */
@@ -293,6 +308,10 @@ extern char *pri_cause2str(int cause);
    is in-band data available on the channel */
 extern int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info);
 
+/* Answer the incomplete(call without called number) call on the given channel.
+   Set non-isdn to non-zero if you are not connecting to ISDN equipment */
+extern int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisdn);
+
 /* Answer the call on the given channel (ignored if you called acknowledge already).
    Set non-isdn to non-zero if you are not connecting to ISDN equipment */
 extern int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn);
@@ -315,6 +334,10 @@ extern struct timeval *pri_schedule_next(struct pri *pri);
 extern pri_event *pri_schedule_run(struct pri *pri);
 
 extern int pri_call(struct pri *pri, q931_call *c, int transmode, int channel,
-   int exclusive, int nonisdn, char *caller, int callerplan, int callerpres,
+   int exclusive, int nonisdn, char *caller, int callerplan, char *callername, int callerpres,
 	 char *called,int calledplan, int ulayer1);
+	 
+/* Override message and error stuff */
+extern void pri_set_message(void (*__pri_error)(char *));
+extern void pri_set_error(void (*__pri_error)(char *));
 #endif

@@ -190,6 +190,7 @@ typedef struct q931_ie {
 #define Q931_LOW_LAYER_COMPAT		0x7c
 #define Q931_HIGH_LAYER_COMPAT		0x7d
 
+#define Q931_DISPLAY					0x28
 #define Q931_IE_SEGMENTED_MSG			0x00
 #define Q931_IE_CHANGE_STATUS			0x01
 #define Q931_IE_CONNECTED_NUM			0x0C
@@ -197,7 +198,6 @@ typedef struct q931_ie {
 #define Q931_IE_FACILITY				0x1c
 #define Q931_IE_ENDPOINT_ID				0x26
 #define Q931_IE_NOTIFY_IND				0x27
-#define Q931_IE_DISPLAY					0x28
 #define Q931_IE_TIME_DATE				0x29
 #define Q931_IE_KEYPAD_FACILITY			0x2c
 #define Q931_IE_CALL_STATUS				0x2d
@@ -223,6 +223,8 @@ extern int q931_alerting(struct pri *pri, q931_call *call, int channel, int info
 
 extern int q931_call_proceeding(struct pri *pri, q931_call *call);
 
+extern int q931_setup_ack(struct pri *pri, q931_call *call, int channel, int nonisdn);
+
 extern int q931_connect(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
 extern int q931_release(struct pri *pri, q931_call *call, int cause);
@@ -234,7 +236,7 @@ extern int q931_restart(struct pri *pri, int channel);
 extern q931_call *q931_new_call(struct pri *pri);
 
 extern int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
-					int nonisdn, char *caller, int callerplan, int callerpres, char *called,
+					int nonisdn, char *caller, int callerplan, char *callername, int callerpres, char *called,
 					int calledplan, int ulay1);
 extern void q931_dump(q931_h *h, int len, int txrx);
 #endif

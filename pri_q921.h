@@ -137,7 +137,7 @@ typedef struct q921_frame {
 	q921_i h;
 } q921_frame;
 
-#define Q921_INC(j) (j) = ((j) + 1) % 128
+#define Q921_INC(j) (j) = (((j) + 1) % 128)
 
 typedef enum q921_state {
 	Q921_LINK_CONNECTION_RELEASED,	/* Also known as TEI_ASSIGNED */
@@ -150,7 +150,7 @@ typedef enum q921_state {
 extern void q921_dump(q921_h *h, int len, int showraw, int txrx);
 
 /* Bring up the D-channel */
-extern void q921_start(struct pri *pri);
+extern void q921_start(struct pri *pri, int now);
 
 extern void q921_reset(struct pri *pri);
 

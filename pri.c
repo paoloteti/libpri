@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/select.h>
+#include <stdarg.h>
 #include "libpri.h"
 #include "pri_internal.h"
 #include "pri_q921.h"
@@ -64,7 +65,7 @@ struct pri *pri_new(int fd, int node, int switchtype)
 		p->switchtype = switchtype;
 		p->cref = 1;
 		/* Start Q.921 layer */
-		q921_start(p);
+		q921_start(p, 1);
 	}
 	return p;
 }
@@ -95,9 +96,11 @@ pri_event *pri_check_event(struct pri *pri)
 	res = read(pri->fd, buf, sizeof(buf));
 	if (res < 0) {
 		if (errno != EAGAIN)
-			fprintf(stderr, "Read on %d failed: %s\n", pri->fd, strerror(errno));
+			pri_error("Read on %d failed: %s\n", pri->fd, strerror(errno));
 		return NULL;
 	}
+	if (!res)
+		return NULL;
 	/* Receive the q921 packet */
 	e = q921_receive(pri, (q921_h *)buf, res);
 	return e;
@@ -178,6 +181,13 @@ int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info)
 	return q931_alerting(pri, call, channel, info);
 }
 
+int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisdn)
+{
+	if (!pri || !call)
+		return -1;
+	return q931_setup_ack(pri, call, channel, nonisdn);
+}
+
 int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn)
 {
 	if (!pri || !call)
@@ -217,34 +227,73 @@ void pri_dump_event(struct pri *pri, pri_event *e)
 {
 	if (!pri || !e)
 		return;
-	printf("Event type: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
+	pri_message("Event type: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
 	switch(e->gen.e) {
 	case PRI_EVENT_DCHAN_UP:
 	case PRI_EVENT_DCHAN_DOWN:
 		break;
 	case PRI_EVENT_CONFIG_ERR:
-		printf("Error: %s", e->err.err);
+		pri_message("Error: %s", e->err.err);
 		break;
 	case PRI_EVENT_RESTART:
-		printf("Restart on channel %d\n", e->restart.channel);
+		pri_message("Restart on channel %d\n", e->restart.channel);
 	case PRI_EVENT_RING:
-		printf("Calling number: %s (%s, %s)\n", e->ring.callingnum, pri_plan2str(e->ring.callingplan), pri_pres2str(e->ring.callingpres));
-		printf("Called number: %s (%s)\n", e->ring.callednum, pri_plan2str(e->ring.calledplan));
-		printf("Channel: %d (%s) Reference number: %d\n", e->ring.channel, e->ring.flexible ? "Flexible" : "Not Flexible", e->ring.cref);
+		pri_message("Calling number: %s (%s, %s)\n", e->ring.callingnum, pri_plan2str(e->ring.callingplan), pri_pres2str(e->ring.callingpres));
+		pri_message("Called number: %s (%s)\n", e->ring.callednum, pri_plan2str(e->ring.calledplan));
+		pri_message("Channel: %d (%s) Reference number: %d\n", e->ring.channel, e->ring.flexible ? "Flexible" : "Not Flexible", e->ring.cref);
 		break;
 	case PRI_EVENT_HANGUP:
-		printf("Hangup, reference number: %d, reason: %s\n", e->hangup.cref, pri_cause2str(e->hangup.cause));
+		pri_message("Hangup, reference number: %d, reason: %s\n", e->hangup.cref, pri_cause2str(e->hangup.cause));
 		break;
 	default:
-		printf("Don't know how to dump events of type %d\n", e->gen.e);
+		pri_message("Don't know how to dump events of type %d\n", e->gen.e);
 	}
 }
 
 int pri_call(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
-					int nonisdn, char *caller, int callerplan, int callerpres, char *called,
+					int nonisdn, char *caller, int callerplan, char *callername, int callerpres, char *called,
 					int calledplan,int ulayer1)
 {
 	if (!pri || !c)
 		return -1;
-	return q931_setup(pri, c, transmode, channel, exclusive, nonisdn, caller, callerplan, callerpres, called, calledplan, ulayer1);					
+	return q931_setup(pri, c, transmode, channel, exclusive, nonisdn, caller, callerplan, callername, callerpres, called, calledplan, ulayer1);					
 }	
+
+static void (*__pri_error)(char *stuff);
+static void (*__pri_message)(char *stuff);
+
+void pri_set_message(void (*func)(char *stuff))
+{
+	__pri_message = func;
+}
+
+void pri_set_error(void (*func)(char *stuff))
+{
+	__pri_error = func;
+}
+
+void pri_message(char *fmt, ...)
+{
+	char tmp[1024];
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(tmp, sizeof(tmp), fmt, ap);
+	va_end(ap);
+	if (__pri_message)
+		__pri_message(tmp);
+	else
+		fprintf(stdout, tmp);
+}
+
+void pri_error(char *fmt, ...)
+{
+	char tmp[1024];
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(tmp, sizeof(tmp), fmt, ap);
+	va_end(ap);
+	if (__pri_error)
+		__pri_error(tmp);
+	else
+		fprintf(stderr, tmp);
+}

@@ -61,7 +61,7 @@ struct msgtype msgs[] = {
 	{ Q931_SEGMENT, "SEGMENT" },
 	{ Q931_CONGESTION_CONTROL, "CONGESTION CONTROL" },
 	{ Q931_INFORMATION, "INFORMATION" },
-	{ Q931_FACILITY, "FACLITY" },
+	{ Q931_FACILITY, "FACILITY" },
 	{ Q931_NOTIFY, "NOTIFY" },
 
 	/* Call Management */
@@ -192,9 +192,10 @@ struct q931_call {
 	/* Channel flags (0 means none retrieved) */
 	int chanflags;
 	
-	int alive;				/* Whether or not the call is alive */
+	int alive;			/* Whether or not the call is alive */
+	int acked;			/* Whether setup has been acked or not */
 	int sendhangupack;		/* Whether or not to send a hangup ack */
-	int proc;				/* Whether we've sent a call proceeding / alerting */
+	int proc;			/* Whether we've sent a call proceeding / alerting */
 	
 	int ri;			/* Restart Indicator (Restart Indicator IE) */
 
@@ -222,10 +223,19 @@ struct q931_call {
 	int callerplan;
 	int callerpres;			/* Caller presentation */
 	char callernum[256];	/* Caller */
+	char callername[256];
 	
 	int  calledplan;
 	int nonisdn;
 	char callednum[256];	/* Called Number */
+
+	int redirectingplan;
+	int redirectingpres;
+	int redirectingreason;	      
+	char redirectingnum[256];
+
+        int useruserprotocoldisc;
+	char useruserinfo[256];
 };
 
 struct ie {
@@ -278,14 +288,18 @@ static int receive_channel_id(struct pri *pri, q931_call *call, int msgtype, q93
 {	
 	int x;
 	int pos=0;
-	if (!ie->data[0] & 0x20) {
-		fprintf(stderr, "!! Not PRI type!?\n");
-		return -1;
-	}
+#ifdef NO_BRI_SUPPORT
+ 	if (!ie->data[0] & 0x20) {
+		pri_error("!! Not PRI type!?\n");
+ 		return -1;
+ 	}
+#endif
+#ifndef NOAUTO_CHANNEL_SELECTION_SUPPORT
 	if ((ie->data[0] & 3) != 1) {
-		fprintf(stderr, "!! Unexpected Channel selection %d\n", ie->data[0] & 3);
+		pri_error("!! Unexpected Channel selection %d\n", ie->data[0] & 3);
 		return -1;
 	}
+#endif
 	if (ie->data[0] & 0x08)
 		call->chanflags = FLAG_EXCLUSIVE;
 	else
@@ -296,14 +310,14 @@ static int receive_channel_id(struct pri *pri, q931_call *call, int msgtype, q93
 		call->ds1no = ie->data[1] & 0x7f;
 		pos++;
 	} 
-	if (pos < len) {
+	if (pos+2 < len) {
 		/* More coming */
 		if ((ie->data[pos] & 0x0f) != 3) {
-			fprintf(stderr, "!! Unexpected Channel Type %d\n", ie->data[1] & 0x0f);
+			pri_error("!! Unexpected Channel Type %d\n", ie->data[1] & 0x0f);
 			return -1;
 		}
 		if ((ie->data[pos] & 0x60) != 0) {
-			fprintf(stderr, "!! Invalid CCITT coding %d\n", (ie->data[1] & 0x60) >> 5);
+			pri_error("!! Invalid CCITT coding %d\n", (ie->data[1] & 0x60) >> 5);
 			return -1;
 		}
 		if (ie->data[pos] & 0x10) {
@@ -367,7 +381,7 @@ static int transmit_channel_id(struct pri *pri, q931_call *call, int msgtype, q9
 		/* We're done */
 		return pos + 2;
 	}
-	fprintf(stderr, "!! No channel map, no channel, and no ds1?  What am I supposed to identify?\n");
+	pri_error("!! No channel map, no channel, and no ds1?  What am I supposed to identify?\n");
 	return -1;
 }
 
@@ -376,30 +390,36 @@ static void dump_channel_id(q931_ie *ie, int len, char prefix)
 	int pos=0;
 	int x;
 	int res = 0;
-	printf("%c Channel ID (len=%2d) [ Ext: %d  IntID: %s, %s Spare: %d, %s Dchan: %d, ChanSel: %d \n",
+	static const char*	msg_chan_sel[] = {
+		"No channel selected", "B1 channel", "B2 channel","Any channel selected" 
+		"No channel selected", "As indicated in following octets", "Reserved","Any channel selected"
+	};
+
+	pri_message("%c Channel ID (len=%2d) [ Ext: %d  IntID: %s, %s Spare: %d, %s Dchan: %d\n",
 		prefix, len, (ie->data[0] & 0x80) ? 1 : 0, (ie->data[0] & 0x40) ? "Explicit" : "Implicit",
 		(ie->data[0] & 0x20) ? "PRI" : "Other", (ie->data[0] & 0x10) ? 1 : 0,
-		(ie->data[0] & 0x08) ? "Exclusive" : "Preferred",  (ie->data[0] & 0x04) ? 1 : 0,
-		ie->data[0] & 0x3);
+		(ie->data[0] & 0x08) ? "Exclusive" : "Preferred",  (ie->data[0] & 0x04) ? 1 : 0);
+	pri_message("%c                        ChanSel: %s\n",
+		prefix, msg_chan_sel[(ie->data[0] & 0x3) + ((ie->data[0]>>3) & 0x4)]);
 	pos++;
 	len--;
 	if (ie->data[0] &  0x40) {
 		/* Explicitly defined DS1 */
-		printf("%c                       Ext: %d  DS1 Identifier: %d  \n", prefix, (ie->data[pos] & 0x80) >> 7, ie->data[pos] & 0x7f);
+		pri_message("%c                       Ext: %d  DS1 Identifier: %d  \n", prefix, (ie->data[pos] & 0x80) >> 7, ie->data[pos] & 0x7f);
 		pos++;
 		len--;
 	} else {
 		/* Implicitly defined DS1 */
 	}
-	if (pos < len) {
+	if (pos+2 < len) {
 		/* Still more information here */
-		printf("%c                       Ext: %d  Coding: %d   %s Specified   Channel Type: %d\n",
+		pri_message("%c                       Ext: %d  Coding: %d   %s Specified   Channel Type: %d\n",
 				prefix, (ie->data[pos] & 0x80) >> 7, (ie->data[pos] & 60) >> 5, 
 				(ie->data[pos] & 0x10) ? "Slot Map" : "Number", ie->data[pos] & 0x0f);
 		if (!(ie->data[pos] & 0x10)) {
 			/* Number specified */
 			pos++;
-			printf("%c                       Ext: %d  Channel: %d ]\n", prefix, (ie->data[pos] & 0x80) >> 7, 
+			pri_message("%c                       Ext: %d  Channel: %d ]\n", prefix, (ie->data[pos] & 0x80) >> 7, 
 				(ie->data[pos]) & 0x7f);
 		} else {
 			pos++;
@@ -408,9 +428,9 @@ static void dump_channel_id(q931_ie *ie, int len, char prefix)
 				res <<= 8;
 				res |= ie->data[pos++];
 			}
-			printf("%c                       Map: %s ]\n", prefix, binary(res, 24));
+			pri_message("%c                       Map: %s ]\n", prefix, binary(res, 24));
 		}
-	} else printf("                         ]\n");				
+	} else pri_message("                         ]\n");				
 }
 
 static char *ri2str(int ri)
@@ -425,7 +445,7 @@ static char *ri2str(int ri)
 
 static void dump_restart_indicator(q931_ie *ie, int len, char prefix)
 {
-	printf("%c Restart Indentifier: [ Ext: %d  Spare: %d  Resetting %s (%d) ]\n", 
+	pri_message("%c Restart Indentifier: [ Ext: %d  Spare: %d  Resetting %s (%d) ]\n", 
 		prefix, (ie->data[0] & 0x80) >> 7, (ie->data[0] & 0x78) >> 3, ri2str(ie->data[0] & 0x7), ie->data[0] & 0x7);
 }
 
@@ -450,7 +470,7 @@ static int transmit_restart_indicator(struct pri *pri, q931_call *call, int msgt
 		ie->data[0] = 0xA0 | (call->ri & 0x7);
 		break;
 	default:
-		fprintf(stderr, "!! Invalid restart indicator value %d\n", call->ri);
+		pri_error("!! Invalid restart indicator value %d\n", call->ri);
 		return-1;
 	}
 	return 3;
@@ -541,11 +561,11 @@ static char *l32str(int proto)
 static void dump_bearer_capability(q931_ie *ie, int len, char prefix)
 {
 	int pos=2;
-	printf("%c Bearer Capability (len=%2d) [ Ext: %d  Q.931 Std: %d  Info transfer capability: %s (%d)\n",
+	pri_message("%c Bearer Capability (len=%2d) [ Ext: %d  Q.931 Std: %d  Info transfer capability: %s (%d)\n",
 		prefix, ie->len, (ie->data[0] & 0x80 ) >> 7, (ie->data[0] & 0x60) >> 5, cap2str(ie->data[0] & 0x1f), (ie->data[0] & 0x1f));
-	printf("%c                              Ext: %d  Trans mode/rate: %s (%d)\n", prefix, (ie->data[1] & 0x80) >> 7, mode2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f);
+	pri_message("%c                              Ext: %d  Trans mode/rate: %s (%d)\n", prefix, (ie->data[1] & 0x80) >> 7, mode2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f);
 	if ((ie->data[1] & 0x7f) == 0x18) {
-	    printf("%c                              Ext: %d  Transfer rate multiplier: %d x 64\n", prefix, (ie->data[2] & 0x80) >> 7, ie->data[2] & 0x7f);
+	    pri_message("%c                              Ext: %d  Transfer rate multiplier: %d x 64\n", prefix, (ie->data[2] & 0x80) >> 7, ie->data[2] & 0x7f);
 		pos++;
 	}
 	/* Stop here if no more */
@@ -553,15 +573,15 @@ static void dump_bearer_capability(q931_ie *ie, int len, char prefix)
 		return;
 	if ((ie->data[1] & 0x7f) != TRANS_MODE_PACKET) {
 		/* Look for octets 5 and 5.a if present */
-		printf("%c                              Ext: %d  User information layer 1: %s (%d)\n", prefix, (ie->data[pos] >> 7), l12str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
+		pri_message("%c                              Ext: %d  User information layer 1: %s (%d)\n", prefix, (ie->data[pos] >> 7), l12str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
 		if ((ie->data[pos] & 0x7f) == PRI_LAYER_1_ITU_RATE_ADAPT)
-			printf("%c                                Ext: %d  Rate adaptatation: %s (%d)\n", prefix, ie->data[pos] >> 7, ra2str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
+			pri_message("%c                                Ext: %d  Rate adaptatation: %s (%d)\n", prefix, ie->data[pos] >> 7, ra2str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
 		pos++;
 	} else {
 		/* Look for octets 6 and 7 but not 5 and 5.a */
-		printf("%c                              Ext: %d  User information layer 2: %s (%d)\n", prefix, ie->data[pos] >> 7, l22str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
+		pri_message("%c                              Ext: %d  User information layer 2: %s (%d)\n", prefix, ie->data[pos] >> 7, l22str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
 		pos++;
-		printf("%c                              Ext: %d  User information layer 3: %s (%d)\n", prefix, ie->data[pos] >> 7, l32str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
+		pri_message("%c                              Ext: %d  User information layer 3: %s (%d)\n", prefix, ie->data[pos] >> 7, l32str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
 		pos++;
 	}
 }
@@ -570,7 +590,7 @@ static int receive_bearer_capability(struct pri* pri, q931_call *call, int msgty
 {
 	int pos=2;
 	if (ie->data[0] & 0x60) {
-		fprintf(stderr, "!! non-standard Q.931 standard field\n");
+		pri_error("!! non-standard Q.931 standard field\n");
 		return -1;
 	}
 	call->transcapability = ie->data[0] & 0x1f;
@@ -698,7 +718,7 @@ static void dump_called_party_number(q931_ie *ie, int len, char prefix)
 	char cnum[256];
 
 	q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
-	printf("%c Called Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d) '%s' ]\n",
+	pri_message("%c Called Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d) '%s' ]\n",
 		prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f, cnum);
 }
 
@@ -706,7 +726,7 @@ static void dump_called_party_subaddr(q931_ie *ie, int len, char prefix)
 {
 	char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
-	printf("%c Called Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
+	pri_message("%c Called Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
 		prefix, len, ie->data[0] >> 7,
 		subaddrtype2str((ie->data[0] & 0x70) >> 4), (ie->data[0] & 0x70) >> 4,
 		(ie->data[0] & 0x08) >> 3, cnum);
@@ -717,15 +737,15 @@ static void dump_calling_party_number(q931_ie *ie, int len, char prefix)
 	char cnum[256];
 
 	q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
-	printf("%c Calling Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)\n", prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
-	printf("%c                           Presentation: %s (%d) '%s' ]\n", prefix, pri_pres2str(ie->data[1]), ie->data[1] & 0x7f, cnum);
+	pri_message("%c Calling Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)\n", prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
+	pri_message("%c                           Presentation: %s (%d) '%s' ]\n", prefix, pri_pres2str(ie->data[1]), ie->data[1] & 0x7f, cnum);
 }
 
 static void dump_calling_party_subaddr(q931_ie *ie, int len, char prefix)
 {
 	char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
-	printf("%c Calling Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
+	pri_message("%c Calling Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
 		prefix, len, ie->data[0] >> 7,
 		subaddrtype2str((ie->data[0] & 0x70) >> 4), (ie->data[0] & 0x70) >> 4,
 		(ie->data[0] & 0x08) >> 3, cnum);
@@ -735,15 +755,27 @@ static void dump_redirecting_number(q931_ie *ie, int len, char prefix)
 {
 	char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 3, len - 5);
-	printf("%c Redirecting Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)\n", prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
-	printf("%c                               Presentation: %s (%d)  Reason: %s (%d)  '%s' ]\n", prefix, pri_pres2str(ie->data[1]), ie->data[1] & 0x7f, redirection_reason2str(ie->data[2]), ie->data[2], cnum);
+	pri_message("%c Redirecting Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)\n", prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
+	pri_message("%c                               Presentation: %s (%d)  Reason: %s (%d)  '%s' ]\n", prefix, pri_pres2str(ie->data[1]), ie->data[1] & 0x7f, redirection_reason2str(ie->data[2]), ie->data[2], cnum);
 }
+
+
+static int receive_redirecting_number(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
+{        
+        call->redirectingplan = ie->data[0] & 0x7f;
+        call->redirectingpres = ie->data[1] & 0x7f;
+        call->redirectingreason = ie->data[2] & 0x0f;
+
+        q931_get_number(call->redirectingnum, sizeof(call->redirectingnum), ie->data + 3, len - 5);
+	return 0;
+}
+
 
 static void dump_redirecting_subaddr(q931_ie *ie, int len, char prefix)
 {
 	char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
-	printf("%c Redirecting Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
+	pri_message("%c Redirecting Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
 		prefix, len, ie->data[0] >> 7,
 		subaddrtype2str((ie->data[0] & 0x70) >> 4), (ie->data[0] & 0x70) >> 4,
 		(ie->data[0] & 0x08) >> 3, cnum);
@@ -751,7 +783,13 @@ static void dump_redirecting_subaddr(q931_ie *ie, int len, char prefix)
 
 static int receive_called_party_number(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
-	q931_get_number(call->callednum, sizeof(call->callednum), ie->data + 1, len - 3);
+#ifdef SKIP_OVERLAP_SUPPORT
+	/* copy digits to call->callednum */
+ 	q931_get_number(call->callednum, sizeof(call->callednum), ie->data + 1, len - 3);
+#else
+	/* append new digits to call->callednum */
+	q931_get_number(call->callednum + strlen(call->callednum), sizeof(call->callednum) - strlen(call->callednum), ie->data + 1, len - 3);
+#endif
 	call->calledplan = ie->data[0] & 0x7f;
 	return 0;
 }
@@ -766,9 +804,19 @@ static int transmit_called_party_number(struct pri *pri, q931_call *call, int ms
 
 static int receive_calling_party_number(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
-	q931_get_number(call->callernum, sizeof(call->callernum), ie->data + 2, len - 4);
-	call->callerplan = ie->data[0] & 0x7f;
-	call->callerpres = ie->data[1] & 0x7f;
+        int extbit;
+        
+        call->callerplan = ie->data[0] & 0x7f;
+        extbit = (ie->data[0] >> 7) & 0x01;
+
+        if (extbit) {
+	  q931_get_number(call->callernum, sizeof(call->callernum), ie->data + 1, len - 3);
+	  call->callerpres = 0; /* PI presentation allowed
+				   SI user-provided, not screened */        
+        } else {
+	  q931_get_number(call->callernum, sizeof(call->callernum), ie->data + 2, len - 4);
+	  call->callerpres = ie->data[1] & 0x7f;
+        }
 	return 0;
 }
 
@@ -779,6 +827,20 @@ static int transmit_calling_party_number(struct pri *pri, q931_call *call, int m
 	if (strlen(call->callednum)) 
 		memcpy(ie->data + 2, call->callernum, strlen(call->callernum));
 	return strlen(call->callernum) + 4;
+}
+
+static void dump_user_user(q931_ie *ie, int len, char prefix)
+{
+
+}
+
+
+static int receive_user_user(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
+{        
+        call->useruserprotocoldisc = ie->data[0] & 0xff;
+        if (call->useruserprotocoldisc == 4) /* IA5 */
+          q931_get_number(call->useruserinfo, sizeof(call->useruserinfo), ie->data + 1, len - 3);
+	return 0;
 }
 
 static char *prog2str(int prog)
@@ -825,11 +887,31 @@ static char *loc2str(int loc)
 
 static void dump_progress_indicator(q931_ie *ie, int len, char prefix)
 {
-	printf("%c Progress Indicator (len=%2d) [ Ext: %d  Coding: %s (%d) 0: %d   Location: %s (%d)\n",
+	pri_message("%c Progress Indicator (len=%2d) [ Ext: %d  Coding: %s (%d) 0: %d   Location: %s (%d)\n",
 		prefix, ie->len, ie->data[0] >> 7, coding2str((ie->data[0] & 0x60) >> 5), (ie->data[0] & 0x60) >> 5,
 		(ie->data[0] & 0x10) >> 4, loc2str(ie->data[0] & 0xf), ie->data[0] & 0xf);
-	printf("%c                               Ext: %d  Progress Description: %s (%d) ]\n",
+	pri_message("%c                               Ext: %d  Progress Description: %s (%d) ]\n",
 		prefix, ie->data[1] >> 7, prog2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f);
+}
+
+static int receive_display(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
+{
+	unsigned char *data;
+	data = ie->data;
+	if (data[0] & 0x80) {
+		/* Skip over character set */
+		data++;
+		len--;
+	}
+	q931_get_number(call->callername, sizeof(call->callername), data, len - 2);
+	return 0;
+}
+
+static int transmit_display(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
+{
+	ie->data[0] = 0xb1;
+	memcpy(ie->data + 1, call->callername, strlen(call->callername));
+	return 3 + strlen(call->callername);
 }
 
 static int receive_progress_indicator(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
@@ -837,6 +919,18 @@ static int receive_progress_indicator(struct pri *pri, q931_call *call, int msgt
 	call->progloc = ie->data[0] & 0xf;
 	call->progcode = (ie->data[0] & 0x60) >> 5;
 	call->progress = (ie->data[1] & 0x7f);
+	return 0;
+}
+
+static int receive_facility(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
+{
+	if (ie->len < 14) {
+		pri_error("!! Facility message shorter than 14 bytes\n");
+		return 0;
+	}
+	if (ie->data[13] + 14 == ie->len) {
+		q931_get_number(call->callername, sizeof(call->callername) - 1, ie->data + 14, ie->len - 14);
+	} 
 	return 0;
 }
 
@@ -880,7 +974,7 @@ static char *callstate2str(int callstate)
 
 static void dump_call_state(q931_ie *ie, int len, char prefix)
 {
-	printf("%c Call State (len=%2d) [ Ext: %d  Coding: %s (%d) Call state: %s (%d)\n",
+	pri_message("%c Call State (len=%2d) [ Ext: %d  Coding: %s (%d) Call state: %s (%d)\n",
 		prefix, ie->len, ie->data[0] >> 7, coding2str((ie->data[0] & 0xC0) >> 6), (ie->data[0] & 0xC0) >> 6,
 		callstate2str(ie->data[0] & 0x3f), ie->data[0] & 0x3f);
 }
@@ -888,37 +982,82 @@ static void dump_call_state(q931_ie *ie, int len, char prefix)
 static void dump_call_identity(q931_ie *ie, int len, char prefix)
 {
 	int x;
-	printf("%c Call Identity (len=%2d) [ ", prefix, ie->len);
+	pri_message("%c Call Identity (len=%2d) [ ", prefix, ie->len);
 	for (x=0;x<ie->len;x++) 
-		printf("0x%02X ", ie->data[x]);
-	printf(" ]\n");
+		pri_message("0x%02X ", ie->data[x]);
+	pri_message(" ]\n");
 }
 
 static void dump_time_date(q931_ie *ie, int len, char prefix)
 {
-	printf("%c Time Date (len=%2d) [ ", prefix, ie->len);
+	pri_message("%c Time Date (len=%2d) [ ", prefix, ie->len);
 	if (ie->len > 0)
-		printf("%02d", ie->data[0]);
+		pri_message("%02d", ie->data[0]);
 	if (ie->len > 1)
-		printf("-%02d", ie->data[1]);
+		pri_message("-%02d", ie->data[1]);
 	if (ie->len > 2)
-		printf("-%02d", ie->data[2]);
+		pri_message("-%02d", ie->data[2]);
 	if (ie->len > 3)
-		printf(" %02d", ie->data[3]);
+		pri_message(" %02d", ie->data[3]);
 	if (ie->len > 4)
-		printf(":%02d", ie->data[4]);
+		pri_message(":%02d", ie->data[4]);
 	if (ie->len > 5)
-		printf(":%02d", ie->data[5]);
-	printf(" ]\n");
+		pri_message(":%02d", ie->data[5]);
+	pri_message(" ]\n");
 }
 
 static void dump_display(q931_ie *ie, int len, char prefix)
 {
 	int x;
-	printf("%c Call Identity (len=%2d) [ ", prefix, ie->len);
+	pri_message("%c Display (len=%2d) [ ", prefix, ie->len);
 	for (x=0;x<ie->len;x++) 
-		printf("%c", ie->data[x] & 0x7f);
-	printf(" ]\n");
+		pri_message("%c", ie->data[x] & 0x7f);
+	pri_message(" ]\n");
+}
+
+static void dump_ie_data(unsigned char *c, int len)
+{
+	char tmp[1024] = "";
+	int x=0;
+	int lastascii = 0;
+	while(len) {
+		if (((*c >= 'A') && (*c <= 'Z')) ||
+		    ((*c >= 'a') && (*c <= 'z')) ||
+		    ((*c >= '0') && (*c <= '9'))) {
+			if (!lastascii) {
+				if (strlen(tmp)) { 
+					tmp[x++] = ',';
+					tmp[x++] = ' ';
+				}
+				tmp[x++] = '\'';
+			}
+			tmp[x++] = *c;
+			lastascii = 1;
+		} else {
+			if (lastascii) {
+				tmp[x++] = '\'';
+			}
+			if (strlen(tmp)) { 
+				tmp[x++] = ',';
+				tmp[x++] = ' ';
+			}
+			sprintf (tmp + x, "0x%02x", *c);
+			x += 4;
+			lastascii = 0;
+		}
+		c++;
+		len--;
+	}
+	if (lastascii)
+		tmp[x++] = '\'';
+	pri_message(tmp);
+}
+
+static void dump_facility(q931_ie *ie, int len, char prefix)
+{
+	pri_message("%c Facility (len=%2d) [ ", prefix, ie->len);
+	dump_ie_data(ie->data, ie->len);
+	pri_message(" ]\n");
 }
 
 char *pri_cause2str(int cause)
@@ -944,14 +1083,14 @@ static char *pri_causeclass2str(int cause)
 static void dump_cause(q931_ie *ie, int len, char prefix)
 {
 	int x;
-	printf("%c Cause (len=%2d) [ Ext: %d  Coding: %s (%d) 0: %d   Location: %s (%d)\n",
+	pri_message("%c Cause (len=%2d) [ Ext: %d  Coding: %s (%d) 0: %d   Location: %s (%d)\n",
 		prefix, ie->len, ie->data[0] >> 7, coding2str((ie->data[0] & 0x60) >> 5), (ie->data[0] & 0x60) >> 5,
 		(ie->data[0] & 0x10) >> 4, loc2str(ie->data[0] & 0xf), ie->data[0] & 0xf);
-	printf("%c                  Ext: %d  Cause: %s (%d), class = %s (%d) ]\n",
+	pri_message("%c                  Ext: %d  Cause: %s (%d), class = %s (%d) ]\n",
 		prefix, (ie->data[1] >> 7), pri_cause2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f, 
 			pri_causeclass2str((ie->data[1] & 0x7f) >> 4), (ie->data[1] & 0x7f) >> 4);
 	for (x=4;x<len;x++) 
-		printf("%c              Cause data %d: %02x (%d)\n", prefix, x-4, ie->data[x], ie->data[x]);
+		pri_message("%c              Cause data %d: %02x (%d)\n", prefix, x-4, ie->data[x], ie->data[x]);
 }
 
 static int receive_cause(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
@@ -976,7 +1115,7 @@ static int transmit_cause(struct pri *pri, q931_call *call, int msgtype, q931_ie
 
 static void dump_sending_complete(q931_ie *ie, int len, char prefix)
 {
-	printf("%c Sending Complete (len=%2d)\n", prefix, ie->len);
+	pri_message("%c Sending Complete (len=%2d)\n", prefix, ie->len);
 }
 
 static int receive_sending_complete(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
@@ -1015,14 +1154,14 @@ struct ie ies[] = {
 	{ Q931_CALLING_PARTY_SUBADDR, "Calling Party Subaddress", dump_calling_party_subaddr },
 	{ Q931_CALLED_PARTY_NUMBER, "Called Party Number", dump_called_party_number, receive_called_party_number, transmit_called_party_number },
 	{ Q931_CALLED_PARTY_SUBADDR, "Called Party Subaddress", dump_called_party_subaddr },
-	{ Q931_REDIRECTING_NUMBER, "Redirecting Number", dump_redirecting_number },
+	{ Q931_REDIRECTING_NUMBER, "Redirecting Number", dump_redirecting_number, receive_redirecting_number },
 	{ Q931_REDIRECTING_SUBADDR, "Redirecting Subaddress", dump_redirecting_subaddr },
 	{ Q931_TRANSIT_NET_SELECT, "Transit Network Selection" },
 	{ Q931_RESTART_INDICATOR, "Restart Indicator", dump_restart_indicator, receive_restart_indicator, transmit_restart_indicator },
 	{ Q931_LOW_LAYER_COMPAT, "Low-layer Compatibility" },
 	{ Q931_HIGH_LAYER_COMPAT, "High-layer Compatibility" },
 	{ Q931_PACKET_SIZE, "Packet Size" },
-	{ Q931_IE_FACILITY, "Facility" },
+	{ Q931_IE_FACILITY, "Facility" , dump_facility, receive_facility },
 	{ Q931_IE_REDIRECTION_NUMBER, "Redirection Number" },
 	{ Q931_IE_REDIRECTION_SUBADDR, "Redirection Subaddress" },
 	{ Q931_IE_FEATURE_ACTIVATE, "Feature Activation" },
@@ -1032,12 +1171,12 @@ struct ie ies[] = {
 	{ Q931_IE_CALL_IDENTITY, "Call Identity", dump_call_identity },
     { Q931_IE_ENDPOINT_ID, "Endpoint Identification" },
 	{ Q931_IE_NOTIFY_IND, "Notification Indicator" },
-	{ Q931_IE_DISPLAY, "Display", dump_display },
+	{ Q931_DISPLAY, "Display", dump_display, receive_display, transmit_display },
 	{ Q931_IE_TIME_DATE, "Date/Time", dump_time_date },
 	{ Q931_IE_KEYPAD_FACILITY, "Keypad Facility" },
 	{ Q931_IE_SIGNAL, "Signal" },
 	{ Q931_IE_SWITCHHOOK, "Switch-hook" },
-	{ Q931_IE_USER_USER, "User-User" },
+	{ Q931_IE_USER_USER, "User-User", dump_user_user, receive_user_user },
 	{ Q931_IE_ESCAPE_FOR_EXT, "Escape for Extension" },
 	{ Q931_IE_CALL_STATUS, "Call Status" },
 	{ Q931_IE_CHANGE_STATUS, "Change Status" },
@@ -1079,7 +1218,7 @@ static inline int q931_cr(q931_h *h)
 	int cr = 0;
 	int x;
 	if (h->crlen > 3) {
-		fprintf(stderr, "Call Reference Length Too long: %d\n", h->crlen);
+		pri_error("Call Reference Length Too long: %d\n", h->crlen);
 		return -1;
 	}
 	for (x=0;x<h->crlen;x++) {
@@ -1097,11 +1236,11 @@ static inline void q931_dumpie(q931_ie *ie, char prefix)
 			if (ies[x].dump)
 				ies[x].dump(ie, ielen(ie), prefix);
 			else
-				printf("%c IE: %s (len = %d)\n", prefix, ies[x].name, ielen(ie));
+				pri_message("%c IE: %s (len = %d)\n", prefix, ies[x].name, ielen(ie));
 			return;
 		}
 	
-	fprintf(stderr, "!! %c Unknown IE %d (len = %d)\n", prefix, ie->ie, ielen(ie));
+	pri_error("!! %c Unknown IE %d (len = %d)\n", prefix, ie->ie, ielen(ie));
 }
 
 static q931_call *q931_getcall(struct pri *pri, int cr)
@@ -1117,7 +1256,7 @@ static q931_call *q931_getcall(struct pri *pri, int cr)
 	}
 	/* No call exists, make a new one */
 	if (pri->debug & PRI_DEBUG_Q931_STATE)
-		printf("-- Making new call for cr %d\n", cr);
+		pri_message("-- Making new call for cr %d\n", cr);
 	cur = malloc(sizeof(struct q931_call));
 	if (cur) {
 		call_init(cur);
@@ -1166,7 +1305,7 @@ static void q931_destroycall(struct pri *pri, int cr)
 		prev = cur;
 		cur = cur->next;
 	}
-	fprintf(stderr, "Can't destroy call %d!\n", cr);
+	pri_error("Can't destroy call %d!\n", cr);
 }
 
 static int add_ie(struct pri *pri, q931_call *call, int msgtype, int ie, q931_ie *iet, int maxlen)
@@ -1186,12 +1325,12 @@ static int add_ie(struct pri *pri, q931_call *call, int msgtype, int ie, q931_ie
 					iet->len = res - 2;
 				return res;
 			} else {
-				fprintf(stderr, "!! Don't know how to add an IE %s (%d)\n", ie2str(ie), ie);
+				pri_error("!! Don't know how to add an IE %s (%d)\n", ie2str(ie), ie);
 				return -1;
 			}
 		}
 	}
-	fprintf(stderr, "!! Unknown IE %d (%s)\n", ie, ie2str(ie));
+	pri_error("!! Unknown IE %d (%s)\n", ie, ie2str(ie));
 	return -1;
 			
 				
@@ -1212,11 +1351,11 @@ void q931_dump(q931_h *h, int len, int txrx)
 	char c;
 	int x=0, r;
 	c = txrx ? '>' : '<';
-	printf("%c Protocol Discriminator: %s (%d)  len=%d\n", c, disc2str(h->pd), h->pd, len);
-	printf("%c Call Ref: len=%2d (reference %d/0x%X) (%s)\n", c, h->crlen, q931_cr(h), q931_cr(h), (h->crv[0] & 0x80) ? "Terminator" : "Originator");
+	pri_message("%c Protocol Discriminator: %s (%d)  len=%d\n", c, disc2str(h->pd), h->pd, len);
+	pri_message("%c Call Ref: len=%2d (reference %d/0x%X) (%s)\n", c, h->crlen, q931_cr(h), q931_cr(h), (h->crv[0] & 0x80) ? "Terminator" : "Originator");
 	/* Message header begins at the end of the call reference number */
 	mh = (q931_mh *)(h->contents + h->crlen);
-	printf("%c Message type: %s (%d)\n", c, msg2str(mh->msg), mh->msg);
+	pri_message("%c Message type: %s (%d)\n", c, msg2str(mh->msg), mh->msg);
 	/* Drop length of header, including call reference */
 	len -= (h->crlen + 3);
 	while(x < len) {
@@ -1225,26 +1364,26 @@ void q931_dump(q931_h *h, int len, int txrx)
 		x += r;
 	}
 	if (x > len) 
-		fprintf(stderr, "XXX Message longer than it should be?? XXX\n");
+		pri_error("XXX Message longer than it should be?? XXX\n");
 }
 
 static int q931_handle_ie(struct pri *pri, q931_call *c, int msg, q931_ie *ie)
 {
 	int x;
 	if (pri->debug & PRI_DEBUG_Q931_STATE)
-		printf("-- Processing IE %d (%s)\n", ie->ie, ie2str(ie->ie));
+		pri_message("-- Processing IE %d (%s)\n", ie->ie, ie2str(ie->ie));
 	for (x=0;x<sizeof(ies) / sizeof(ies[0]);x++) {
 		if (ie->ie == ies[x].ie) {
 			if (ies[x].receive)
 				return ies[x].receive(pri, c, msg, ie, ielen(ie));
 			else {
 				if (pri->debug & PRI_DEBUG_Q931_ANOMALY)
-					fprintf(stderr, "!! No handler for IE %d (%s)\n", ie->ie, ie2str(ie->ie));
+					pri_error("!! No handler for IE %d (%s)\n", ie->ie, ie2str(ie->ie));
 				return -1;
 			}
 		}
 	}
-	printf("!! Unknown IE %d (%s)\n", ie->ie, ie2str(ie->ie));
+	pri_message("!! Unknown IE %d (%s)\n", ie->ie, ie2str(ie->ie));
 	return -1;
 }
 
@@ -1299,7 +1438,7 @@ static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
 	while(ies[x] > -1) {
 		res = add_ie(pri, c, mh->msg, ies[x], (q931_ie *)(mh->data + offset), len);
 		if (res < 0) {
-			fprintf(stderr, "!! Unable to add IE '%s'\n", ie2str(ies[x]));
+			pri_error("!! Unable to add IE '%s'\n", ie2str(ies[x]));
 			return -1;
 		}
 		offset += res;
@@ -1309,6 +1448,7 @@ static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
 	/* Invert the logic */
 	len = sizeof(buf) - len;
 	q931_xmit(pri, h, len, 1);
+	c->acked = 1;
 	return 0;
 }
 
@@ -1347,6 +1487,22 @@ int q931_alerting(struct pri *pri, q931_call *c, int channel, int info)
 }
 
 static int connect_ies[] = {  Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR, -1 };
+ 
+int q931_setup_ack(struct pri *pri, q931_call *c, int channel, int nonisdn)
+{
+	if (channel)
+		c->channelno = channel;
+	c->chanflags &= ~FLAG_PREFERRED;
+	c->chanflags |= FLAG_EXCLUSIVE;
+	if (nonisdn && (pri->switchtype != PRI_SWITCH_DMS100)) {
+		c->progloc  = LOC_PRIV_NET_LOCAL_USER;
+		c->progcode = CODE_CCITT;
+		c->progress = Q931_PROG_CALLED_NOT_ISDN;
+	} else
+		c->progress = -1;
+
+	return send_message(pri, c, Q931_SETUP_ACKNOWLEDGE, connect_ies);
+}
 
 int q931_connect(struct pri *pri, q931_call *c, int channel, int nonisdn)
 {
@@ -1372,7 +1528,10 @@ int q931_release(struct pri *pri, q931_call *c, int cause)
 		c->cause = cause;
 		c->causecode = CODE_CCITT;
 		c->causeloc = LOC_PRIV_NET_LOCAL_USER;
-		return send_message(pri, c, Q931_RELEASE, release_ies);
+		if (c->acked)
+			return send_message(pri, c, Q931_RELEASE, release_ies);
+		else
+			return send_message(pri, c, Q931_RELEASE_COMPLETE, release_ies); /* Yes, release_ies, not release_complete_ies */
 	} else
 		return 0;
 }
@@ -1409,11 +1568,11 @@ int q931_disconnect(struct pri *pri, q931_call *c, int cause)
 		return 0;
 }
 
-static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR,
+static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_DISPLAY, Q931_PROGRESS_INDICATOR,
 	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_SENDING_COMPLETE, -1 };
 
 int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
-					int nonisdn, char *caller, int callerplan, int callerpres, char *called,
+					int nonisdn, char *caller, int callerplan, char *callername, int callerpres, char *called,
 					int calledplan, int userl1)
 {
 	int res;
@@ -1438,6 +1597,10 @@ int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int ex
 	if (caller) {
 		strncpy(c->callernum, caller, sizeof(c->callernum) - 1);
 		c->callerplan = callerplan;
+		if (callername)
+			strncpy(c->callername, callername, sizeof(c->callername) - 1);
+		else
+			strcpy(c->callername, "");
 		if ((pri->switchtype == PRI_SWITCH_DMS100) ||
 		    (pri->switchtype == PRI_SWITCH_ATT4ESS)) {
 			/* Doesn't like certain presentation types */
@@ -1447,6 +1610,7 @@ int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int ex
 		c->callerpres = callerpres;
 	} else {
 		strcpy(c->callernum, "");
+		strcpy(c->callername, "");
 		c->callerplan = PRI_UNKNOWN;
 		c->callerpres = PRES_NUMBER_NOT_AVAILABLE;
 	}
@@ -1462,8 +1626,9 @@ int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int ex
 		c->progress = -1;
 
 	res = send_message(pri, c, Q931_SETUP, setup_ies);
-	if (!res)
+	if (!res) {
 		c->alive = 1;
+	}
 	return res;
 	
 }
@@ -1504,14 +1669,14 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	}
 	c = q931_getcall(pri, q931_cr(h));
 	if (!c) {
-		fprintf(stderr, "Unable to locate call %d\n", q931_cr(h));
+		pri_error("Unable to locate call %d\n", q931_cr(h));
 		return -1;
 	}
 	/* Preliminary handling */
 	switch(mh->msg) {
 	case Q931_RESTART:
 		if (pri->debug & PRI_DEBUG_Q931_STATE)
-			printf("-- Processing Q.931 Restart\n");
+			pri_message("-- Processing Q.931 Restart\n");
 		/* Reset information */
 		c->channelno = -1;
 		c->slotmap = -1;
@@ -1519,9 +1684,12 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->ds1no = -1;
 		c->ri = -1;
 		break;
+	case Q931_FACILITY:
+		strcpy(c->callername, "");
+		break;
 	case Q931_SETUP:
 		if (pri->debug & PRI_DEBUG_Q931_STATE)
-			printf("-- Processing Q.931 Call Setup\n");
+			pri_message("-- Processing Q.931 Call Setup\n");
 		c->channelno = -1;
 		c->slotmap = -1;
 		c->chanflags = 0;
@@ -1539,6 +1707,13 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->callerpres = -1;
 		strcpy(c->callernum, "");
 		strcpy(c->callednum, "");
+		strcpy(c->callername, "");
+                c->redirectingplan = -1;
+                c->redirectingpres = -1;
+                c->redirectingreason = -1;
+		strcpy(c->redirectingnum, "");
+                c->useruserprotocoldisc = -1; 
+		strcpy(c->useruserinfo, "");
 		break;
 	case Q931_CONNECT:
 	case Q931_ALERTING:
@@ -1565,13 +1740,13 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	case Q931_RESTART_ACKNOWLEDGE:
 		c->channelno = -1;
 		break;
+	case Q931_INFORMATION:
+		break;
 	case Q931_SETUP_ACKNOWLEDGE:
 	case Q931_STATUS_ENQUIRY:
 	case Q931_USER_INFORMATION:
 	case Q931_SEGMENT:
 	case Q931_CONGESTION_CONTROL:
-	case Q931_INFORMATION:
-	case Q931_FACILITY:
 	case Q931_NOTIFY:
 	case Q931_HOLD:
 	case Q931_HOLD_ACKNOWLEDGE:
@@ -1585,11 +1760,11 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	case Q931_SUSPEND:
 	case Q931_SUSPEND_ACKNOWLEDGE:
 	case Q931_SUSPEND_REJECT:
-		fprintf(stderr, "!! Not yet handling pre-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		pri_error("!! Not yet handling pre-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
 		return -1;
 		
 	default:
-		fprintf(stderr, "!! Don't know how to pre-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		pri_error("!! Don't know how to pre-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
 		return -1;
 	}
 	x = 0;
@@ -1599,7 +1774,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		ie = (q931_ie *)(mh->data + x);
 		r = ielen(ie);
 		if (r > len) {
-			fprintf(stderr, "XXX Message longer than it should be?? XXX\n");
+			pri_error("XXX Message longer than it should be?? XXX\n");
 			return -1;
 		}
 		q931_handle_ie(pri, c, mh->msg, ie);
@@ -1623,8 +1798,11 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.callingpres = c->callerpres;
 		pri->ev.ring.callingplan = c->callerplan;
 		strncpy(pri->ev.ring.callingnum, c->callernum, sizeof(pri->ev.ring.callingnum) - 1);
+		strncpy(pri->ev.ring.callingname, c->callername, sizeof(pri->ev.ring.callingname) - 1);
 		pri->ev.ring.calledplan = c->calledplan;
 		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum) - 1);
+                strncpy(pri->ev.ring.redirectingnum, c->redirectingnum, sizeof(pri->ev.ring.redirectingnum) - 1);
+                strncpy(pri->ev.ring.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo) - 1);
 		pri->ev.ring.flexible = ! (c->chanflags & FLAG_EXCLUSIVE);
 		pri->ev.ring.cref = c->cr;
 		pri->ev.ring.call = c;
@@ -1647,13 +1825,24 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.answer.call = c;
 		q931_connect_acknowledge(pri, c);
 		return Q931_RES_HAVEEVENT;
+	case Q931_FACILITY:
+		pri->ev.e = PRI_EVENT_FACNAME;
+		strncpy(pri->ev.facname.callingname, c->callername, sizeof(pri->ev.facname.callingname) - 1);
+		strncpy(pri->ev.facname.callingnum, c->callernum, sizeof(pri->ev.facname.callingname) - 1);
+		pri->ev.facname.channel = c->channelno;
+		pri->ev.facname.cref = c->cr;
+		pri->ev.facname.call = c;
+#if 0
+		pri_message("Sending facility event (%s/%s)\n", pri->ev.facname.callingname, pri->ev.facname.callingnum);
+#endif
+		return Q931_RES_HAVEEVENT;
 	case Q931_PROGRESS:
 	case Q931_CONNECT_ACKNOWLEDGE:
 	case Q931_STATUS:
 		/* Do nothing */
 		if ((pri->debug & PRI_DEBUG_Q931_ANOMALY) &&
 		    (c->cause != PRI_CAUSE_INTERWORKING))
-			fprintf(stderr, "Received unsolicited status: %s\n", pri_cause2str(c->cause));
+			pri_error("Received unsolicited status: %s\n", pri_cause2str(c->cause));
 		break;
 	case Q931_CALL_PROCEEDING:
 		break;
@@ -1693,26 +1882,32 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			return res;
 		break;
 	case Q931_DISCONNECT:
-		/* Send a release with no cause */
-		q931_release(pri, c, -1);
 		/* Return such an event */
 		pri->ev.e = PRI_EVENT_HANGUP;
 		pri->ev.hangup.channel = c->channelno;
 		pri->ev.hangup.cref = c->cr;
 		pri->ev.hangup.cause = c->cause;
 		pri->ev.hangup.call = c;
+		/* Send a release with no cause */
+		q931_release(pri, c, -1);
 		return Q931_RES_HAVEEVENT;
 	case Q931_RESTART_ACKNOWLEDGE:
 		pri->ev.e = PRI_EVENT_RESTART_ACK;
 		pri->ev.restartack.channel = c->channelno;
 		return Q931_RES_HAVEEVENT;
+	case Q931_INFORMATION:
+		pri->ev.e = PRI_EVENT_INFO_RECEIVED;
+		pri->ev.ring.call = c;
+
+		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum) - 1);
+
+		return Q931_RES_HAVEEVENT;
+
 	case Q931_SETUP_ACKNOWLEDGE:
 	case Q931_STATUS_ENQUIRY:
 	case Q931_USER_INFORMATION:
 	case Q931_SEGMENT:
 	case Q931_CONGESTION_CONTROL:
-	case Q931_INFORMATION:
-	case Q931_FACILITY:
 	case Q931_NOTIFY:
 	case Q931_HOLD:
 	case Q931_HOLD_ACKNOWLEDGE:
@@ -1726,11 +1921,11 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	case Q931_SUSPEND:
 	case Q931_SUSPEND_ACKNOWLEDGE:
 	case Q931_SUSPEND_REJECT:
-		fprintf(stderr, "!! Not yet handling post-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		pri_error("!! Not yet handling post-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
 		return -1;
 		
 	default:
-		fprintf(stderr, "!! Don't know how to post-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		pri_error("!! Don't know how to post-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
 		return -1;
 	}
 	return 0;

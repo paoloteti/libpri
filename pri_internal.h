@@ -88,4 +88,8 @@ extern void pri_schedule_del(struct pri *pri, int ev);
 
 extern pri_event *pri_mkerror(struct pri *pri, char *errstr);
 
+extern void pri_message(char *fmt, ...);
+
+extern void pri_error(char *fmt, ...);
+
 #endif
