@@ -181,6 +181,7 @@ static int q921_ack_packet(struct pri *pri, int num)
 						pri_message("-- Finally transmitting %d, since window opened up\n", f->h.n_s);
 					f->transmitted++;
 					pri->windowlen++;
+					f->h.n_r = pri->v_r;
 					q921_transmit(pri, (q921_h *)(&f->h), f->len);
 					break;
 				}
@@ -218,7 +219,7 @@ static pri_event *q921_ack_rx(struct pri *pri, int ack)
 	for (x=pri->v_a; (x != pri->v_s) && (x != ack); Q921_INC(x));
 	if (x != ack) {
 		/* ACK was outside of our window --- ignore */
-		pri_error("ACK received outside of window, restarting\n");
+		pri_error("ACK received for '%d' outside of window of '%d' to '%d', restarting\n", ack, pri->v_a, pri->v_s);
 		ev = q921_dchannel_down(pri);
 		q921_start(pri, 1);
 		pri->schedev = 1;
