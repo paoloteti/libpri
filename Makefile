@@ -70,8 +70,12 @@ endif
 all: depend $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 
 update:
-	@echo "Updating from CVS"
-	@cvs update -d
+	@if [ -d CVS ]; then \
+		echo "Updating from CVS..." ; \
+		cvs -q -z3 update -Pd; \
+	else \
+		echo "Not CVS";  \
+	fi
 
 install: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 	mkdir -p $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib
