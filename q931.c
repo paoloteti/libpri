@@ -1298,7 +1298,7 @@ static FUNC_RECV(receive_facility)
 						break; \
 					} \
 					state = my_state; \
-					if (pri->debug) \
+					if (pri->debug & PRI_DEBUG_APDU) \
 						pri_message("Q.932 %s component is not handled\n", name); \
 					break;
 
@@ -1312,7 +1312,7 @@ static FUNC_RECV(receive_facility)
 	switch(next_protocol = protocol = (ie->data[i] & 0x1f)) {
 	case Q932_PROTOCOL_CMIP:
 	case Q932_PROTOCOL_ACSE:
-		if (pri->debug)
+		if (pri->debug & PRI_DEBUG_APDU)
 			pri_message("!! Don't know how to handle Q.932 Protocol Profile of type 0x%X\n", protocol);
 		return -1;
 	case Q932_PROTOCOL_EXTENSIONS:
@@ -1351,7 +1351,7 @@ static FUNC_RECV(receive_facility)
 				Q932_HANDLE_NULL(COMP_TYPE_RETURN_ERROR, Q932_STATE_SERVICE, "ROSE return error", NULL);
 				Q932_HANDLE_NULL(COMP_TYPE_REJECT, Q932_STATE_SERVICE, "ROSE reject", NULL);
 				default:
-					if (pri->debug)
+					if (pri->debug & PRI_DEBUG_APDU)
 						pri_message("Don't know how to handle ROSE component of type 0x%X\n", comp->type);
 					break;
 				}
@@ -1359,7 +1359,7 @@ static FUNC_RECV(receive_facility)
 			case Q932_PROTOCOL_CMIP:
 				switch (comp->type) {
 				default:
-					if (pri->debug)
+					if (pri->debug & PRI_DEBUG_APDU)
 						pri_message("Don't know how to handle CMIP component of type 0x%X\n", comp->type);
 					break;
 				}
@@ -1367,7 +1367,7 @@ static FUNC_RECV(receive_facility)
 			case Q932_PROTOCOL_ACSE:
 				switch (comp->type) {
 				default:
-					if (pri->debug)
+					if (pri->debug & PRI_DEBUG_APDU)
 						pri_message("Don't know how to handle ACSE component of type 0x%X\n", comp->type);
 					break;
 				}

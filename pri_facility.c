@@ -19,8 +19,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#undef DEBUG
-
 static unsigned char get_invokeid(struct pri *pri)
 {
 	return ++pri->last_invoke;
@@ -359,10 +357,8 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 
 		diversion_reason = redirectingreason_for_q931(pri, diversion_reason);
 	
-#ifdef DEBUG
-		if(pri->debug)
+		if(pri->debug & PRI_DEBUG_APDU)
 			pri_message("    Redirection reason: %d, total diversions: %d\n", diversion_reason, diversion_counter);
-#endif
 
 		for(; i < len; NEXT_COMPONENT(comp, i)) {
 			GET_COMPONENT(comp, i, vdata, len);
@@ -370,22 +366,18 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 			case 0xA1:		/* divertingnr: presentednumberunscreened */
 				if(rose_presented_number_unscreened_decode(pri, call, comp->data, comp->len, &divertingnr) != 0)
 					return -1;
-#ifdef DEBUG
-				if (pri->debug) {
+				if (pri->debug & PRI_DEBUG_APDU) {
 					pri_message("    Received divertingNr '%s'\n", divertingnr.partyaddress);
 					pri_message("      ton = %d, pres = %d, npi = %d\n", divertingnr.ton, divertingnr.pres, divertingnr.npi);
 				}
-#endif
 				break;
 			case 0xA2:		/* originalCalledNr: PresentedNumberUnscreened */
 				if(rose_presented_number_unscreened_decode(pri, call, comp->data, comp->len, &originalcallednr) != 0)
 					return -1;
-#ifdef DEBUG
-				if (pri->debug) {
+				if (pri->debug & PRI_DEBUG_APDU) {
 					pri_message("    Received originalcallednr '%s'\n", originalcallednr.partyaddress);
 					pri_message("      ton = %d, pres = %d, npi = %d\n", originalcallednr.ton, originalcallednr.pres, originalcallednr.npi);
 				}
-#endif
 				break;
 			default:
 				pri_message("!! Invalid DivertingLegInformation2 component received 0x%X\n", comp->type);
@@ -803,23 +795,18 @@ extern int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *d
 		if (!comp->type)
 			return -1;
 
-#ifdef DEBUG
-		pri_message("  [ Handling operation %d ]\n", operation_tag);
-#endif
+		if (pri->debug & PRI_DEBUG_APDU)
+			pri_message("  [ Handling operation %d ]\n", operation_tag);
 		switch (operation_tag) {
 		case SS_CNID_CALLINGNAME:
-#ifdef DEBUG
-			if (pri->debug)
+			if (pri->debug & PRI_DEBUG_APDU)
 				pri_message("  Handle Name display operation\n");
-#endif
-			switch (comp->type) {
+			switch (comp->type & PRI_DEBUG_APDU) {
 			case ROSE_NAME_PRESENTATION_ALLOWED_SIMPLE:
 				memcpy(call->callername, comp->data, comp->len);
 				call->callername[comp->len] = 0;
-#ifdef DEBUG
-				if (pri->debug)
+				if (pri->debug & PRI_DEBUG_APDU)
 				  pri_message("    Received caller name '%s'\n", call->callername);
-#endif
 				return 0;
 			default:
 				pri_message("Do not handle argument of type 0x%X\n", comp->type);
@@ -827,10 +814,8 @@ extern int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *d
 			}
 			break;
 		case ROSE_DIVERTING_LEG_INFORMATION2:
-#ifdef DEBUG
-			if (pri->debug)
+			if (pri->debug & PRI_DEBUG_APDU)
 				pri_message("  Handle DivertingLegInformation2\n");
-#endif
 			if (comp->type != 0x30) { /* Sequence */
 				pri_message("Invalid DivertingLegInformation2Type argument\n");
 				return -1;

@@ -37,6 +37,7 @@
 #define PRI_DEBUG_Q931_DUMP		(1 << 5)	/* Show interpreted Q.931 frames */
 #define PRI_DEBUG_Q931_STATE	(1 << 6)	/* Debug Q.931 state machine changes */
 #define	PRI_DEBUG_Q931_ANOMALY 	(1 << 7)	/* Show unexpected events */
+#define PRI_DEBUG_APDU		(1 << 8)	/* Debug of APDU components such as ROSE */
 
 #define PRI_DEBUG_ALL			(0xffff)	/* Everything */
 
