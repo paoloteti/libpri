@@ -26,16 +26,17 @@ DYNAMIC_LIBRARY=libpri.so.1.0
 STATIC_OBJS=pri.o q921.o prisched.o q931.o
 DYNAMIC_OBJS=pri.lo q921.lo prisched.lo q931.lo
 CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g
+INSTALL_PREFIX=
 
 all: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 
 install: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
-	mkdir -p /usr/lib
-	mkdir -p /usr/include
-	install -m 644 libpri.h /usr/include
-	install -m 755 $(DYNAMIC_LIBRARY) /usr/lib
-	( cd /usr/lib ; ln -sf libpri.so.1 libpri.so )
-	install -m 644 $(STATIC_LIBRARY) /usr/lib
+	mkdir -p $(INSTALL_PREFIX)/usr/lib
+	mkdir -p $(INSTALL_PREFIX)/usr/include
+	install -m 644 libpri.h $(INSTALL_PREFIX)/usr/include
+	install -m 755 $(DYNAMIC_LIBRARY) $(INSTALL_PREFIX)/usr/lib
+	( cd $(INSTALL_PREFIX)/usr/lib ; ln -sf libpri.so.1 libpri.so )
+	install -m 644 $(STATIC_LIBRARY) $(INSTALL_PREFIX)/usr/lib
 	/sbin/ldconfig
 
 pritest: pritest.o
