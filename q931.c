@@ -1717,9 +1717,11 @@ static int q931_release_complete(struct pri *pri, q931_call *c, int cause)
 		c->cause = cause;
 		c->causecode = CODE_CCITT;
 		c->causeloc = LOC_PRIV_NET_LOCAL_USER;
-	}
+		/* release_ies has CAUSE in it */
+		res = send_message(pri, c, Q931_RELEASE_COMPLETE, release_ies);
+	} else
+		res = send_message(pri, c, Q931_RELEASE_COMPLETE, release_complete_ies);
 	c->alive = 0;
-	res = send_message(pri, c, Q931_RELEASE_COMPLETE, release_complete_ies);
 	/* release the structure */
 	res += q931_hangup(pri,c,cause);
 	return res;
