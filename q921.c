@@ -49,6 +49,8 @@
 	(hf).h.tei = 0; \
 } while(0)
 
+static void reschedule_t203(struct pri *pri);
+
 static void q921_discard_retransmissions(struct pri *pri)
 {
 	struct q921_frame *f, *p;
@@ -62,7 +64,8 @@ static void q921_discard_retransmissions(struct pri *pri)
 	pri->txqueue = NULL;
 }
 
-static int q921_transmit(struct pri *pri, q921_h *h, int len) {
+static int q921_transmit(struct pri *pri, q921_h *h, int len) 
+{
 	int res;
 #ifdef RANDOM_DROPS
    if (!(random() % 3)) {
@@ -80,6 +83,7 @@ static int q921_transmit(struct pri *pri, q921_h *h, int len) {
 		pri_error("Short write: %d/%d (%s)\n", res, len + 2, strerror(errno));
 		return -1;
 	}
+	reschedule_t203(pri);
 	return 0;
 }
 
@@ -174,17 +178,33 @@ static int q921_ack_packet(struct pri *pri, int num)
 
 static void t203_expire(void *);
 static void t200_expire(void *);
+static pri_event *q921_dchannel_down(struct pri *pri);
 
-static void q921_ack_rx(struct pri *pri, int ack)
+static void reschedule_t203(struct pri *pri)
+{
+	if (pri->t203_timer) {
+		pri_schedule_del(pri, pri->t203_timer);
+		if (pri->debug &  PRI_DEBUG_Q921_STATE)
+			pri_message("-- Restarting T203 counter\n");
+		/* Nothing to transmit, start the T203 counter instead */
+		pri->t203_timer = pri_schedule_event(pri, T_203, t203_expire, pri);
+	}
+}
+
+static pri_event *q921_ack_rx(struct pri *pri, int ack)
 {
 	int x;
 	int cnt=0;
+	pri_event *ev;
 	/* Make sure the ACK was within our window */
 	for (x=pri->v_a; (x != pri->v_s) && (x != ack); Q921_INC(x));
 	if (x != ack) {
 		/* ACK was outside of our window --- ignore */
-		pri_error("ACK received outside of window, ignoring\n");
-		return;
+		pri_error("ACK received outside of window, restarting\n");
+		ev = q921_dchannel_down(pri);
+		q921_start(pri, 1);
+		pri->schedev = 1;
+		return ev;
 	}
 	/* Cancel each packet as necessary */
 	if (pri->debug & PRI_DEBUG_Q921_STATE)
@@ -216,9 +236,10 @@ static void q921_ack_rx(struct pri *pri, int ack)
 		/* Nothing to transmit, start the T203 counter instead */
 		pri->t203_timer = pri_schedule_event(pri, T_203, t203_expire, pri);
 	}
+	return NULL;
 }
 
-static void q921_reject(struct pri *pri)
+static void q921_reject(struct pri *pri, int pf)
 {
 	q921_h h;
 	Q921_INIT(h);
@@ -226,7 +247,7 @@ static void q921_reject(struct pri *pri)
 	h.s.ss = 2;	/* Reject */
 	h.s.ft = 1;	/* Frametype (01) */
 	h.s.n_r = pri->v_r;	/* Where to start retransmission */
-	h.s.p_f = 1;	/* XXX Should it always be set to 1? XXX */
+	h.s.p_f = pf;	
 	switch(pri->localtype) {
 	case PRI_NETWORK:
 		h.h.c_r = 0;
@@ -240,10 +261,11 @@ static void q921_reject(struct pri *pri)
 	}
 	if (pri->debug & PRI_DEBUG_Q921_STATE)
 		pri_message("Sending Reject (%d)\n", pri->v_r);
+	pri->sentrej = 1;
 	q921_transmit(pri, &h, 4);
 }
 
-static void q921_rr(struct pri *pri, int pbit) {
+static void q921_rr(struct pri *pri, int pbit, int cmd) {
 	q921_h h;
 	Q921_INIT(h);
 	h.s.x0 = 0;	/* Always 0 */
@@ -253,10 +275,16 @@ static void q921_rr(struct pri *pri, int pbit) {
 	h.s.p_f = pbit;		/* Poll/Final set appropriately */
 	switch(pri->localtype) {
 	case PRI_NETWORK:
-		h.h.c_r = 0;
+		if (cmd)
+			h.h.c_r = 1;
+		else
+			h.h.c_r = 0;
 		break;
 	case PRI_CPE:
-		h.h.c_r = 1;
+		if (cmd)
+			h.h.c_r = 0;
+		else
+			h.h.c_r = 1;
 		break;
 	default:
 		pri_error("Don't know how to U/A on a type %d node\n", pri->localtype);
@@ -267,8 +295,6 @@ static void q921_rr(struct pri *pri, int pbit) {
 		pri_message("Sending Receiver Ready (%d)\n", pri->v_r);
 	q921_transmit(pri, &h, 4);
 }
-
-static pri_event *q921_dchannel_down(struct pri *pri);
 
 static void t200_expire(void *vpri)
 {
@@ -289,14 +315,17 @@ static void t200_expire(void *vpri)
          /* Reschedule t200_timer */
          if (pri->debug & PRI_DEBUG_Q921_STATE)
             pri_message("-- Retransmitting %d bytes\n", pri->txqueue->len);
-   		q921_transmit(pri, (q921_h *)&pri->txqueue->h, pri->txqueue->len);
+		if (pri->busy) 
+			q921_rr(pri, 1, 0);
+		else
+			q921_transmit(pri, (q921_h *)&pri->txqueue->h, pri->txqueue->len);
          if (pri->debug & PRI_DEBUG_Q921_STATE) 
                pri_message("-- Rescheduling retransmission (%d)\n", pri->retrans);
          pri->t200_timer = pri_schedule_event(pri, T_200, t200_expire, pri);
       } else {
          if (pri->debug & PRI_DEBUG_Q921_STATE) 
                pri_message("-- Timeout occured, restarting PRI\n");
-         pri->state = Q921_LINK_CONNECTION_RELEASED;
+         pri->q921_state = Q921_LINK_CONNECTION_RELEASED;
       	pri->t200_timer = 0;
          q921_dchannel_down(pri);
          q921_start(pri, 1);
@@ -344,8 +373,9 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 		else
 			pri->txqueue = f;
 		/* Immediately transmit unless we're in a recovery state */
-		if (!pri->retrans)
+		if (!pri->retrans && !pri->busy) {
 			q921_transmit(pri, (q921_h *)(&f->h), f->len);
+		}
 		if (pri->t203_timer) {
 			if (pri->debug & PRI_DEBUG_Q921_STATE)
 				pri_message("Stopping T_203 timer\n");
@@ -370,47 +400,57 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 static void t203_expire(void *vpri)
 {
 	struct pri *pri = vpri;
-	if (pri->debug &  PRI_DEBUG_Q921_STATE)
-		pri_message("T203 counter expired, sending RR and scheduling T203 again\n");
-	/* Solicit an F-bit in the other's RR */
-	pri->solicitfbit = 1;
-	q921_rr(pri, 1);
-	/* Restart ourselves */
-	pri->t203_timer = pri_schedule_event(pri, T_203, t203_expire, pri);
+	if (pri->q921_state == Q921_LINK_CONNECTION_ESTABLISHED) {
+		if (pri->debug &  PRI_DEBUG_Q921_STATE)
+			pri_message("T203 counter expired, sending RR and scheduling T203 again\n");
+		/* Solicit an F-bit in the other's RR */
+		pri->solicitfbit = 1;
+		q921_rr(pri, 1, 1);
+		/* Restart ourselves */
+		pri->t203_timer = pri_schedule_event(pri, T_203, t203_expire, pri);
+	} else {
+		if (pri->debug &  PRI_DEBUG_Q921_STATE)
+			pri_message("T203 counter expired in weird statd %d\n", pri->q921_state);
+		pri->t203_timer = 0;
+	}
 }
 
 static pri_event *q921_handle_iframe(struct pri *pri, q921_i *i, int len)
 {
 	int res;
+	pri_event *ev;
 	/* Make sure this is a valid packet */
 	if (i->n_s == pri->v_r) {
 		/* Increment next expected I-frame */
 		Q921_INC(pri->v_r);
 		/* Handle their ACK */
-		q921_ack_rx(pri, i->n_r);
+		pri->sentrej = 0;
+		ev = q921_ack_rx(pri, i->n_r);
+		if (ev)
+			return ev;
 		if (i->p_f) {
 			/* If the Poll/Final bit is set, immediate send the RR */
-			q921_rr(pri, 1);
+			q921_rr(pri, 1, 0);
+		} else if (pri->busy) {
+			q921_rr(pri, 0, 0);
 		}
 		/* Receive Q.931 data */
 		res = q931_receive(pri, (q931_h *)i->data, len - 4);
 		/* Send an RR if one wasn't sent already */
 		if (pri->v_na != pri->v_r) 
-			q921_rr(pri, 0);
+			q921_rr(pri, 0, 0);
 		if (res == -1) {
 			return NULL;
 		}
 		if (res & Q931_RES_HAVEEVENT)
 			return &pri->ev;
 	} else {
-		if (((pri->v_r - i->n_s) & 127) < pri->window) {
-			/* It's within our window -- send back an RR */
-			q921_rr(pri, 0);
-		} else
-			q921_reject(pri);
-#if 0
-		q931_reject(pri);
-#endif		
+		/* If we haven't already sent a reject, send it now, otherwise
+		   we are obliged to RR */
+		if (!pri->sentrej)
+			q921_reject(pri, i->p_f);
+		else if (i->p_f)
+			q921_rr(pri, 1, 0);
 	}
 	return NULL;
 }
@@ -553,6 +593,9 @@ static pri_event *q921_dchannel_up(struct pri *pri)
 	pri_schedule_del(pri, pri->sabme_timer);
 	pri->sabme_timer = 0;
 	
+	/* Reset any rejects */
+	pri->sentrej = 0;
+	
 	/* Go into connection established state */
 	pri->q921_state = Q921_LINK_CONNECTION_ESTABLISHED;
 
@@ -592,13 +635,16 @@ void q921_reset(struct pri *pri)
 	pri->solicitfbit = 0;
 	pri->q921_state = Q921_LINK_CONNECTION_RELEASED;
 	pri->retrans = 0;
+	pri->sentrej = 0;
+	
 	/* Discard anything waiting to go out */
 	q921_discard_retransmissions(pri);
 }
 
-pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
+static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 {
 	q921_frame *f;
+	pri_event *ev;
 	int sendnow;
 	/* Discard FCS */
 	len -= 2;
@@ -646,7 +692,9 @@ pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
 			/* Receiver Ready */
 			pri->busy = 0;
 			/* Acknowledge frames as necessary */
-			q921_ack_rx(pri, h->s.n_r);
+			ev = q921_ack_rx(pri, h->s.n_r);
+			if (ev)
+				return ev;
 			if (h->s.p_f) {
 				/* If it's a p/f one then send back a RR in return with the p/f bit set */
 				if (pri->solicitfbit) {
@@ -655,26 +703,28 @@ pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
 				} else {
 					if (pri->debug & PRI_DEBUG_Q921_STATE) 
 						pri_message("-- Unsolicited RR with P/F bit, responding\n");
-						q921_rr(pri, 1);
+						q921_rr(pri, 1, 0);
 				}
 				pri->solicitfbit = 0;
 			}
 			break;
-#if 0
       case 1:
          /* Receiver not ready */
          if (pri->debug & PRI_DEBUG_Q921_STATE)
             pri_message("-- Got receiver not ready\n");
+	 if(h->s.p_f) {
+		/* Send RR if poll bit set */
+		q921_rr(pri, h->s.p_f, 0);
+	 }
          pri->busy = 1;
          break;   
-#endif         
       case 2:
          /* Just retransmit */
          if (pri->debug & PRI_DEBUG_Q921_STATE)
             pri_message("-- Got reject requesting packet %d...  Retransmitting.\n", h->s.n_r);
          if (h->s.p_f) {
             /* If it has the poll bit set, send an appropriate supervisory response */
-            q921_rr(pri, 1);
+            q921_rr(pri, 1, 0);
          }
 		 sendnow = 0;
          /* Resend the proper I-frame */
@@ -726,7 +776,6 @@ pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
 				if (h->u.p_f) {
 					/* Section 5.7.1 says we should restart on receiving a DM response with the f-bit set to
 					   one, but we wait T200 first */
-					pri_event *ev = NULL;
 					if (pri->debug & PRI_DEBUG_Q921_STATE)
 						pri_message("-- Got DM Mode from peer.\n");
 					/* Disconnected mode, try again after T200 */
@@ -752,7 +801,9 @@ pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
 				pri_message("-- Got Disconnect from peer.\n");
 			/* Acknowledge */
 			q921_send_ua(pri, h->u.p_f);
-			return q921_dchannel_down(pri);
+			ev = q921_dchannel_down(pri);
+			q921_start(pri, 0);
+			return ev;
 		case 3:
 			if (h->u.m2 == 3) {
 				/* SABME */
@@ -800,6 +851,14 @@ pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
 				
 	}
 	return NULL;
+}
+
+pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
+{
+	pri_event *e;
+	e = __q921_receive(pri, h, len);
+	reschedule_t203(pri);
+	return e;
 }
 
 void q921_start(struct pri *pri, int now)

@@ -285,7 +285,7 @@ int pri_call(struct pri *pri, q931_call *c, int transmode, int channel, int excl
 {
 	if (!pri || !c)
 		return -1;
-	return q931_setup(pri, c, transmode, channel, exclusive, nonisdn, caller, callerplan, callername, callerpres, called, calledplan, ulayer1);					
+	return q931_setup(pri, c, transmode, channel, exclusive, nonisdn, caller, callerplan, callername, callerpres, called, calledplan, ulayer1);
 }	
 
 static void (*__pri_error)(char *stuff);

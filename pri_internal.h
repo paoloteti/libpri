@@ -58,6 +58,7 @@ struct pri {
 	int v_na;			/* What we've told our peer we've acknowledged */
 	int solicitfbit;	/* Have we sent an I or S frame with the F-bit set? */
 	int retrans;		/* Retransmissions */
+	int sentrej;		/* Are we in reject state */
 	
 	int cref;			/* Next call reference value */
 	
