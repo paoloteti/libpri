@@ -285,6 +285,7 @@ typedef struct pri_event_ring {
 	int ani2;                   /* ANI II */
 	char callednum[256];		/* Called number */
 	char redirectingnum[256];		/* Redirecting number */
+	int redirectingreason;			/* Reason for redirect */
 	char useruserinfo[256];			/* User->User info */
 	int flexible;				/* Are we flexible with our channel selection? */
 	int cref;					/* Call Reference Number */
