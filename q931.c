@@ -1563,7 +1563,11 @@ static int restart_ack(struct pri *pri, q931_call *c)
 	return send_message(pri, c, Q931_RESTART_ACKNOWLEDGE, restart_ack_ies);
 }
 
+#ifdef ALERTING_NO_PROGRESS
 static int call_proceeding_ies[] = { Q931_CHANNEL_IDENT, -1 };
+#else
+static int call_proceeding_ies[] = { Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR, -1 };
+#endif
 
 int q931_call_proceeding(struct pri *pri, q931_call *c, int info)
 {
