@@ -1107,6 +1107,7 @@ static FUNC_SEND(transmit_facility)
 
 		/* ROSE ARGUMENT component */
 		ASN1_ADD_SIMPLE(comp, 0x30, ie->data, i);
+		ASN1_PUSH(compstk, compsp, comp);
 
 		/* ROSE DivertingLegInformation2.diversionCounter component */
 		/* Always is 1 because other isn't available in the current design */
