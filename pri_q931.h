@@ -194,7 +194,8 @@ typedef struct q931_ie {
 #define Q931_DISPLAY					0x28
 #define Q931_IE_SEGMENTED_MSG			0x00
 #define Q931_IE_CHANGE_STATUS			0x01
-#define Q931_IE_CONNECTED_NUM			0x0C
+#define Q931_IE_CONNECTED_ADDR			0x0C
+#define Q931_IE_CONNECTED_NUM			0x4C
 #define Q931_IE_CALL_IDENTITY			0x10
 #define Q931_IE_FACILITY				0x1c
 #define Q931_IE_ENDPOINT_ID				0x26
