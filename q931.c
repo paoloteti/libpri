@@ -486,7 +486,7 @@ static char *cap2str(int mode)
 		{ PRI_TRANS_CAP_DIGITAL, "Unrestricted digital information" },
 		{ PRI_TRANS_CAP_RESTRICTED_DIGITAL, "Restricted digital information" },
 		{ PRI_TRANS_CAP_3_1K_AUDIO, "3.1kHz audio" },
-		{ PRI_TRANS_CAP_7K_AUDIO, "7kHz audio" },
+		{ PRI_TRANS_CAP_DIGITAL_W_TONES, "Unrestricted digital information with tones/announcements" },
 		{ PRI_TRANS_CAP_VIDEO, "Video" },
 		{ PRI_TRANS_CAP_AUDIO_4ESS, "3.1khz audio (4ESS)" },
 	};
