@@ -32,6 +32,15 @@
 #include "pri_q921.h" 
 #include "pri_q931.h"
 
+/*
+ * Define RANDOM_DROPS To randomly drop packets in order to simulate loss for testing
+ * retransmission functionality
+ */
+
+/*
+#define RANDOM_DROPS
+*/
+
 #define Q921_INIT(hf) do { \
 	(hf).h.sapi = 0; \
 	(hf).h.ea1 = 0; \
@@ -54,6 +63,13 @@ static void q921_discard_retransmissions(struct pri *pri)
 
 static int q921_transmit(struct pri *pri, q921_h *h, int len) {
 	int res;
+#ifdef RANDOM_DROPS
+   if (!(random() % 3)) {
+         printf(" === Dropping Packet ===\n");
+         return 0;
+   }
+#endif   
+      
 	/* Just send it raw */
 	if (pri->debug & PRI_DEBUG_Q921_DUMP)
 		q921_dump(h, len, pri->debug & PRI_DEBUG_Q921_RAW, 1);
@@ -159,9 +175,9 @@ static void q921_ack_rx(struct pri *pri, int ack)
 	/* Cancel each packet as necessary */
 	for (x=pri->v_a; x != ack; Q921_INC(x)) 
 		cnt += q921_ack_packet(pri, x);	
-	if (cnt) {
+	if (!pri->txqueue) {
 		if (pri->debug &  PRI_DEBUG_Q921_STATE)
-			printf("-- Since there was something acked, stopping T200 counter\n");
+			printf("-- Since there wis nothing left, stopping T200 counter\n");
 		/* Something was ACK'd.  Stop T200 counter */
 		pri_schedule_del(pri, pri->t200_timer);
 		pri->t200_timer = 0;
@@ -211,13 +227,15 @@ static void q921_rr(struct pri *pri, int pbit) {
 	q921_transmit(pri, &h, 4);
 }
 
+static pri_event *q921_dchannel_down(struct pri *pri);
+
 static void t200_expire(void *vpri)
 {
 	struct pri *pri = vpri;
 	if (pri->txqueue) {
 		/* Retransmit first packet in the queue, setting the poll bit */
 		if (pri->debug & PRI_DEBUG_Q921_STATE)
-			printf("T200 counter expired, resending last frame and scheduling t200 again (retrans so far = %d)\n", pri->retrans);
+			printf("-- T200 counter expired, What to do...\n");
 		/* Force Poll bit */
 		pri->txqueue->h.p_f = 1;	
 		/* Update nr */
@@ -225,11 +243,28 @@ static void t200_expire(void *vpri)
 		pri->v_na = pri->v_r;
 		pri->solicitfbit = 1;
 		pri->retrans++;
-		q921_transmit(pri, (q921_h *)&pri->txqueue->h, pri->txqueue->len);
+      /* Up to three retransmissions */
+      if (pri->retrans < N_200) {
+         /* Reschedule t200_timer */
+         if (pri->debug & PRI_DEBUG_Q921_STATE)
+            printf("-- Retransmitting %d bytes\n", pri->txqueue->len);
+   		q921_transmit(pri, (q921_h *)&pri->txqueue->h, pri->txqueue->len);
+         if (pri->debug & PRI_DEBUG_Q921_STATE) 
+               printf("-- Rescheduling retransmission (%d)\n", pri->retrans);
+         pri->t200_timer = pri_schedule_event(pri, T_200, t200_expire, pri);
+      } else {
+         if (pri->debug & PRI_DEBUG_Q921_STATE) 
+               printf("-- Timeout occured, restarting PRI\n");
+         pri->state = Q921_LINK_CONNECTION_RELEASED;
+      	pri->t200_timer = 0;
+         q921_dchannel_down(pri);
+         q921_start(pri);
+         pri->schedev = 1;
+      }
 	} else {
 		fprintf(stderr, "T200 counter expired, nothing to send...\n");
+   	pri->t200_timer = 0;
 	}
-	pri->t200_timer = 0;
 }
 
 int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
@@ -474,6 +509,7 @@ void q921_reset(struct pri *pri)
 
 pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
 {
+   q921_frame *f;
 	/* Discard FCS */
 	len -= 2;
 	
@@ -534,8 +570,57 @@ pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
 				pri->solicitfbit = 0;
 			}
 			break;
+#if 0
+      case 1:
+         /* Receiver not ready */
+         if (pri->debug & PRI_DEBUG_Q921_STATE)
+            printf("-- Got receiver not ready\n");
+         pri->busy = 1;
+         break;   
+#endif         
+      case 2:
+         /* Just retransmit */
+         if (pri->debug & PRI_DEBUG_Q921_STATE)
+            printf("-- Got reject requesting packet %d...  Retransmitting.\n", h->s.n_r);
+         if (h->s.p_f) {
+            /* If it has the poll bit set, send an appropriate supervisory response */
+            q921_rr(pri, 1);
+         }
+         /* Resend the proper I-frame */
+         for(f=pri->txqueue;f;f=f->next) {
+               if (f->h.n_s == h->s.n_r) {
+                     /* Matches the request */
+                     break;
+               }
+         }
+         if (f) {
+               /* Retransmit the requested frame */
+               q921_transmit(pri, (q921_h *)(&f->h), f->len);
+         } else {
+               if (pri->txqueue) {
+                     /* This should never happen */
+		     if (!h->s.p_f || h->s.n_r) {
+			fprintf(stderr, "!! Got reject for frame %d, but we only have others!\n", h->s.n_r);
+		     }
+               } else {
+                     /* Hrm, we have nothing to send, but have been REJ'd.  Reset v_a, v_s, etc */
+                     pri->v_a = h->s.n_r;
+                     pri->v_s = h->s.n_r;
+                     /* Reset t200 timer if it was somehow going */
+                     if (pri->t200_timer) {
+                           pri_schedule_del(pri, pri->t200_timer);
+                           pri->t200_timer = 0;
+                     }
+                     /* Reset and restart t203 timer */
+                     if (pri->t203_timer)
+                           pri_schedule_del(pri, pri->t203_timer);
+                     pri->t203_timer = pri_schedule_event(pri, T_203, t203_expire, pri);
+               }
+         }
+         break;
 		default:
-			fprintf(stderr, "!! XXX Unknown Supervisory frame XXX\n");
+			fprintf(stderr, "!! XXX Unknown Supervisory frame ss=0x%02x,pf=%02xnr=%02x vs=%02x, va=%02x XXX\n", h->s.ss, h->s.p_f, h->s.n_r,
+					pri->v_s, pri->v_a);
 		}
 		break;
 	case 3:
