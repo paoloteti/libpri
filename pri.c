@@ -639,3 +639,11 @@ int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int cal
 	return 0;
 }
 
+int pri_sr_set_redirecting(struct pri_sr *sr, char *num, int plan, int pres, int reason)
+{
+	sr->redirectingnum = num;
+	sr->redirectingplan = plan;
+	sr->redirectingpres = pres;
+	sr->redirectingreason = reason;
+	return 0;
+}

@@ -449,6 +449,7 @@ extern int pri_sr_set_channel(struct pri_sr *sr, int channel, int exclusive, int
 extern int pri_sr_set_bearer(struct pri_sr *sr, int transmode, int userl1);
 extern int pri_sr_set_called(struct pri_sr *sr, char *called, int calledplan, int complete);
 extern int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int callerplan, int callerpres);
+extern int pri_sr_set_redirecting(struct pri_sr *sr, char *num, int plan, int pres, int reason);
 
 extern int pri_setup(struct pri *pri, q931_call *call, struct pri_sr *req);
 	 

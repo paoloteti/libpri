@@ -118,6 +118,10 @@ struct pri_sr {
 	int calledplan;
 	int userl1;
 	int numcomplete;
+	char *redirectingnum;
+	int redirectingplan;
+	int redirectingpres;
+	int redirectingreason;
 };
 
 /* Internal switch types */

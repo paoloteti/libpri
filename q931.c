@@ -818,6 +818,17 @@ static FUNC_RECV(receive_redirecting_number)
 	return 0;
 }
 
+static FUNC_SEND(transmit_redirecting_number)
+{
+	if (call->redirectingnum && strlen(call->redirectingnum)) {
+		ie->data[0] = call->redirectingplan;
+		ie->data[1] = call->redirectingpres;
+		ie->data[2] = (call->redirectingreason & 0x0f) | 0x80;
+		memcpy(ie->data + 3, call->redirectingnum, strlen(call->redirectingnum));
+		return strlen(call->redirectingnum) + 3 + 2;
+	}
+	return 0;
+}
 
 static FUNC_DUMP(dump_redirecting_subaddr)
 {
@@ -1458,7 +1469,7 @@ struct ie ies[] = {
 	{ Q931_CALLING_PARTY_SUBADDR, "Calling Party Subaddress", dump_calling_party_subaddr, receive_calling_party_subaddr },
 	{ Q931_CALLED_PARTY_NUMBER, "Called Party Number", dump_called_party_number, receive_called_party_number, transmit_called_party_number },
 	{ Q931_CALLED_PARTY_SUBADDR, "Called Party Subaddress", dump_called_party_subaddr },
-	{ Q931_REDIRECTING_NUMBER, "Redirecting Number", dump_redirecting_number, receive_redirecting_number },
+	{ Q931_REDIRECTING_NUMBER, "Redirecting Number", dump_redirecting_number, receive_redirecting_number, transmit_redirecting_number },
 	{ Q931_REDIRECTING_SUBADDR, "Redirecting Subaddress", dump_redirecting_subaddr },
 	{ Q931_TRANSIT_NET_SELECT, "Transit Network Selection" },
 	{ Q931_RESTART_INDICATOR, "Restart Indicator", dump_restart_indicator, receive_restart_indicator, transmit_restart_indicator },
@@ -2191,7 +2202,7 @@ int q931_disconnect(struct pri *pri, q931_call *c, int cause)
 }
 
 static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_IE_FACILITY, Q931_PROGRESS_INDICATOR, Q931_NETWORK_SPEC_FAC, Q931_DISPLAY,
-	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_SENDING_COMPLETE, Q931_IE_ORIGINATING_LINE_INFO, -1 };
+	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_REDIRECTING_NUMBER, Q931_SENDING_COMPLETE, Q931_IE_ORIGINATING_LINE_INFO, -1 };
 
 static int gr303_setup_ies[] =  { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, -1 };
 
@@ -2240,6 +2251,23 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 		strcpy(c->callername, "");
 		c->callerplan = PRI_UNKNOWN;
 		c->callerpres = PRES_NUMBER_NOT_AVAILABLE;
+	}
+	if (req->redirectingnum) {
+		strncpy(c->redirectingnum, req->redirectingnum, sizeof(c->redirectingnum) - 1);
+		c->redirectingplan = req->redirectingplan;
+		if ((pri->switchtype == PRI_SWITCH_DMS100) ||
+		    (pri->switchtype == PRI_SWITCH_ATT4ESS)) {
+			/* Doesn't like certain presentation types */
+			if (!(req->redirectingpres & 0x7c))
+				req->redirectingpres = PRES_ALLOWED_NETWORK_NUMBER;
+		}
+		c->redirectingpres = req->redirectingpres;
+		c->redirectingreason = req->redirectingreason;
+	} else {
+		strcpy(c->redirectingnum, "");
+		c->redirectingplan = PRI_UNKNOWN;
+		c->redirectingpres = PRES_NUMBER_NOT_AVAILABLE;
+		c->redirectingreason = PRI_REDIR_UNKNOWN;
 	}
 	if (req->called) {
 		strncpy(c->callednum, req->called, sizeof(c->callednum) - 1);
