@@ -1791,13 +1791,14 @@ int q931_hangup(struct pri *pri, q931_call *c, int cause)
 	case Q931_CALL_STATE_OVERLAP_RECEIVING:
 		/* received SETUP_ACKNOWLEDGE */
 		/* send DISCONNECT in general */
-		if (disconnect && c->peercallstate != Q931_CALL_STATE_NULL && c->peercallstate != Q931_CALL_STATE_DISCONNECT_REQUEST && c->peercallstate != Q931_CALL_STATE_DISCONNECT_INDICATION && c->peercallstate != Q931_CALL_STATE_RELEASE_REQUEST && c->peercallstate != Q931_CALL_STATE_RESTART_REQUEST && c->peercallstate != Q931_CALL_STATE_RESTART)
-			q931_disconnect(pri,c,cause);
-		else if (release_compl && c->peercallstate == Q931_CALL_STATE_CALL_INITIATED)
-			q931_release_complete(pri,c,cause);
-		else if (!release_compl && c->peercallstate == Q931_CALL_STATE_CALL_INITIATED)
-			q931_release(pri,c,cause);
-		else 
+		if (c->peercallstate != Q931_CALL_STATE_NULL && c->peercallstate != Q931_CALL_STATE_DISCONNECT_REQUEST && c->peercallstate != Q931_CALL_STATE_DISCONNECT_INDICATION && c->peercallstate != Q931_CALL_STATE_RELEASE_REQUEST && c->peercallstate != Q931_CALL_STATE_RESTART_REQUEST && c->peercallstate != Q931_CALL_STATE_RESTART) {
+			if (disconnect)
+				q931_disconnect(pri,c,cause);
+			else if (release_compl)
+				q931_release_complete(pri,c,cause);
+			else
+				q931_release(pri,c,cause);
+		} else 
 			pri_error("Wierd, doing nothing but this shouldn't happen, ourstate %s, peerstate %s\n",callstate2str(c->ourcallstate),callstate2str(c->peercallstate));
 		break;
 	case Q931_CALL_STATE_DISCONNECT_REQUEST:
