@@ -1002,6 +1002,8 @@ static FUNC_SEND(transmit_facility)
 	struct rose_component *comp;
 	unsigned char namelen = strlen(call->callername);
 
+	if (namelen > 15) 
+		namelen = 15; /* According to GR-1367, for NI2 switches it can't be > 15 characters */
 	if ((namelen > 0) && ((pri->switchtype == PRI_SWITCH_QSIG) ||
 			(pri->switchtype == PRI_SWITCH_NI2 && 
 			 pri->localtype == PRI_NETWORK) )) {
