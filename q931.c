@@ -1587,7 +1587,6 @@ static int restart_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
 int q931_restart(struct pri *pri, int channel)
 {
 	struct q931_call *c;
-	c->ourcallstate = Q931_CALL_STATE_RESTART;
 	c = q931_getcall(pri, 0 | 0x8000);
 	if (!c)
 		return -1;
@@ -1597,6 +1596,7 @@ int q931_restart(struct pri *pri, int channel)
 	c->channelno = channel;
 	c->chanflags &= ~FLAG_PREFERRED;
 	c->chanflags |= FLAG_EXCLUSIVE;
+	c->ourcallstate = Q931_CALL_STATE_RESTART;
 	return send_message(pri, c, Q931_RESTART, restart_ies);
 }
 
