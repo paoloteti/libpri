@@ -252,6 +252,7 @@ struct q931_call {
 
         int useruserprotocoldisc;
 	char useruserinfo[256];
+	char callingsubaddr[256];	/* Calling parties sub address */
 };
 
 #define FUNC_DUMP(name) void ((name))(int full_ie, q931_ie *ie, int len, char prefix)
@@ -865,6 +866,13 @@ static FUNC_DUMP(dump_redirecting_subaddr)
 		(ie->data[0] & 0x08) >> 3, cnum);
 }
 
+static FUNC_RECV(receive_calling_party_subaddr)
+{
+	/* copy digits to call->callingsubaddr */
+ 	q931_get_number(call->callingsubaddr, sizeof(call->callingsubaddr), ie->data + 2, len - 4);
+	return 0;
+}
+
 static FUNC_RECV(receive_called_party_number)
 {
 	/* copy digits to call->callednum */
@@ -1378,7 +1386,7 @@ struct ie ies[] = {
 	{ Q931_CLOSED_USER_GROUP, "Closed User Group" },
 	{ Q931_REVERSE_CHARGE_INDIC, "Reverse Charging Indication" },
 	{ Q931_CALLING_PARTY_NUMBER, "Calling Party Number", dump_calling_party_number, receive_calling_party_number, transmit_calling_party_number },
-	{ Q931_CALLING_PARTY_SUBADDR, "Calling Party Subaddress", dump_calling_party_subaddr },
+	{ Q931_CALLING_PARTY_SUBADDR, "Calling Party Subaddress", dump_calling_party_subaddr, receive_calling_party_subaddr },
 	{ Q931_CALLED_PARTY_NUMBER, "Called Party Number", dump_called_party_number, receive_called_party_number, transmit_called_party_number },
 	{ Q931_CALLED_PARTY_SUBADDR, "Called Party Subaddress", dump_called_party_subaddr },
 	{ Q931_REDIRECTING_NUMBER, "Redirecting Number", dump_redirecting_number, receive_redirecting_number },
@@ -2575,6 +2583,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		strncpy(pri->ev.ring.callingnum, c->callernum, sizeof(pri->ev.ring.callingnum) - 1);
 		strncpy(pri->ev.ring.callingname, c->callername, sizeof(pri->ev.ring.callingname) - 1);
 		pri->ev.ring.calledplan = c->calledplan;
+		strncpy(pri->ev.ring.callingsubaddr, c->callingsubaddr, sizeof(pri->ev.ring.callingsubaddr) - 1);
 		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum) - 1);
                 strncpy(pri->ev.ring.redirectingnum, c->redirectingnum, sizeof(pri->ev.ring.redirectingnum) - 1);
                 strncpy(pri->ev.ring.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo) - 1);
@@ -2802,6 +2811,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.call = c;
 		pri->ev.ring.channel = c->channelno | (c->ds1no << 8);
 		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum) - 1);
+		strncpy(pri->ev.ring.callingsubaddr, c->callingsubaddr, sizeof(pri->ev.ring.callingsubaddr) - 1);
 		pri->ev.ring.complete = c->complete; 	/* this covers IE 33 (Sending Complete) */
 		return Q931_RES_HAVEEVENT;
 		break;

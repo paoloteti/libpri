@@ -269,6 +269,7 @@ typedef struct pri_event_ring {
 	int layer1;				/* User layer 1 */
 	int complete;				/* Have we seen "Complete" i.e. no more number? */
 	q931_call *call;			/* Opaque call pointer */
+	char callingsubaddr[256];		/* Calling parties subaddress */
 } pri_event_ring;
 
 typedef struct pri_event_hangup {
@@ -456,6 +457,7 @@ extern void pri_enslave(struct pri *master, struct pri *slave);
 #define PRI_GR303_SUPPORT
 #define PRI_ENSLAVE_SUPPORT
 #define PRI_SETUP_CALL
+#define PRI_RECEIVE_SUBADDR
 #endif
 
 /* Send notification */
