@@ -913,11 +913,14 @@ static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 
 	/* Check for SAPIs we don't yet handle */
 	if ((h->h.sapi != pri->sapi) || (h->h.tei != pri->tei)) {
+#ifdef PROCESS_SUBCHANNELS
 		/* If it's not us, try any subchannels we have */
 		if (pri->subchannel)
 			return q921_receive(pri->subchannel, h, len + 2);
-		else
+		else 
+#endif
 			return NULL;
+
 	}
 	ev = __q921_receive_qualified(pri, h, len);
 	reschedule_t203(pri);
