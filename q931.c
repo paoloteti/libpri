@@ -1937,6 +1937,9 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		h->raw[3] -= 0x8;
 		q931_xmit(pri, h, len, 1);
 		return 0;
+	} else if (h->pd != Q931_PROTOCOL_DISCRIMINATOR) {
+		pri_error("Warning: unknown protocol discriminator received\n");
+		return 0;
 	}
 	c = q931_getcall(pri, q931_cr(h));
 	if (!c) {
