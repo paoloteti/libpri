@@ -1,2 +1,7 @@
+libpri 0.1.1
+-- Added PRI_DEBUG_Q931_ANOMALY flag so that certain non-error-related
+messages would not be output unless specifically desired.
+
 libpri 0.1.0
  -- Initial release
+
