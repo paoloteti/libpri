@@ -47,6 +47,13 @@ install: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 	install -m 644 $(STATIC_LIBRARY) $(INSTALL_PREFIX)/usr/lib
 	/sbin/ldconfig
 
+uninstall:
+	@echo "Removing Libpri"
+	rm -f $(INSTALL_PREFIX)/usr/lib/libpri.so.1.0
+	rm -f $(INSTALL_PREFIX)/usr/lib/libpri.so
+	rm -f $(INSTALL_PREFIX)/usr/lib/libpri.a
+	rm -f $(INSTALL_PREFIX)/usr/include/libpri.h
+
 pritest: pritest.o
 	$(CC) -o pritest pritest.o -L. -lpri -lzap
 
