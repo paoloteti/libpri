@@ -76,7 +76,6 @@ static void event1(struct pri *pri, pri_event *e)
 	int x;
 	static q931_call *calls[TEST_CALLS];
 	char name[256], num[256], dest[256];
-	struct pri_sr *sr;
 	switch(e->gen.e) {
 	case PRI_EVENT_DCHAN_UP:
 		printf("Network is up.  Sending blast of calls!\n");
@@ -89,15 +88,18 @@ static void event1(struct pri *pri, pri_event *e)
 				continue;
 			}
 #if 0
-			sr = pri_sr_new();
-			pri_sr_set_channel(sr, x+1, 0, 0);
-			pri_sr_set_bearer(sr, 0, PRI_LAYER_1_ULAW);
-			pri_sr_set_called(sr, dest, PRI_NATIONAL_ISDN, 1);
-			pri_sr_set_caller(sr, num, name, PRI_NATIONAL_ISDN, PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN);
-			pri_sr_set_redirecting(sr, num, PRI_NATIONAL_ISDN, PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN, PRI_REDIR_UNCONDITIONAL);
-			if (pri_setup(pri, calls[x], sr))
-				perror("pri_setup");
-			pri_sr_free(sr);
+			{
+				struct pri_sr *sr;
+				sr = pri_sr_new();
+				pri_sr_set_channel(sr, x+1, 0, 0);
+				pri_sr_set_bearer(sr, 0, PRI_LAYER_1_ULAW);
+				pri_sr_set_called(sr, dest, PRI_NATIONAL_ISDN, 1);
+				pri_sr_set_caller(sr, num, name, PRI_NATIONAL_ISDN, PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN);
+				pri_sr_set_redirecting(sr, num, PRI_NATIONAL_ISDN, PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN, PRI_REDIR_UNCONDITIONAL);
+				if (pri_setup(pri, calls[x], sr))
+					perror("pri_setup");
+				pri_sr_free(sr);
+			}
 #else
 			if (pri_call(pri, calls[x], PRI_TRANS_CAP_DIGITAL, x + 1, 1, 1, num, 
 				PRI_NATIONAL_ISDN, name, PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN,
@@ -113,6 +115,10 @@ static void event1(struct pri *pri, pri_event *e)
 		q931_facility(pri, e->ringing.call);
 		pri_answer(pri, e->ringing.call, e->ringing.channel, 0);
 		break;
+	case PRI_EVENT_HANGUP_REQ:
+		printf("PRI 1: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
+		pri_hangup(pri, e->hangup.call, e->hangup.cause);
+		break;
 	default:
 		printf("PRI 1: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
 	}
@@ -126,6 +132,14 @@ static void event2(struct pri *pri, pri_event *e)
 		printf("PRI 2: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
 		pri_proceeding(pri, e->ring.call, e->ring.channel, 0);
 		pri_acknowledge(pri, e->ring.call, e->ring.channel, 0);
+		break;
+	case PRI_EVENT_ANSWER:
+		printf("PRI 2: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
+		pri_hangup(pri, e->answer.call, PRI_CAUSE_NORMAL_UNSPECIFIED);
+		break;
+	case PRI_EVENT_HANGUP:
+		printf("PRI 2: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
+		pri_hangup(pri, e->hangup.call, e->hangup.cause);
 		break;
 	case PRI_EVENT_DCHAN_UP:
 	default:
@@ -195,7 +209,7 @@ static void *dchan(void *data)
 	fd_set fds;
 	int res;
 	for(;;) {
-		if (next == pri_schedule_next(pri)) {
+		if ((next = pri_schedule_next(pri))) {
 			gettimeofday(&tv, NULL);
 			tv.tv_sec = next->tv_sec - tv.tv_sec;
 			tv.tv_usec = next->tv_usec - tv.tv_usec;

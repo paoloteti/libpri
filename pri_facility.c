@@ -801,16 +801,16 @@ extern int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *d
 		case SS_CNID_CALLINGNAME:
 			if (pri->debug & PRI_DEBUG_APDU)
 				pri_message("  Handle Name display operation\n");
-			switch (comp->type & PRI_DEBUG_APDU) {
-			case ROSE_NAME_PRESENTATION_ALLOWED_SIMPLE:
-				memcpy(call->callername, comp->data, comp->len);
-				call->callername[comp->len] = 0;
-				if (pri->debug & PRI_DEBUG_APDU)
-				  pri_message("    Received caller name '%s'\n", call->callername);
-				return 0;
-			default:
-				pri_message("Do not handle argument of type 0x%X\n", comp->type);
-				return -1;
+			switch (comp->type) {
+				case ROSE_NAME_PRESENTATION_ALLOWED_SIMPLE:
+					memcpy(call->callername, comp->data, comp->len);
+					call->callername[comp->len] = 0;
+					if (pri->debug & PRI_DEBUG_APDU)
+					  pri_message("    Received caller name '%s'\n", call->callername);
+					return 0;
+				default:
+					pri_message("Do not handle argument of type 0x%X\n", comp->type);
+					return -1;
 			}
 			break;
 		case ROSE_DIVERTING_LEG_INFORMATION2:
@@ -839,9 +839,9 @@ extern int pri_call_apdu_queue(q931_call *call, int messagetype, void *apdu, int
 		return -1;
 
 	new_event = malloc(sizeof(struct apdu_event));
-	memset(new_event, 0, sizeof(struct apdu_event));
 
 	if (new_event) {
+		memset(new_event, 0, sizeof(struct apdu_event));
 		new_event->message = messagetype;
 		new_event->callback = function;
 		new_event->data = data;
@@ -873,8 +873,8 @@ extern int pri_call_apdu_queue_cleanup(q931_call *call)
 		while (cur_event) {
 			/* TODO: callbacks, some way of giving return res on status of apdu */
 			free_event = cur_event;
-			free(free_event);
 			cur_event = cur_event->next;
+			free(free_event);
 		}
 		call->apdus = NULL;
 	}
