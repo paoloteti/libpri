@@ -41,12 +41,12 @@
 #define RANDOM_DROPS
 */
 
-#define Q921_INIT(hf) do { \
+#define Q921_INIT(pri, hf) do { \
 	memset(&(hf),0,sizeof(hf)); \
-	(hf).h.sapi = 0; \
+	(hf).h.sapi = (pri)->sapi; \
 	(hf).h.ea1 = 0; \
 	(hf).h.ea2 = 1; \
-	(hf).h.tei = 0; \
+	(hf).h.tei = (pri)->tei; \
 } while(0)
 
 static void reschedule_t203(struct pri *pri);
@@ -67,6 +67,8 @@ static void q921_discard_retransmissions(struct pri *pri)
 static int q921_transmit(struct pri *pri, q921_h *h, int len) 
 {
 	int res;
+	if (pri->master)
+		return q921_transmit(pri->master, h, len);
 #ifdef RANDOM_DROPS
    if (!(random() % 3)) {
          pri_message(" === Dropping Packet ===\n");
@@ -92,7 +94,7 @@ static int q921_transmit(struct pri *pri, q921_h *h, int len)
 static void q921_send_ua(struct pri *pri, int pfbit)
 {
 	q921_h h;
-	Q921_INIT(h);
+	Q921_INIT(pri, h);
 	h.u.m3 = 3;		/* M3 = 3 */
 	h.u.m2 = 0;		/* M2 = 0 */
 	h.u.p_f = pfbit;	/* Final bit on */
@@ -124,7 +126,7 @@ static void q921_send_sabme(void *vpri, int now)
 	pri->sabme_timer = pri_schedule_event(pri, T_200, q921_send_sabme_now, pri);
 	if (!now)
 		return;
-	Q921_INIT(h);
+	Q921_INIT(pri, h);
 	h.u.m3 = 3;	/* M3 = 3 */
 	h.u.m2 = 3;	/* M2 = 3 */
 	h.u.p_f = 1;	/* Poll bit set */
@@ -261,7 +263,7 @@ static pri_event *q921_ack_rx(struct pri *pri, int ack)
 static void q921_reject(struct pri *pri, int pf)
 {
 	q921_h h;
-	Q921_INIT(h);
+	Q921_INIT(pri, h);
 	h.s.x0 = 0;	/* Always 0 */
 	h.s.ss = 2;	/* Reject */
 	h.s.ft = 1;	/* Frametype (01) */
@@ -286,7 +288,7 @@ static void q921_reject(struct pri *pri, int pf)
 
 static void q921_rr(struct pri *pri, int pbit, int cmd) {
 	q921_h h;
-	Q921_INIT(h);
+	Q921_INIT(pri, h);
 	h.s.x0 = 0;	/* Always 0 */
 	h.s.ss = 0; /* Receive Ready */
 	h.s.ft = 1;	/* Frametype (01) */
@@ -366,7 +368,7 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 	f = malloc(sizeof(q921_frame) + len + 2);
 	memset(f,0,sizeof(q921_frame) + len + 2);
 	if (f) {
-		Q921_INIT(f->h);
+		Q921_INIT(pri, f->h);
 		switch(pri->localtype) {
 		case PRI_NETWORK:
 			if (cr)
@@ -678,28 +680,11 @@ void q921_reset(struct pri *pri)
 	q921_discard_retransmissions(pri);
 }
 
-static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
+static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 {
 	q921_frame *f;
 	pri_event *ev;
 	int sendnow;
-	/* Discard FCS */
-	len -= 2;
-	
-	if (pri->debug & PRI_DEBUG_Q921_DUMP)
-		q921_dump(h, len, pri->debug & PRI_DEBUG_Q921_RAW, 0);
-
-	/* Check some reject conditions -- Start by rejecting improper ea's */
-	if (h->h.ea1 || !(h->h.ea2))
-		return NULL;
-
-	/* Check for broadcasts - not yet handled */
-	if (h->h.tei == Q921_TEI_GROUP)
-		return NULL;
-	
-	/* Check for SAPIs we don't yet handle */
-	if (h->h.sapi != Q921_SAPI_CALL_CTRL)
-		return NULL;
 
 	switch(h->h.data[0] & Q921_FRAMETYPE_MASK) {
 	case 0:
@@ -891,11 +876,40 @@ static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 	return NULL;
 }
 
+static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
+{
+	pri_event *ev;
+	/* Discard FCS */
+	len -= 2;
+	
+	if (!pri->master && pri->debug & PRI_DEBUG_Q921_DUMP)
+		q921_dump(h, len, pri->debug & PRI_DEBUG_Q921_RAW, 0);
+
+	/* Check some reject conditions -- Start by rejecting improper ea's */
+	if (h->h.ea1 || !(h->h.ea2))
+		return NULL;
+
+	/* Check for broadcasts - not yet handled */
+	if (h->h.tei == Q921_TEI_GROUP)
+		return NULL;
+
+	/* Check for SAPIs we don't yet handle */
+	if ((h->h.sapi != pri->sapi) || (h->h.tei != pri->tei)) {
+		/* If it's not us, try any subchannels we have */
+		if (pri->subchannel)
+			return q921_receive(pri->subchannel, h, len + 2);
+		else
+			return NULL;
+	}
+	ev = __q921_receive_qualified(pri, h, len);
+	reschedule_t203(pri);
+	return ev;
+}
+
 pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
 {
 	pri_event *e;
 	e = __q921_receive(pri, h, len);
-	reschedule_t203(pri);
 #ifdef LIBPRI_COUNTERS
 	pri->q921_rxcount++;
 #endif

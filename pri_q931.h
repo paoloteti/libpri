@@ -113,6 +113,7 @@ typedef struct q931_ie {
 #define Q931_RES_INERRROR  (1 << 1)
 
 #define Q931_PROTOCOL_DISCRIMINATOR 0x08
+#define GR303_PROTOCOL_DISCRIMINATOR 0x4f
 
 /* Q.931 / National ISDN Message Types */
 
@@ -260,6 +261,10 @@ extern int q931_disconnect(struct pri *pri, q931_call *call, int cause);
 extern int q931_hangup(struct pri *pri, q931_call *call, int cause);
 
 extern int q931_restart(struct pri *pri, int channel);
+
+extern int q931_call_getcrv(struct pri *pri, q931_call *call, int *callmode);
+
+extern int q931_call_setcrv(struct pri *pri, q931_call *call, int crv, int callmode);
 
 extern q931_call *q931_new_call(struct pri *pri);
 

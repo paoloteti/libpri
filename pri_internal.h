@@ -42,12 +42,18 @@ enum q931_mode;
 
 struct pri {
 	int fd;				/* File descriptor for D-Channel */
+	struct pri *subchannel;	/* Sub-channel if appropriate */
+	struct pri *master;		/* Master channel if appropriate */
 	struct pri_sched pri_sched[MAX_SCHED];	/* Scheduled events */
 	int debug;			/* Debug stuff */
 	int state;			/* State of D-channel */
 	int switchtype;		/* Switch type */
 	int localtype;		/* Local network type (unknown, network, cpe) */
 	int remotetype;		/* Remote network type (unknown, network, cpe) */
+
+	int sapi;
+	int tei;
+	int protodisc;
 	
 	/* Q.921 State */
 	int q921_state;	
@@ -92,6 +98,10 @@ struct pri {
 	unsigned int q931_rxcount;
 #endif
 };
+
+/* Internal switch types */
+#define PRI_SWITCH_GR303_EOC_PATH	10
+#define PRI_SWITCH_GR303_TMC_SWITCHING	11
 
 extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);
 

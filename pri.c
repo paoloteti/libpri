@@ -53,12 +53,16 @@ char *pri_switch2str(int sw)
 		return "National ISDN 1";
 	case PRI_SWITCH_EUROISDN_E1:
 		return "EuroISDN";
+	case PRI_SWITCH_GR303_EOC:
+		return "GR303 EOC";
+	case PRI_SWITCH_GR303_TMC:
+		return "GR303 TMC";
 	default:
 		return "Unknown switchtype";
 	}
 }
 
-struct pri *pri_new(int fd, int node, int switchtype)
+static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *master)
 {
 	struct pri *p;
 	p = malloc(sizeof(struct pri));
@@ -68,16 +72,53 @@ struct pri *pri_new(int fd, int node, int switchtype)
 		p->localtype = node;
 		p->switchtype = switchtype;
 		p->cref = 1;
+		p->sapi = Q921_SAPI_CALL_CTRL;
+		p->tei = 0;
+		p->protodisc = Q931_PROTOCOL_DISCRIMINATOR;
+		p->master = master;
 #ifdef LIBPRI_COUNTERS
 		p->q921_rxcount = 0;
 		p->q921_txcount = 0;
 		p->q931_rxcount = 0;
 		p->q931_txcount = 0;
 #endif
+		if (switchtype == PRI_SWITCH_GR303_EOC) {
+			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
+			p->sapi = Q921_SAPI_GR303_EOC;
+			p->tei = Q921_TEI_GR303_EOC_OPS;
+			p->subchannel = __pri_new(-1, node, PRI_SWITCH_GR303_EOC_PATH, p);
+			if (!p->subchannel) {
+				free(p);
+				p = NULL;
+			}
+		} else if (switchtype == PRI_SWITCH_GR303_TMC) {
+			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
+			p->sapi = Q921_SAPI_GR303_TMC_CALLPROC;
+			p->tei = Q921_TEI_GR303_TMC_CALLPROC;
+			p->subchannel = __pri_new(-1, node, PRI_SWITCH_GR303_TMC_SWITCHING, p);
+			if (!p->subchannel) {
+				free(p);
+				p = NULL;
+			}
+		} else if (switchtype == PRI_SWITCH_GR303_TMC_SWITCHING) {
+			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
+			p->sapi = Q921_SAPI_GR303_TMC_SWITCHING;
+			p->tei = Q921_TEI_GR303_TMC_SWITCHING;
+		} else if (switchtype == PRI_SWITCH_GR303_EOC_PATH) {
+			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
+			p->sapi = Q921_SAPI_GR303_EOC;
+			p->tei = Q921_TEI_GR303_EOC_PATH;
+		}
 		/* Start Q.921 layer, Wait if we're the network */
-		q921_start(p, p->localtype == PRI_CPE);
+		if (p)
+			q921_start(p, p->localtype == PRI_CPE);
 	}
 	return p;
+}
+
+struct pri *pri_new(int fd, int node, int switchtype)
+{
+	return __pri_new(fd, node, switchtype, NULL);
 }
 
 char *pri_event2str(int id)
@@ -182,6 +223,8 @@ void pri_set_debug(struct pri *pri, int debug)
 	if (!pri)
 		return;
 	pri->debug = debug;
+	if (pri->subchannel)
+		pri_set_debug(pri->subchannel, debug);
 }
 
 int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info)
@@ -392,3 +435,12 @@ void pri_dump_info(struct pri *pri)
 	pri_message("Overlap Dial: %d\n", pri->overlapdial);
 }
 
+int pri_get_crv(struct pri *pri, q931_call *call, int *callmode)
+{
+	return q931_call_getcrv(pri, call, callmode);
+}
+
+int pri_set_crv(struct pri *pri, q931_call *call, int crv, int callmode)
+{
+	return q931_call_setcrv(pri, call, crv, callmode);
+}

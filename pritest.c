@@ -120,6 +120,10 @@ static int str2switch(char *swtype)
 		return PRI_SWITCH_ATT4ESS;
 	if (!strcasecmp(swtype, "euroisdn"))
 		return PRI_SWITCH_EUROISDN_E1;
+	if (!strcasecmp(swtype, "gr303eoc"))
+		return PRI_SWITCH_GR303_EOC;
+	if (!strcasecmp(swtype, "gr303tmc"))
+		return PRI_SWITCH_GR303_TMC;
 	return -1;
 }
 
@@ -299,6 +303,7 @@ static int run_pri(int dfd, int swtype, int node)
 		fprintf(stderr, "Unable to create PRI\n");
 		return -1;
 	}
+	pri_set_debug(pri, -1);
 	for (;;) {
 		
 		/* Run the D-Channel */

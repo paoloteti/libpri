@@ -60,6 +60,9 @@ struct timeval *pri_schedule_next(struct pri *pri)
 {
 	struct timeval *closest = NULL;
 	int x;
+	/* Check subchannels */
+	if (pri->subchannel)
+		closest = pri_schedule_next(pri->subchannel);
 	for (x=1;x<MAX_SCHED;x++) {
 		if (pri->pri_sched[x].callback && 
 			(!closest || (closest->tv_sec > pri->pri_sched[x].when.tv_sec) ||
@@ -70,19 +73,23 @@ struct timeval *pri_schedule_next(struct pri *pri)
 	return closest;
 }
 
-pri_event *pri_schedule_run(struct pri *pri)
+static pri_event *__pri_schedule_run(struct pri *pri, struct timeval *tv)
 {
-	struct timeval tv;
 	int x;
 	void (*callback)(void *);
 	void *data;
-	gettimeofday(&tv, NULL);
+	pri_event *e;
+	if (pri->subchannel) {
+		if ((e = __pri_schedule_run(pri->subchannel, tv))) {
+			return e;
+		}
+	}
 	for (x=1;x<MAX_SCHED;x++) {
 		if (pri->pri_sched[x].callback &&
-			((pri->pri_sched[x].when.tv_sec < tv.tv_sec) ||
-			 ((pri->pri_sched[x].when.tv_sec == tv.tv_sec) &&
-			  (pri->pri_sched[x].when.tv_usec <= tv.tv_usec)))) {
-            pri->schedev = 0;
+			((pri->pri_sched[x].when.tv_sec < tv->tv_sec) ||
+			 ((pri->pri_sched[x].when.tv_sec == tv->tv_sec) &&
+			  (pri->pri_sched[x].when.tv_usec <= tv->tv_usec)))) {
+			        pri->schedev = 0;
 			  	callback = pri->pri_sched[x].callback;
 				data = pri->pri_sched[x].data;
 				pri->pri_sched[x].callback = NULL;
@@ -90,10 +97,18 @@ pri_event *pri_schedule_run(struct pri *pri)
 				callback(data);
             if (pri->schedev)
                   return &pri->ev;
-		}
+	    }
 	}
 	return NULL;
 }
+
+pri_event *pri_schedule_run(struct pri *pri)
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return __pri_schedule_run(pri, &tv);
+}
+
 
 void pri_schedule_del(struct pri *pri,int id)
 {

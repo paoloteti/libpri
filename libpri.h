@@ -49,6 +49,10 @@
 #define PRI_SWITCH_EUROISDN_E1	5	/* Standard EuroISDN (CTR4, ETSI 300-102) */
 #define PRI_SWITCH_EUROISDN_T1	6	/* T1 EuroISDN variant (ETSI 300-102) */
 #define PRI_SWITCH_NI1			7	/* National ISDN 1 */
+#define PRI_SWITCH_GR303_EOC		8	/* GR-303 Embedded Operations Channel */
+#define PRI_SWITCH_GR303_TMC		9	/* GR-303 Timeslot Management Channel */
+/* Switchtypes 10 - 20 are reserved for internal use */
+
 
 /* PRI D-Channel Events */
 #define PRI_EVENT_DCHAN_UP	 	1	/* D-channel is up */
@@ -338,14 +342,8 @@ extern int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int
    Set non-isdn to non-zero if you are not connecting to ISDN equipment */
 extern int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
-#if 0
-/* deprecated routines, use pri_hangup */
-/* Release/Reject a call */
-extern int pri_release(struct pri *pri, q931_call *call, int cause);
+/* Set CRV reference for GR-303 calls */
 
-/* Hangup / Disconnect a call */
-extern int pri_disconnect(struct pri *pri, q931_call *call, int cause);
-#endif
 
 #undef pri_release
 #undef pri_disconnect
@@ -368,6 +366,12 @@ extern int pri_reset(struct pri *pri, int channel);
 
 /* Create a new call */
 extern q931_call *pri_new_call(struct pri *pri);
+
+/* Retrieve CRV reference for GR-303 calls.  Returns >0 on success. */
+extern int pri_get_crv(struct pri *pri, q931_call *call, int *callmode);
+
+/* Retrieve CRV reference for GR-303 calls.  CRV must be >0, call mode should be 0 */
+extern int pri_set_crv(struct pri *pri, q931_call *call, int crv, int callmode);
 
 /* How long until you need to poll for a new event */
 extern struct timeval *pri_schedule_next(struct pri *pri);
@@ -400,4 +404,6 @@ extern int pri_progress(struct pri *pri, q931_call *c, int channel, int info);
 #define PRI_PROCEEDING_FULL
 /* Send call proceeding */
 extern int pri_proceeding(struct pri *pri, q931_call *c, int channel, int info);
+
+#define PRI_GR303_SUPPORT
 #endif
