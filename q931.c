@@ -2221,7 +2221,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		restart_ack(pri, c);
 		/* Notify user of restart event */
 		pri->ev.e = PRI_EVENT_RESTART;
-		pri->ev.restart.channel = c->channelno;
+		pri->ev.restart.channel = c->channelno | (c->ds1no << 8);
 		return Q931_RES_HAVEEVENT;
 	case Q931_SETUP:
 		if (missingmand) {
