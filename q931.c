@@ -2714,6 +2714,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ringing.channel = c->channelno | (c->ds1no << 8);
 		pri->ev.ringing.cref = c->cr;
 		pri->ev.ringing.call = c;
+		pri->ev.ringing.progress = c->progress;
 		return Q931_RES_HAVEEVENT;
 	case Q931_CONNECT:
 		if (c->newcall) {
@@ -2730,6 +2731,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.answer.channel = c->channelno | (c->ds1no << 8);
 		pri->ev.answer.cref = c->cr;
 		pri->ev.answer.call = c;
+		pri->ev.answer.progress = c->progress;
 		q931_connect_acknowledge(pri, c);
 		return Q931_RES_HAVEEVENT;
 	case Q931_FACILITY:
@@ -2773,6 +2775,10 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			c->ourcallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
 			c->peercallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
 		}
+		else
+			pri->ev.proceeding.progress = c->progress;
+		pri->ev.proceeding.cref = c->cr;
+		pri->ev.proceeding.call = c;
 		return Q931_RES_HAVEEVENT;
 	case Q931_CONNECT_ACKNOWLEDGE:
 		if (c->newcall) {

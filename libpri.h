@@ -253,6 +253,7 @@ typedef struct pri_event_ringing {
 	int e;
 	int channel;
 	int cref;
+	int progress;
 	q931_call *call;
 } pri_event_ringing;
 
@@ -260,6 +261,7 @@ typedef struct pri_event_answer {
 	int e;
 	int channel;
 	int cref;
+	int progress;
 	q931_call *call;
 } pri_event_answer;
 
@@ -309,6 +311,9 @@ typedef struct pri_event_restart_ack {
 typedef struct pri_event_proceeding {
 	int e;
 	int channel;
+	int cref;
+	int progress;
+	q931_call *call;
 } pri_event_proceeding;
  
 typedef struct pri_event_setup_ack {
