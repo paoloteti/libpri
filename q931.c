@@ -1908,7 +1908,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	q931_mh *mh;
 	q931_call *c;
 	q931_ie *ie;
-	int x,y;
+	unsigned int x;
+	int y;
 	int res;
 	int r;
 	int mandies[MAX_MAND_IES];
