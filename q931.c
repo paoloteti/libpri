@@ -2184,6 +2184,11 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 	c->userl1 = req->userl1;
 	c->ds1no = (req->channel & 0xff00) >> 8;
 	req->channel &= 0xff;
+	if ((pri->localtype == PRI_CPE) && pri->subchannel) {
+		req->channel = 0;
+		req->exclusive = 0;
+	}
+		
 	c->channelno = req->channel;		
 	c->slotmap = -1;
 	c->nonisdn = req->nonisdn;
@@ -2191,7 +2196,7 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 	c->complete = req->numcomplete; 
 	if (req->exclusive) 
 		c->chanflags = FLAG_EXCLUSIVE;
-	else
+	else if (c->channelno)
 		c->chanflags = FLAG_PREFERRED;
 	if (req->caller) {
 		strncpy(c->callernum, req->caller, sizeof(c->callernum) - 1);
