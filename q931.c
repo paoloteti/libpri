@@ -2614,7 +2614,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	for (x=0;x<MAX_MAND_IES;x++) {
 		if (mandies[x]) {
 			/* check if there is no channel identification when we're configured as network -> that's not an error */
-			if ((pri->localtype != PRI_NETWORK) || (mh->msg != Q931_SETUP) || (mandies[x] != Q931_CHANNEL_IDENT)) {
+			if (((pri->localtype != PRI_NETWORK) || (mh->msg != Q931_SETUP) || (mandies[x] != Q931_CHANNEL_IDENT)) &&
+			     ((mh->msg != Q931_PROGRESS) || (mandies[x] != Q931_PROGRESS_INDICATOR))) {
 				pri_error("XXX Missing handling for mandatory IE %d (cs%d, %s) XXX\n", Q931_IE_IE(mandies[x]), Q931_IE_CODESET(mandies[x]), ie2str(mandies[x]));
 				missingmand++;
 			}
