@@ -2137,6 +2137,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.call = c;
 		pri->ev.ring.layer1 = c->userl1;
 		pri->ev.ring.complete = c->complete; 
+		pri->ev.ring.ctype = c->transcapability;
 		if (c->transmoderate != TRANS_MODE_64_CIRCUIT) {
 			q931_release_complete(pri, c, PRI_CAUSE_BEARERCAPABILITY_NOTIMPL);
 			break;
