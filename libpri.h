@@ -395,6 +395,6 @@ extern int pri_fd(struct pri *pri);
 
 #define PRI_PROGRESS
 /* Send call proceeding */
-extern int pri_progress(struct pri *pri, q931_call *c);
+extern int pri_progress(struct pri *pri, q931_call *c, int info);
 
 #endif

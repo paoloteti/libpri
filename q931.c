@@ -1565,10 +1565,16 @@ static int restart_ack(struct pri *pri, q931_call *c)
 
 static int call_proceeding_ies[] = { Q931_CHANNEL_IDENT, -1 };
 
-int q931_call_proceeding(struct pri *pri, q931_call *c)
+int q931_call_proceeding(struct pri *pri, q931_call *c, int info)
 {
 	c->ourcallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
 	c->peercallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
+	if (info) {
+		c->progloc = LOC_PRIV_NET_LOCAL_USER;
+		c->progcode = CODE_CCITT;
+		c->progress = Q931_PROG_INBAND_AVAILABLE;
+	} else
+		c->progress = -1;
 	c->proc = 1;
 	c->alive = 1;
 	return send_message(pri, c, Q931_CALL_PROCEEDING, call_proceeding_ies);
@@ -1592,7 +1598,7 @@ int q931_alerting(struct pri *pri, q931_call *c, int channel, int info)
 	} else
 		c->progress = -1;
 	if (!c->proc)
-		q931_call_proceeding(pri, c);
+		q931_call_proceeding(pri, c, 0);
 	c->ourcallstate = Q931_CALL_STATE_CALL_RECEIVED;
 	c->peercallstate = Q931_CALL_STATE_CALL_DELIVERED;
 	c->alive = 1;
