@@ -911,9 +911,12 @@ static int receive_display(struct pri *pri, q931_call *call, int msgtype, q931_i
 
 static int transmit_display(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
-	ie->data[0] = 0xb1;
-	memcpy(ie->data + 1, call->callername, strlen(call->callername));
-	return 3 + strlen(call->callername);
+	if (pri->switchtype != PRI_SWITCH_NI1) {
+		ie->data[0] = 0xb1;
+		memcpy(ie->data + 1, call->callername, strlen(call->callername));
+		return 3 + strlen(call->callername);
+	}
+	return 0;
 }
 
 static int receive_progress_indicator(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)

@@ -48,6 +48,7 @@
 #define PRI_SWITCH_ATT4ESS		4	/* AT&T 4ESS */
 #define PRI_SWITCH_EUROISDN_E1	5	/* Standard EuroISDN (CTR4, ETSI 300-102) */
 #define PRI_SWITCH_EUROISDN_T1	6	/* T1 EuroISDN variant (ETSI 300-102) */
+#define PRI_SWITCH_NI1			7	/* National ISDN 1 */
 
 /* PRI D-Channel Events */
 #define PRI_EVENT_DCHAN_UP	 	1	/* D-channel is up */

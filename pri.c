@@ -49,6 +49,8 @@ char *pri_switch2str(int sw)
 		return "Lucent 5E";
 	case PRI_SWITCH_ATT4ESS:
 		return "AT&T 4ESS";
+	case PRI_SWITCH_NI1:
+		return "National ISDN 1";
 	default:
 		return "Unknown switchtype";
 	}
