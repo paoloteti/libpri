@@ -1487,10 +1487,18 @@ static int q931_status(struct pri *pri, q931_call *c)
 	if (!cur) {
 		/* something went wrong, respond with "no such call" */
 		c->ourcallstate = Q931_CALL_STATE_NULL;
-		c->cr|=0x80;
 		cur=c;
 	}
 	return send_message(pri, cur, Q931_STATUS, status_ies);
+}
+
+static int information_ies[] = { Q931_CALLED_PARTY_NUMBER, -1 };
+
+int q931_information(struct pri *pri, q931_call *c, char digit)
+{
+	strncpy(c->callednum,&digit,1);
+	c->callednum[1]='\0';
+	return send_message(pri, c, Q931_INFORMATION, information_ies);
 }
 
 static int restart_ack_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
@@ -1801,6 +1809,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	case Q931_STATUS_ENQUIRY:
 		break;
 	case Q931_SETUP_ACKNOWLEDGE:
+		break;
 	case Q931_USER_INFORMATION:
 	case Q931_SEGMENT:
 	case Q931_CONGESTION_CONTROL:
@@ -1848,7 +1857,6 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.e = PRI_EVENT_RESTART;
 		pri->ev.restart.channel = c->channelno;
 		return Q931_RES_HAVEEVENT;
-		break;
 	case Q931_SETUP:
 		c->ourcallstate = Q931_CALL_STATE_CALL_PRESENT;
 		c->alive = 1;
@@ -1970,11 +1978,9 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			break;
 		pri->ev.e = PRI_EVENT_INFO_RECEIVED;
 		pri->ev.ring.call = c;
-
+		pri->ev.ring.channel = c->channelno;
 		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum) - 1);
-
 		return Q931_RES_HAVEEVENT;
-
 	case Q931_STATUS_ENQUIRY:
 		q931_status(pri,c);
 		break;

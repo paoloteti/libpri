@@ -308,6 +308,9 @@ extern char *pri_cause2str(int cause);
    is in-band data available on the channel */
 extern int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info);
 
+/* Send a digit in overlap mode */
+extern int pri_information(struct pri *pri, q931_call *call, char digit);
+
 /* Answer the incomplete(call without called number) call on the given channel.
    Set non-isdn to non-zero if you are not connecting to ISDN equipment */
 extern int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisdn);

@@ -181,6 +181,13 @@ int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info)
 	return q931_alerting(pri, call, channel, info);
 }
 
+int pri_information(struct pri *pri, q931_call *call, char digit)
+{
+	if (!pri || !call)
+		return -1;
+	return q931_information(pri, call, digit);
+}
+
 int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisdn)
 {
 	if (!pri || !call)

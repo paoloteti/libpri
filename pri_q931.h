@@ -247,6 +247,8 @@ extern int q931_call_proceeding(struct pri *pri, q931_call *call);
 
 extern int q931_setup_ack(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
+extern int q931_information(struct pri *pri, q931_call *call, char digit);
+
 extern int q931_connect(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
 extern int q931_release(struct pri *pri, q931_call *call, int cause);
