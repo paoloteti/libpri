@@ -2091,6 +2091,15 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			missingmand++;
 		}
 	}
+	/* check if there is no channel identyfication when we're configured as network -> that's not an error */
+	if (missingmand && pri->localtype == PRI_NETWORK && mh->msg == Q931_SETUP) {
+		for (x=0;x<MAX_MAND_IES;x++) {
+			if (mandies[x] == Q931_CHANNEL_IDENT) {
+				missingmand--;
+				break;
+			}
+		}
+	}
 	
 	/* Post handling */
 	switch(mh->msg) {
