@@ -208,6 +208,7 @@ typedef struct q931_ie {
 #define Q931_IE_INFO_REQUEST            0x32
 #define Q931_IE_SIGNAL					0x34
 #define Q931_IE_SWITCHHOOK				0x36
+#define Q931_IE_GENERIC_DIGITS			(0x37 | Q931_CODESET(6))
 #define Q931_IE_FEATURE_ACTIVATE		0x38
 #define Q931_IE_FEATURE_IND				0x39
 #define Q931_IE_ORIGINAL_CALLED_NUMBER 	0x73

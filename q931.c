@@ -1448,6 +1448,168 @@ static FUNC_SEND(transmit_line_information)
 	return 0;
 }
 
+
+static char *gdencoding2str(int encoding)
+{
+	static struct msgtype gdencoding[] = {
+		{ 0, "BCD even" },
+		{ 1, "BCD odd" },
+		{ 2, "IA5" },
+		{ 3, "Binary" },
+	};
+	return code2str(encoding, gdencoding, sizeof(gdencoding) / sizeof(gdencoding[0]));
+}
+
+static char *gdtype2str(int type)
+{
+	static struct msgtype gdtype[] = {
+		{  0, "Account Code" },
+		{  1, "Auth Code" },
+		{  2, "Customer ID" },
+		{  3, "Universal Access" },
+		{  4, "Info Digits" },
+		{  5, "Callid" },
+		{  6, "Opart" },
+		{  7, "TCN" },
+		{  9, "Adin" },
+	};
+	return code2str(type, gdtype, sizeof(gdtype) / sizeof(gdtype[0]));
+}
+
+static FUNC_DUMP(dump_generic_digits)
+{
+	int encoding;
+	int type;
+	int idx;
+	int value;
+	if (len < 3) {
+		pri_message("%c Generic Digits (len=%02d): Invalid length\n", prefix, len);
+		return;
+	}
+	encoding = (ie->data[0] >> 5) & 7;
+	type = ie->data[0] & 0x1F;
+	pri_message("%c Generic Digits (len=%02d): Encoding %s  Type %s\n", prefix, len, gdencoding2str(encoding), gdtype2str(type));
+	if (encoding == 3) {	/* Binary */
+		pri_message("%c                            Don't know how to handle binary encoding\n");
+		return;
+	}
+	if (len == 3)	/* No number information */
+		return;
+	pri_message("%c                            Digits: ");
+	value = 0;
+	for(idx = 3; idx < len; ++idx) {
+		switch(encoding) {
+		case 0:		/* BCD even */
+		case 1:		/* BCD odd */
+			pri_message("%d", (ie->data[idx-2] >> 4) & 0x0f);
+			value = value * 10 + ((ie->data[idx-2] >> 4) & 0x0f);
+			if(!encoding || (idx+1 < len)) {	/* Special handling for BCD odd */
+				pri_message("%d", ie->data[idx-2] & 0x0f);
+				value = value * 10 + (ie->data[idx-2] & 0x0f);
+			}
+			break;
+		case 2:		/* IA5 */
+			pri_message("%c", ie->data[idx-2]);
+			value = value * 10 + ie->data[idx-2] - '0';
+			break;
+		}
+	}
+	switch(type) {
+		case 4:		/* Info Digits */
+			pri_message(" - %s", lineinfo2str(value));
+			break;
+	}
+	pri_message("\n");
+}
+
+static FUNC_RECV(receive_generic_digits)
+{
+	int encoding;
+	int type;
+	int idx;
+	int value;
+	int num_idx;
+	char number[260];
+
+	if (len < 3) {
+		pri_error("Invalid length of Generic Digits IE\n");
+		return -1;
+	}
+	encoding = (ie->data[0] >> 5) & 7;
+	type = ie->data[0] & 0x1F;
+	if (encoding == 3) {	/* Binary */
+		pri_message("!! Unable to handle binary encoded Generic Digits IE\n");
+		return 0;
+	}
+	if (len == 3)	/* No number information */
+		return 0;
+	switch(type) {
+	/* Integer value handling */
+	case 4:		/* Info Digits */
+		value = 0;
+		for(idx = 3; idx < len; ++idx) {
+			switch(encoding) {
+			case 0:		/* BCD even */
+			case 1:		/* BCD odd */
+				value = value * 10 + ((ie->data[idx-2] >> 4) & 0x0f);
+				if(!encoding || (idx+1 < len))	/* Special handling for BCD odd */
+					value = value * 10 + (ie->data[idx-2] & 0x0f);
+				break;
+			case 2:		/* IA5 */
+				value = value * 10 + (ie->data[idx-2] - '0');
+				break;
+			}
+		}
+		break;
+	/* String value handling */
+	case 5:		/* Callid */
+		num_idx = 0;
+		for(idx = 3; (idx < len) && (num_idx < sizeof(number) - 4); ++idx) {
+			switch(encoding) {
+			case 0:		/* BCD even */
+			case 1:		/* BCD odd */
+				number[num_idx++] = '0' + (ie->data[idx-2] & 0x0f);
+				if(!encoding || (idx+1 < len))	/* Special handling for BCD odd */
+					number[num_idx++] = '0' + ((ie->data[idx-2] >> 4) & 0x0f);
+				break;
+			case 2:
+				number[num_idx++] = ie->data[idx-2];
+				break;
+			}
+		}
+		number[num_idx] = '\0';
+		break;
+	}
+	switch(type) {
+	case 4:		/* Info Digits */
+		call->ani2 = value;
+		break;
+#if 0
+	case 5:		/* Callid */
+		if (!call->callernum[0]) {
+			memcpy(call->callernum, number, sizeof(call->callernum)-1);
+			call->callerpres = 0;
+			call->callerplan = 0;
+		}
+		break;
+#endif
+	}
+	return 0;
+}
+
+static FUNC_SEND(transmit_generic_digits)
+{
+#if 0	/* XXX Is this IE possible for other switches? XXX */
+	if(pri->switchtype == PRI_SWITCH_NI1) {
+		ie->data[0] = 0x04;	/* BCD even, Info Digits */
+		ie->data[1] = 0x00;	/* POTS */
+		return 4;
+	}
+#endif
+	return 0;
+}
+
+
 struct ie ies[] = {
 	/* Codeset 0 - Common */
 	{ NATIONAL_CHANGE_STATUS, "Change Status" },
@@ -1502,8 +1664,9 @@ struct ie ies[] = {
 	{ Q931_IE_UPDATE, "Update" },
 	{ Q931_SENDING_COMPLETE, "Sending Complete", dump_sending_complete, receive_sending_complete, transmit_sending_complete },
 	/* Codeset 6 - Network specific */
-	{ Q931_IE_FACILITY | Q931_CODESET(6), "Facility", dump_facility, receive_facility, transmit_facility },
 	{ Q931_IE_ORIGINATING_LINE_INFO, "Originating Line Information", dump_line_information, receive_line_information, transmit_line_information },
+	{ Q931_IE_FACILITY | Q931_CODESET(6), "Facility", dump_facility, receive_facility, transmit_facility },
+	{ Q931_IE_GENERIC_DIGITS, "Generic Digits", dump_generic_digits, receive_generic_digits, transmit_generic_digits },
 	/* Codeset 7 */
 };
 
@@ -2202,7 +2365,7 @@ int q931_disconnect(struct pri *pri, q931_call *c, int cause)
 }
 
 static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_IE_FACILITY, Q931_PROGRESS_INDICATOR, Q931_NETWORK_SPEC_FAC, Q931_DISPLAY,
-	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_REDIRECTING_NUMBER, Q931_SENDING_COMPLETE, Q931_IE_ORIGINATING_LINE_INFO, -1 };
+	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_REDIRECTING_NUMBER, Q931_SENDING_COMPLETE, Q931_IE_ORIGINATING_LINE_INFO, Q931_IE_GENERIC_DIGITS, -1 };
 
 static int gr303_setup_ies[] =  { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, -1 };
 
