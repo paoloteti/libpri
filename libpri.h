@@ -70,6 +70,7 @@
 #define PRI_EVENT_PROCEEDING	13	/* When we get CALL_PROCEEDING or PROGRESS */
 #define PRI_EVENT_SETUP_ACK	14	/* When we get SETUP_ACKNOWLEDGE */
 #define PRI_EVENT_HANGUP_REQ	15	/* Requesting the higher layer to hangup */
+#define PRI_EVENT_NOTIFY	16	/* Notification received */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
@@ -184,6 +185,30 @@
 #define PRI_LAYER_1_V120_RATE_ADAPT	0x28
 #define PRI_LAYER_1_X31_RATE_ADAPT	0x29
 
+/* Notifications */
+#define PRI_NOTIFY_USER_SUSPENDED		0x00	/* User suspended */
+#define PRI_NOTIFY_USER_RESUMED			0x01	/* User resumed */
+#define PRI_NOTIFY_BEARER_CHANGE		0x02	/* Bearer service change (DSS1) */
+#define PRI_NOTIFY_ASN1_COMPONENT		0x03	/* ASN.1 encoded component (DSS1) */
+#define PRI_NOTIFY_COMPLETION_DELAY		0x04	/* Call completion delay */
+#define PRI_NOTIFY_CONF_ESTABLISHED		0x42	/* Conference established */
+#define PRI_NOTIFY_CONF_DISCONNECTED		0x43	/* Conference disconnected */
+#define PRI_NOTIFY_CONF_PARTY_ADDED		0x44	/* Other party added */
+#define PRI_NOTIFY_CONF_ISOLATED		0x45	/* Isolated */
+#define PRI_NOTIFY_CONF_REATTACHED		0x46	/* Reattached */
+#define PRI_NOTIFY_CONF_OTHER_ISOLATED		0x47	/* Other party isolated */
+#define PRI_NOTIFY_CONF_OTHER_REATTACHED	0x48	/* Other party reattached */
+#define PRI_NOTIFY_CONF_OTHER_SPLIT		0x49	/* Other party split */
+#define PRI_NOTIFY_CONF_OTHER_DISCONNECTED	0x4a	/* Other party disconnected */
+#define PRI_NOTIFY_CONF_FLOATING		0x4b	/* Conference floating */
+#define PRI_NOTIFY_WAITING_CALL			0x60	/* Call is waiting call */
+#define PRI_NOTIFY_DIVERSION_ACTIVATED		0x68	/* Diversion activated (DSS1) */
+#define PRI_NOTIFY_TRANSFER_ALERTING		0x69	/* Call transfer, alerting */
+#define PRI_NOTIFY_TRANSFER_ACTIVE		0x6a	/* Call transfer, active */
+#define PRI_NOTIFY_REMOTE_HOLD			0x79	/* Remote hold */
+#define PRI_NOTIFY_REMOTE_RETRIEVAL		0x7a	/* Remote retrieval */
+#define PRI_NOTIFY_CALL_DIVERTING		0x7b	/* Call is diverting */
+
 #define PRI_COPY_DIGITS_CALLED_NUMBER
 
 typedef struct q931_call q931_call;
@@ -268,6 +293,12 @@ typedef struct pri_event_setup_ack {
 	int channel;
 } pri_event_setup_ack;
 
+typedef struct pri_event_notify {
+	int e;
+	int channel;
+	int info;
+} pri_event_notify;
+
 typedef union {
 	int e;
 	pri_event_generic gen;		/* Generic view */
@@ -281,6 +312,7 @@ typedef union {
 	pri_event_restart_ack restartack;	/* Restart Acknowledge */
 	pri_event_proceeding  proceeding;	/* Call proceeding & Progress */
 	pri_event_setup_ack   setup_ack;	/* SETUP_ACKNOWLEDGE structure */
+	pri_event_notify notify;		/* Notification */
 } pri_event;
 
 struct pri;
@@ -412,3 +444,6 @@ extern void pri_enslave(struct pri *master, struct pri *slave);
 #define PRI_GR303_SUPPORT
 #define PRI_ENSLAVE_SUPPORT
 #endif
+
+/* Send notification */
+extern int pri_notify(struct pri *pri, q931_call *c, int channel, int info);

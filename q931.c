@@ -222,6 +222,8 @@ struct q931_call {
 	int progloc;			/* Progress Location */	
 	int progress;			/* Progress indicator */
 	
+	int notify;			/* Notification */
+	
 	int causecode;			/* Cause Coding */
 	int causeloc;			/* Cause Location */
 	int cause;				/* Cause of clearing */
@@ -1189,6 +1191,56 @@ static int transmit_sending_complete(struct pri *pri, q931_call *call, int msgty
 	return 0;
 }
 
+static char *notify2str(int info)
+{
+	/* ITU-T Q.763 */
+	static struct msgtype notifies[] = {
+		{ PRI_NOTIFY_USER_SUSPENDED, "User suspended" },
+		{ PRI_NOTIFY_USER_RESUMED, "User resumed" },
+		{ PRI_NOTIFY_BEARER_CHANGE, "Bearer service change (DSS1)" },
+		{ PRI_NOTIFY_ASN1_COMPONENT, "ASN.1 encoded component (DSS1)" },
+		{ PRI_NOTIFY_COMPLETION_DELAY, "Call completion delay" },
+		{ PRI_NOTIFY_CONF_ESTABLISHED, "Conference established" },
+		{ PRI_NOTIFY_CONF_DISCONNECTED, "Conference disconnected" },
+		{ PRI_NOTIFY_CONF_PARTY_ADDED, "Other party added" },
+		{ PRI_NOTIFY_CONF_ISOLATED, "Isolated" },
+		{ PRI_NOTIFY_CONF_REATTACHED, "Reattached" },
+		{ PRI_NOTIFY_CONF_OTHER_ISOLATED, "Other party isolated" },
+		{ PRI_NOTIFY_CONF_OTHER_REATTACHED, "Other party reattached" },
+		{ PRI_NOTIFY_CONF_OTHER_SPLIT, "Other party split" },
+		{ PRI_NOTIFY_CONF_OTHER_DISCONNECTED, "Other party disconnected" },
+		{ PRI_NOTIFY_CONF_FLOATING, "Conference floating" },
+		{ PRI_NOTIFY_WAITING_CALL, "Call is waiting call" },
+		{ PRI_NOTIFY_DIVERSION_ACTIVATED, "Diversion activated (DSS1)" },
+		{ PRI_NOTIFY_TRANSFER_ALERTING, "Call transfer, alerting" },
+		{ PRI_NOTIFY_TRANSFER_ACTIVE, "Call transfer, active" },
+		{ PRI_NOTIFY_REMOTE_HOLD, "Remote hold" },
+		{ PRI_NOTIFY_REMOTE_RETRIEVAL, "Remote retrieval" },
+		{ PRI_NOTIFY_CALL_DIVERTING, "Call is diverting" },
+	};
+	return code2str(info, notifies, sizeof(notifies) / sizeof(notifies[0]));
+}
+
+static void dump_notify(q931_ie *ie, int len, char prefix)
+{
+	pri_message("%c Notification indicator (len=%2d): Ext: %d  %s (%d)\n", prefix, len, ie->data[0] >> 7, notify2str(ie->data[0] & 0x7f), ie->data[0] & 0x7f);
+}
+
+static int receive_notify(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
+{
+	call->notify = ie->data[0] & 0x7F;
+	return 0;
+}
+
+static int transmit_notify(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
+{
+	if (call->notify >= 0) {
+		ie->data[0] = 0x80 | call->notify;
+		return 3;
+	}
+	return 0;
+}
+
 struct ie ies[] = {
 	{ NATIONAL_CHANGE_STATUS, "Change Status" },
 	{ Q931_LOCKING_SHIFT, "Locking Shift" },
@@ -1225,7 +1277,7 @@ struct ie ies[] = {
 	{ Q931_IE_SEGMENTED_MSG, "Segmented Message" },
 	{ Q931_IE_CALL_IDENTITY, "Call Identity", dump_call_identity },
     { Q931_IE_ENDPOINT_ID, "Endpoint Identification" },
-	{ Q931_IE_NOTIFY_IND, "Notification Indicator" },
+	{ Q931_IE_NOTIFY_IND, "Notification Indicator", dump_notify, receive_notify, transmit_notify },
 	{ Q931_DISPLAY, "Display", dump_display, receive_display, transmit_display },
 	{ Q931_IE_TIME_DATE, "Date/Time", dump_time_date },
 	{ Q931_IE_KEYPAD_FACILITY, "Keypad Facility" },
@@ -1591,6 +1643,17 @@ static int restart_ack(struct pri *pri, q931_call *c)
 	c->ourcallstate = Q931_CALL_STATE_NULL;
 	c->peercallstate = Q931_CALL_STATE_NULL;
 	return send_message(pri, c, Q931_RESTART_ACKNOWLEDGE, restart_ack_ies);
+}
+
+static int notify_ies[] = { Q931_IE_NOTIFY_IND, -1 };
+
+int q931_notify(struct pri *pri, q931_call *c, int channel, int info)
+{
+	if (info >= 0)
+		c->notify = info & 0x7F;
+	else
+		c->notify = -1;
+	return send_message(pri, c, Q931_NOTIFY, notify_ies);
 }
 
 #ifdef ALERTING_NO_PROGRESS
@@ -2490,8 +2553,10 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.setup_ack.channel = c->channelno;
 		return Q931_RES_HAVEEVENT;
 	case Q931_NOTIFY:
-		/* Do nothing */
-		break;
+		pri->ev.e = PRI_EVENT_NOTIFY;
+		pri->ev.notify.channel = c->channelno;
+		pri->ev.notify.info = c->notify;
+		return Q931_RES_HAVEEVENT;
 	case Q931_USER_INFORMATION:
 	case Q931_SEGMENT:
 	case Q931_CONGESTION_CONTROL:
