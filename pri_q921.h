@@ -34,6 +34,7 @@
 #define T_WAIT_MAX	10000
 #define T_200		1000		/* 1 second between SABME's */
 #define T_203		10000		/* 10 seconds with no packets max */
+#define N_200		3		/* 3 retries */
 
 #define Q921_FRAMETYPE_MASK	0x3
 

@@ -46,8 +46,10 @@ int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), vo
 	gettimeofday(&tv, NULL);
 	tv.tv_sec += ms / 1000;
 	tv.tv_usec += (ms % 1000) * 1000;
-	if (tv.tv_usec > 1000000)
+	if (tv.tv_usec > 1000000) {
 		tv.tv_usec -= 1000000;
+		tv.tv_sec += 1;
+	}
 	pri->pri_sched[x].when = tv;
 	pri->pri_sched[x].callback = function;
 	pri->pri_sched[x].data = data;
@@ -68,11 +70,10 @@ struct timeval *pri_schedule_next(struct pri *pri)
 	return closest;
 }
 
-int pri_schedule_run(struct pri *pri)
+pri_event *pri_schedule_run(struct pri *pri)
 {
 	struct timeval tv;
 	int x;
-	int p = 0;
 	void (*callback)(void *);
 	void *data;
 	gettimeofday(&tv, NULL);
@@ -81,15 +82,17 @@ int pri_schedule_run(struct pri *pri)
 			((pri->pri_sched[x].when.tv_sec < tv.tv_sec) ||
 			 ((pri->pri_sched[x].when.tv_sec == tv.tv_sec) &&
 			  (pri->pri_sched[x].when.tv_usec <= tv.tv_usec)))) {
-			  	p++;
+            pri->schedev = 0;
 			  	callback = pri->pri_sched[x].callback;
 				data = pri->pri_sched[x].data;
 				pri->pri_sched[x].callback = NULL;
 				pri->pri_sched[x].data = NULL;
 				callback(data);
+            if (pri->schedev)
+                  return &pri->ev;
 		}
 	}
-	return p;
+	return NULL;
 }
 
 void pri_schedule_del(struct pri *pri,int id)

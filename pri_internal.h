@@ -70,6 +70,7 @@ struct pri {
 	
 	/* Used by scheduler */
 	struct timeval tv;
+	int schedev;
 	pri_event ev;		/* Static event thingy */
 	
 	/* Q.921 Re-transmission queue */
@@ -81,7 +82,7 @@ struct pri {
 
 extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);
 
-extern int pri_schedule_run(struct pri *pri);
+extern pri_event *pri_schedule_run(struct pri *pri);
 
 extern void pri_schedule_del(struct pri *pri, int ev);
 
