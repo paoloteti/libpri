@@ -2095,7 +2095,7 @@ int q931_connect(struct pri *pri, q931_call *c, int channel, int nonisdn)
 	/* Setup timer */
 	if (c->retranstimer)
 		pri_schedule_del(pri, c->retranstimer);
-	if (pri->localtype == PRI_CPE)
+	if ((pri->localtype == PRI_CPE) && (!pri->subchannel))
 		c->retranstimer = pri_schedule_event(pri, T_313, pri_connect_timeout, c);
 	return send_message(pri, c, Q931_CONNECT, connect_ies);
 }
