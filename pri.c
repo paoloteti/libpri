@@ -345,13 +345,39 @@ void pri_dump_event(struct pri *pri, pri_event *e)
 	}
 }
 
+static void pri_sr_init(struct pri_sr *req)
+{
+	memset(req, 0, sizeof(struct pri_sr));
+	
+}
+
+int pri_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
+{
+	if (!pri || !c)
+		return -1;
+	return q931_setup(pri, c, req);
+}
+
 int pri_call(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
 					int nonisdn, char *caller, int callerplan, char *callername, int callerpres, char *called,
 					int calledplan,int ulayer1)
 {
+	struct pri_sr req;
 	if (!pri || !c)
 		return -1;
-	return q931_setup(pri, c, transmode, channel, exclusive, nonisdn, caller, callerplan, callername, callerpres, called, calledplan, ulayer1);
+	pri_sr_init(&req);
+	req.transmode = transmode;
+	req.channel = channel;
+	req.exclusive = exclusive;
+	req.nonisdn =  nonisdn;
+	req.caller = caller;
+	req.callerplan = callerplan;
+	req.callername = callername;
+	req.callerpres = callerpres;
+	req.called = called;
+	req.calledplan = calledplan;
+	req.userl1 = ulayer1;
+	return q931_setup(pri, c, &req);
 }	
 
 static void (*__pri_error)(char *stuff);
@@ -450,4 +476,50 @@ void pri_enslave(struct pri *master, struct pri *slave)
 {
 	if (master && slave)
 		slave->callpool = &master->localpool;
+}
+
+struct pri_sr *pri_sr_new(void)
+{
+	struct pri_sr *req;
+	req = malloc(sizeof(struct pri_sr));
+	if (req) 
+		pri_sr_init(req);
+	return req;
+}
+
+void pri_sr_free(struct pri_sr *sr)
+{
+	free(sr);
+}
+
+int pri_sr_set_channel(struct pri_sr *sr, int channel, int exclusive, int nonisdn)
+{
+	sr->channel = channel;
+	sr->exclusive = exclusive;
+	sr->nonisdn = nonisdn;
+	return 0;
+}
+
+int pri_sr_set_bearer(struct pri_sr *sr, int transmode, int userl1)
+{
+	sr->transmode = transmode;
+	sr->userl1 = userl1;
+	return 0;
+}
+
+int pri_sr_set_called(struct pri_sr *sr, char *called, int calledplan, int numcomplete)
+{
+	sr->called = called;
+	sr->calledplan = calledplan;
+	sr->numcomplete = numcomplete;
+	return 0;
+}
+
+int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int callerplan, int callerpres)
+{
+	sr->caller = caller;
+	sr->callername = callername;
+	sr->callerplan = callerplan;
+	sr->callerpres = callerpres;
+	return 0;
 }

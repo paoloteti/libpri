@@ -317,6 +317,7 @@ typedef union {
 } pri_event;
 
 struct pri;
+struct pri_sr;
 
 
 /* Create a D-channel on a given file descriptor.  The file descriptor must be a
@@ -415,6 +416,16 @@ extern pri_event *pri_schedule_run(struct pri *pri);
 extern int pri_call(struct pri *pri, q931_call *c, int transmode, int channel,
    int exclusive, int nonisdn, char *caller, int callerplan, char *callername, int callerpres,
 	 char *called,int calledplan, int ulayer1);
+
+extern struct pri_sr *pri_sr_new(void);
+extern void pri_sr_free(struct pri_sr *sr);
+
+extern int pri_sr_set_channel(struct pri_sr *sr, int channel, int exclusive, int nonisdn);
+extern int pri_sr_set_bearer(struct pri_sr *sr, int transmode, int userl1);
+extern int pri_sr_set_called(struct pri_sr *sr, char *called, int calledplan, int complete);
+extern int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int callerplan, int callerpres);
+
+extern int pri_setup(struct pri *pri, q931_call *call, struct pri_sr *req);
 	 
 /* Override message and error stuff */
 extern void pri_set_message(void (*__pri_error)(char *));
@@ -444,6 +455,7 @@ extern void pri_enslave(struct pri *master, struct pri *slave);
 
 #define PRI_GR303_SUPPORT
 #define PRI_ENSLAVE_SUPPORT
+#define PRI_SETUP_CALL
 #endif
 
 /* Send notification */

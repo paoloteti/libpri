@@ -100,6 +100,21 @@ struct pri {
 #endif
 };
 
+struct pri_sr {
+	int transmode;
+	int channel;
+	int exclusive;
+	int nonisdn;
+	char *caller;
+	int callerplan;
+	char *callername;
+	int callerpres;
+	char *called;
+	int calledplan;
+	int userl1;
+	int numcomplete;
+};
+
 /* Internal switch types */
 #define PRI_SWITCH_GR303_EOC_PATH	10
 #define PRI_SWITCH_GR303_TMC_SWITCHING	11

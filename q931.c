@@ -2044,57 +2044,53 @@ static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_PROG
 
 static int gr303_setup_ies[] =  { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, -1 };
 
-int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
-					int nonisdn, char *caller, int callerplan, char *callername, int callerpres, char *called,
-					int calledplan, int userl1)
+int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 {
 	int res;
 	
 	
-	if (!channel) 
-		return -1;
-	c->transcapability = transmode;
+	c->transcapability = req->transmode;
 	c->transmoderate = TRANS_MODE_64_CIRCUIT;
-	if (!userl1)
-		userl1 = PRI_LAYER_1_ULAW;
-	c->userl1 = userl1;
-	c->ds1no = (channel & 0xff00) >> 8;
-	channel &= 0xff;
-	c->channelno = channel;		
+	if (!req->userl1)
+		req->userl1 = PRI_LAYER_1_ULAW;
+	c->userl1 = req->userl1;
+	c->ds1no = (req->channel & 0xff00) >> 8;
+	req->channel &= 0xff;
+	c->channelno = req->channel;		
 	c->slotmap = -1;
-	c->nonisdn = nonisdn;
+	c->nonisdn = req->nonisdn;
 	c->newcall = 0;		
-	if (exclusive) 
+	if (req->exclusive) 
 		c->chanflags = FLAG_EXCLUSIVE;
 	else
 		c->chanflags = FLAG_PREFERRED;
-	if (caller) {
-		strncpy(c->callernum, caller, sizeof(c->callernum) - 1);
-		c->callerplan = callerplan;
-		if (callername)
-			strncpy(c->callername, callername, sizeof(c->callername) - 1);
+	if (req->caller) {
+		strncpy(c->callernum, req->caller, sizeof(c->callernum) - 1);
+		c->callerplan = req->callerplan;
+		if (req->callername)
+			strncpy(c->callername, req->callername, sizeof(c->callername) - 1);
 		else
 			strcpy(c->callername, "");
 		if ((pri->switchtype == PRI_SWITCH_DMS100) ||
 		    (pri->switchtype == PRI_SWITCH_ATT4ESS)) {
 			/* Doesn't like certain presentation types */
-			if (!(callerpres & 0x7c))
-				callerpres = PRES_ALLOWED_NETWORK_NUMBER;
+			if (!(req->callerpres & 0x7c))
+				req->callerpres = PRES_ALLOWED_NETWORK_NUMBER;
 		}
-		c->callerpres = callerpres;
+		c->callerpres = req->callerpres;
 	} else {
 		strcpy(c->callernum, "");
 		strcpy(c->callername, "");
 		c->callerplan = PRI_UNKNOWN;
 		c->callerpres = PRES_NUMBER_NOT_AVAILABLE;
 	}
-	if (called) {
-		strncpy(c->callednum, called, sizeof(c->callednum) - 1);
-		c->calledplan = calledplan;
+	if (req->called) {
+		strncpy(c->callednum, req->called, sizeof(c->callednum) - 1);
+		c->calledplan = req->calledplan;
 	} else
 		return -1;
 
-	if (nonisdn && (pri->switchtype == PRI_SWITCH_NI2))
+	if (req->nonisdn && (pri->switchtype == PRI_SWITCH_NI2))
 		c->progress = Q931_PROG_CALLER_NOT_ISDN;
 	else
 		c->progress = -1;
