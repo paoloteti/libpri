@@ -1264,6 +1264,7 @@ static inline int q931_cr(q931_h *h)
 				cr &= ~0x80;
 				cr |= 0x8000;
 			}
+			break;
 		default:
 			pri_error("Call Reference Length not supported: %d\n", h->crlen);
 	}
