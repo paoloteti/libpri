@@ -62,6 +62,7 @@
 #define PRI_EVENT_RESTART_ACK	10	/* Restart complete on a given channel */
 #define PRI_EVENT_FACNAME	11	/* Caller*ID Name received on Facility */
 #define PRI_EVENT_INFO_RECEIVED 12	/* Additional info (keypad) received */
+#define PRI_EVENT_PROCEEDING	13	/* When we get CALL_PROCEEDING or PROGRESS */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
@@ -247,6 +248,12 @@ typedef struct pri_event_restart_ack {
 	int channel;
 } pri_event_restart_ack;
 
+typedef struct pri_event_proceeding {
+	int e;
+	int channel;
+} pri_event_proceeding;
+ 
+
 typedef union {
 	int e;
 	pri_event_generic gen;		/* Generic view */
@@ -258,6 +265,7 @@ typedef union {
 	pri_event_ringing ringing;	/* Ringing */
 	pri_event_ringing answer;	/* Answer */
 	pri_event_restart_ack restartack;	/* Restart Acknowledge */
+	pri_event_proceeding  proceeding;	/* Call proceeding & Progress */
 } pri_event;
 
 struct pri;

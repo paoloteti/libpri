@@ -1906,16 +1906,19 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 #endif
 		return Q931_RES_HAVEEVENT;
 	case Q931_PROGRESS:
+	case Q931_CALL_PROCEEDING:
+		pri->ev.e = PRI_EVENT_PROCEEDING;
+		pri->ev.proceeding.channel = c->channelno;
+		c->ourcallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
+		return Q931_RES_HAVEEVENT;
 	case Q931_CONNECT_ACKNOWLEDGE:
 		c->ourcallstate = Q931_CALL_STATE_ACTIVE;
+		break;
 	case Q931_STATUS:
 		/* Do nothing */
 		if ((pri->debug & PRI_DEBUG_Q931_ANOMALY) &&
 		    (c->cause != PRI_CAUSE_INTERWORKING))
 			pri_error("Received unsolicited status: %s\n", pri_cause2str(c->cause));
-		break;
-	case Q931_CALL_PROCEEDING:
-		c->ourcallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
 		break;
 	case Q931_RELEASE_COMPLETE:
 		c->ourcallstate = Q931_CALL_STATE_NULL;
