@@ -759,10 +759,13 @@ static void dump_called_party_subaddr(q931_ie *ie, int len, char prefix)
 static void dump_calling_party_number(q931_ie *ie, int len, char prefix)
 {
 	char cnum[256];
-
-	q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
+	if (ie->data[2] & 0x80)
+		q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
+	else
+		q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
 	pri_message("%c Calling Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)\n", prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
-	pri_message("%c                           Presentation: %s (%d) '%s' ]\n", prefix, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f, cnum);
+	if (ie->data[2] & 0x80)
+		pri_message("%c                           Presentation: %s (%d) '%s' ]\n", prefix, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f, cnum);
 }
 
 static void dump_calling_party_subaddr(q931_ie *ie, int len, char prefix)
