@@ -785,13 +785,8 @@ static void dump_redirecting_subaddr(q931_ie *ie, int len, char prefix)
 
 static int receive_called_party_number(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
-#ifdef SKIP_OVERLAP_SUPPORT
 	/* copy digits to call->callednum */
  	q931_get_number(call->callednum, sizeof(call->callednum), ie->data + 1, len - 3);
-#else
-	/* append new digits to call->callednum */
-	q931_get_number(call->callednum + strlen(call->callednum), sizeof(call->callednum) - strlen(call->callednum), ie->data + 1, len - 3);
-#endif
 	call->calledplan = ie->data[0] & 0x7f;
 	return 0;
 }

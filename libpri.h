@@ -179,6 +179,8 @@
 #define PRI_LAYER_1_V120_RATE_ADAPT	0x28
 #define PRI_LAYER_1_X31_RATE_ADAPT	0x29
 
+#define PRI_COPY_DIGITS_CALLED_NUMBER
+
 typedef struct q931_call q931_call;
 
 typedef struct pri_event_generic {
