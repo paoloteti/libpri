@@ -28,6 +28,7 @@
 #LIBPRI_COUNTERS=-DLIBPRI_COUNTERS
 
 OSARCH=$(shell uname -s)
+PROC=$(shell uname -m)
 
 TOBJS=testpri.o
 T2OBJS=testprilib.o
@@ -44,6 +45,14 @@ ifeq (${OSARCH},FreeBSD)
 LDCONFIG_FLAGS=-m
 CFLAGS += -I../zaptel -I../zapata
 endif
+endif
+
+#The problem with sparc is the best stuff is in newer versions of gcc (post 3.0) only.
+#This works for even old (2.96) versions of gcc and provides a small boost either way.
+#A ultrasparc cpu is really v9 but the stock debian stable 3.0 gcc doesnt support it.
+ifeq ($(PROC),sparc64)
+PROC=ultrasparc
+CFLAGS += -mtune=$(PROC) -O3 -pipe -fomit-frame-pointer -mcpu=v8
 endif
 
 all: depend $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
@@ -69,16 +78,16 @@ uninstall:
 	rm -f $(INSTALL_PREFIX)/usr/include/libpri.h
 
 pritest: pritest.o
-	$(CC) -o pritest pritest.o -L. -lpri -lzap
+	$(CC) -o pritest pritest.o -L. -lpri -lzap $(CFLAGS)
 
 testprilib.o: testprilib.c
 	$(CC) $(CFLAGS) -D_REENTRANT -D_GNU_SOURCE -o $@ -c $<
 
 testprilib: testprilib.o
-	$(CC) -o testprilib testprilib.o -L. -lpri -lpthread
+	$(CC) -o testprilib testprilib.o -L. -lpri -lpthread $(CFLAGS)
 
 pridump: pridump.o
-	$(CC) -o pridump pridump.o -L. -lpri -lzap
+	$(CC) -o pridump pridump.o -L. -lpri -lzap $(CFLAGS)
 
 include .depend
 
