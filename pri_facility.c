@@ -181,6 +181,25 @@ static int typeofnumber_for_q931(struct pri *pri, int ton)
 	}
 }
 
+int asn1_name_decode(void * data, int len, char *namebuf, int buflen)
+{
+	struct rose_component *comp = (struct rose_component*)data;
+	int datalen = 0, res = 0;
+
+	if (comp->len == ASN1_LEN_INDEF) {
+		datalen = strlen(comp->data);
+		res = datalen + 2;
+	} else
+		datalen = res = comp->len;
+
+	if (datalen > buflen) {
+		/* Truncate */
+		datalen = buflen;
+		memcpy(namebuf, comp->data, datalen);
+	}
+	return res;
+}
+
 int asn1_string_encode(unsigned char asn1_type, void *data, int len, int max_len, void *src, int src_len)
 {
 	struct rose_component *comp = NULL;
@@ -204,18 +223,26 @@ static int rose_number_digits_decode(struct pri *pri, q931_call *call, unsigned 
 	int i = 0;
 	struct rose_component *comp = NULL;
 	unsigned char *vdata = data;
+	int datalen = 0;
+	int res = 0;
 
 	do {
 		GET_COMPONENT(comp, i, vdata, len);
 		CHECK_COMPONENT(comp, ASN1_NUMERICSTRING, "Don't know what to do with PublicPartyNumber ROSE component type 0x%x\n");
-		if(comp->len > 20) {
+		if(comp->len > 20 && comp->len != ASN1_LEN_INDEF) {
 			pri_message("!! Oversized NumberDigits component (%d)\n", comp->len);
 			return -1;
 		}
-		memcpy(value->partyaddress, comp->data, comp->len);
-		value->partyaddress[comp->len] = '\0';
+		if (comp->len == ASN1_LEN_INDEF) {
+			datalen = strlen(comp->data);
+			res = datalen + 2;
+		} else
+			res = datalen = comp->len;
+			
+		memcpy(value->partyaddress, comp->data, datalen);
+		value->partyaddress[datalen] = '\0';
 
-		return 0;
+		return res + 2;
 	}
 	while(0);
 	
@@ -228,6 +255,7 @@ static int rose_public_party_number_decode(struct pri *pri, q931_call *call, uns
 	struct rose_component *comp = NULL;
 	unsigned char *vdata = data;
 	int ton;
+	int res = 0;
 
 	if (len < 2)
 		return -1;
@@ -239,11 +267,12 @@ static int rose_public_party_number_decode(struct pri *pri, q931_call *call, uns
 		NEXT_COMPONENT(comp, i);
 		ton = typeofnumber_for_q931(pri, ton);
 
-		if(rose_number_digits_decode(pri, call, &vdata[i], len-i, value))
+		res = rose_number_digits_decode(pri, call, &vdata[i], len-i, value);
+		if (res < 0)
 			return -1;
 		value->ton = ton;
 
-		return 0;
+		return res + 2;
 
 	} while(0);
 	return -1;
@@ -254,19 +283,22 @@ static int rose_address_decode(struct pri *pri, q931_call *call, unsigned char *
 	int i = 0;
 	struct rose_component *comp = NULL;
 	unsigned char *vdata = data;
+	int res = 0;
 
 	do {
 		GET_COMPONENT(comp, i, vdata, len);
 
 		switch(comp->type) {
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_0):	/* [0] unknownPartyNumber */
-			if(rose_number_digits_decode(pri, call, comp->data, comp->len, value))
+			res = rose_number_digits_decode(pri, call, comp->data, comp->len, value);
+			if (res < 0)
 				return -1;
 			value->npi = PRI_NPI_UNKNOWN;
 			value->ton = PRI_TON_UNKNOWN;
 			break;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_1):	/* [1] publicPartyNumber */
-			if(rose_public_party_number_decode(pri, call, comp->data, comp->len, value) != 0)
+			res = rose_public_party_number_decode(pri, call, comp->data, comp->len, value);
+			if (res < 0)
 				return -1;
 			value->npi = PRI_NPI_E163_E164;
 			break;
@@ -281,7 +313,8 @@ static int rose_address_decode(struct pri *pri, q931_call *call, unsigned char *
 			pri_message("!! dataPartyNumber isn't handled\n");
 			return -1;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_4):	/* [4] telexPartyNumber */
-			if (rose_number_digits_decode(pri, call, comp->data, comp->len, value))
+			res = rose_number_digits_decode(pri, call, comp->data, comp->len, value);
+			if (res < 0)
 				return -1;
 			value->npi = PRI_NPI_F69 /* ??? */;
 			value->ton = PRI_TON_UNKNOWN /* ??? */;
@@ -292,7 +325,8 @@ static int rose_address_decode(struct pri *pri, q931_call *call, unsigned char *
 			value->npi = PRI_NPI_PRIVATE;
 			return -1;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_8):	/* [8] nationalStandardPartyNumber */
-			if (rose_number_digits_decode(pri, call, comp->data, comp->len, value))
+			res = rose_number_digits_decode(pri, call, comp->data, comp->len, value);
+			if (res < 0)
 				return -1;
 			value->npi = PRI_NPI_NATIONAL;
 			value->ton = PRI_TON_NATIONAL;
@@ -304,7 +338,7 @@ static int rose_address_decode(struct pri *pri, q931_call *call, unsigned char *
 		NEXT_COMPONENT(comp, i);
 		if(i < len)
 			pri_message("!! not all information is handled from Address component\n");
-		return 0;
+		return res;
 	}
 	while (0);
 
@@ -328,24 +362,24 @@ static int rose_presented_number_unscreened_decode(struct pri *pri, q931_call *c
 		switch(comp->type) {
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_0):		/* [0] presentationAllowedNumber */
 			value->pres = PRES_ALLOWED_USER_NUMBER_NOT_SCREENED;
-			return rose_address_decode(pri, call, comp->data, comp->len, value);
+			return rose_address_decode(pri, call, comp->data, comp->len, value) + 2;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_1):		/* [1] IMPLICIT presentationRestricted */
 			if (comp->len != 0) { /* must be NULL */
 				pri_error("!! Invalid PresentationRestricted component received (len != 0)\n");
 				return -1;
 			}
 			value->pres = PRES_PROHIB_USER_NUMBER_NOT_SCREENED;
-			return 0;
+			return 2;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2):		/* [2] IMPLICIT numberNotAvailableDueToInterworking */
 			if (comp->len != 0) { /* must be NULL */
 				pri_error("!! Invalid NumberNotAvailableDueToInterworking component received (len != 0)\n");
 				return -1;
 			}
 			value->pres = PRES_NUMBER_NOT_AVAILABLE;
-			return 0;
+			return 2;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_3):		/* [3] presentationRestrictedNumber */
 			value->pres = PRES_PROHIB_USER_NUMBER_NOT_SCREENED;
-			return rose_address_decode(pri, call, comp->data, comp->len, value);
+			return rose_address_decode(pri, call, comp->data, comp->len, value) + 2;
 		default:
 			pri_message("Invalid PresentedNumberUnscreened component 0x%X\n", comp->type);
 		}
@@ -361,10 +395,12 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 	int i = 0;
 	int diversion_counter;
 	int diversion_reason;
+	char origcalledname[50] = "", redirectingname[50] = "";
 	struct addressingdataelements_presentednumberunscreened divertingnr;
  	struct addressingdataelements_presentednumberunscreened originalcallednr;
 	struct rose_component *comp = NULL;
 	unsigned char *vdata = data;
+	int res = 0;
 
 	do {
 		/* diversionCounter stuff */
@@ -386,22 +422,42 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 
 		for(; i < len; NEXT_COMPONENT(comp, i)) {
 			GET_COMPONENT(comp, i, vdata, len);
-			switch(comp->type) {
-			case 0xA1:		/* divertingnr: presentednumberunscreened */
-				if(rose_presented_number_unscreened_decode(pri, call, comp->data, comp->len, &divertingnr) != 0)
+			switch(comp->type & ASN1_TYPE_MASK) {
+			case ASN1_TAG_0:
+				call->origredirectingreason = redirectingreason_for_q931(pri, comp->data[0]);
+				if (pri->debug & PRI_DEBUG_APDU)
+					pri_message("    Received reason for original redirection %d\n", call->origredirectingreason);
+				break;
+			case ASN1_TAG_1:		/* divertingnr: presentednumberunscreened */
+				res = rose_presented_number_unscreened_decode(pri, call, comp->data, comp->len, &divertingnr);
+				/* TODO: Fix indefinite length form hacks */
+				comp->len = res;
+				if (res < 0)
 					return -1;
 				if (pri->debug & PRI_DEBUG_APDU) {
 					pri_message("    Received divertingNr '%s'\n", divertingnr.partyaddress);
 					pri_message("      ton = %d, pres = %d, npi = %d\n", divertingnr.ton, divertingnr.pres, divertingnr.npi);
 				}
 				break;
-			case 0xA2:		/* originalCalledNr: PresentedNumberUnscreened */
-				if(rose_presented_number_unscreened_decode(pri, call, comp->data, comp->len, &originalcallednr) != 0)
+			case ASN1_TAG_2:		/* originalCalledNr: PresentedNumberUnscreened */
+				res = rose_presented_number_unscreened_decode(pri, call, comp->data, comp->len, &originalcallednr);
+				if (res < 0)
 					return -1;
+				comp->len = res;
 				if (pri->debug & PRI_DEBUG_APDU) {
 					pri_message("    Received originalcallednr '%s'\n", originalcallednr.partyaddress);
 					pri_message("      ton = %d, pres = %d, npi = %d\n", originalcallednr.ton, originalcallednr.pres, originalcallednr.npi);
 				}
+				break;
+			case ASN1_TAG_3:
+				comp->len = asn1_name_decode(comp->data, comp->len, redirectingname, sizeof(redirectingname));
+				if (pri->debug & PRI_DEBUG_APDU)
+					pri_message("    Received RedirectingName '%s'\n", redirectingname);
+				break;
+			case ASN1_TAG_4:
+				comp->len = asn1_name_decode(comp->data, comp->len, origcalledname, sizeof(origcalledname));
+				if (pri->debug & PRI_DEBUG_APDU)
+					pri_message("    Received Originally Called Name '%s'\n", origcalledname);
 				break;
 			default:
 				pri_message("!! Invalid DivertingLegInformation2 component received 0x%X\n", comp->type);
@@ -418,12 +474,19 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 			strncpy(call->redirectingnum, divertingnr.partyaddress, sizeof(call->redirectingnum)-1);
 			call->redirectingnum[sizeof(call->redirectingnum)-1] = '\0';
 		}
-		else if (originalcallednr.pres >= 0) {
-			call->redirectingplan = originalcallednr.npi;
-			call->redirectingpres = originalcallednr.pres;
-			call->redirectingreason = diversion_reason;
-			strncpy(call->redirectingnum, originalcallednr.partyaddress, sizeof(call->redirectingnum)-1);
-			call->redirectingnum[sizeof(call->redirectingnum)-1] = '\0';
+		if (originalcallednr.pres >= 0) {
+			call->origcalledplan = originalcallednr.npi;
+			call->origcalledpres = originalcallednr.pres;
+			strncpy(call->origcallednum, originalcallednr.partyaddress, sizeof(call->origcallednum)-1);
+			call->origcallednum[sizeof(call->origcallednum)-1] = '\0';
+		}
+		if (strlen(redirectingname) > 0) {
+			strncpy(call->redirectingname, redirectingname, sizeof(call->redirectingname));
+			call->redirectingname[sizeof(call->redirectingname)-1] = '\0';
+		}
+		if (strlen(origcalledname) > 0) {
+			strncpy(call->origcalledname, origcalledname, sizeof(call->origcalledname));
+			call->origcalledname[sizeof(call->origcalledname)-1] = '\0';
 		}
 		return 0;
 	}

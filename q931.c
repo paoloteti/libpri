@@ -3151,7 +3151,13 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
                 c->redirectingplan = -1;
                 c->redirectingpres = -1;
                 c->redirectingreason = -1;
+                c->origcalledplan = -1;
+                c->origcalledpres = -1;
+                c->origredirectingreason = -1;
 		strcpy(c->redirectingnum, "");
+		strcpy(c->origcallednum, "");
+		strcpy(c->redirectingname, "");
+		strcpy(c->origcalledname, "");
                 c->useruserprotocoldisc = -1; 
 		strcpy(c->useruserinfo, "");
 		c->complete = 0;
@@ -3357,8 +3363,13 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.calledplan = c->calledplan;
 		strncpy(pri->ev.ring.callingsubaddr, c->callingsubaddr, sizeof(pri->ev.ring.callingsubaddr) - 1);
 		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum) - 1);
+		strncpy(pri->ev.ring.origcalledname, c->origcalledname, sizeof(pri->ev.ring.origcalledname) - 1);
+		strncpy(pri->ev.ring.origcallednum, c->origcallednum, sizeof(pri->ev.ring.origcallednum) - 1);
                 strncpy(pri->ev.ring.redirectingnum, c->redirectingnum, sizeof(pri->ev.ring.redirectingnum) - 1);
+                strncpy(pri->ev.ring.redirectingname, c->redirectingname, sizeof(pri->ev.ring.redirectingname) - 1);
                 strncpy(pri->ev.ring.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo) - 1);
+		pri->ev.ring.redirectingreason = c->redirectingreason;
+		pri->ev.ring.origredirectingreason = c->origredirectingreason;
 		pri->ev.ring.flexible = ! (c->chanflags & FLAG_EXCLUSIVE);
 		pri->ev.ring.cref = c->cr;
 		pri->ev.ring.call = c;

@@ -305,6 +305,7 @@ typedef struct pri_event_ring {
 	int ani2;                   /* ANI II */
 	char callednum[256];		/* Called number */
 	char redirectingnum[256];		/* Redirecting number */
+	char redirectingname[256];		/* Redirecting name */
 	int redirectingreason;			/* Reason for redirect */
 	char useruserinfo[256];			/* User->User info */
 	int flexible;				/* Are we flexible with our channel selection? */
@@ -316,6 +317,9 @@ typedef struct pri_event_ring {
 	char callingsubaddr[256];		/* Calling parties subaddress */
 	int progress;
 	int progressmask;
+	char origcalledname[256];
+	char origcallednum[256];
+	int origredirectingreason;
 } pri_event_ring;
 
 typedef struct pri_event_hangup {

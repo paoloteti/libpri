@@ -107,6 +107,9 @@
 #define ASN1_CONTEXT_SPECIFIC	0x80
 #define ASN1_PRIVATE			0xc0
 
+/* ASN.1 Length masks */
+#define ASN1_LEN_INDEF			0x80
+
 
 #define INVOKE_OPERATION_INT	__USE_ASN1_INTEGER
 #define INVOKE_OBJECT_ID		__USE_ASN1_OBJECTIDENTIFIER
@@ -224,6 +227,9 @@ struct rose_component {
 extern int rose_invoke_decode(struct pri *pri, struct q931_call *call, unsigned char *data, int len);
 
 extern int asn1_string_encode(unsigned char asn1_type, void *data, int len, int max_len, void *src, int src_len);
+
+/* Get Name types from ASN.1 */
+extern int asn1_name_decode(void * data, int len, char *namebuf, int buflen);
 
 extern int typeofnumber_from_q931(struct pri *pri, int ton);
 

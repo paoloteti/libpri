@@ -211,10 +211,19 @@ struct q931_call {
 
 	int retranstimer;		/* Timer for retransmitting DISC */
 	int t308_timedout;		/* Whether t308 timed out once */
+
 	int redirectingplan;
 	int redirectingpres;
 	int redirectingreason;	      
-	char redirectingnum[256];
+	char redirectingnum[256];	/* Number of redirecting party */
+	char redirectingname[256];	/* Name of redirecting party */
+
+	/* Filled in cases of multiple diversions */
+	int origcalledplan;
+	int origcalledpres;
+	int origredirectingreason;      /* Original reason for redirect (in cases of multiple redirects) */
+	char origcalledname[256];	/* Original name of person being called */
+	char origcallednum[256];		/* Orignal number of person being called */
 
         int useruserprotocoldisc;
 	char useruserinfo[256];
