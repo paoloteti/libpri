@@ -279,6 +279,7 @@ typedef struct pri_event_ring {
 	char callingnum[256];		/* Calling number */
 	char callingname[256];		/* Calling name (if provided) */
 	int calledplan;				/* Dialing plan of Called number */
+	int ani2;                   /* ANI II */
 	char callednum[256];		/* Called number */
 	char redirectingnum[256];		/* Redirecting number */
 	char useruserinfo[256];			/* User->User info */
@@ -458,8 +459,8 @@ extern void pri_set_error(void (*__pri_error)(char *));
 #define PRI_SET_OVERLAPDIAL
 extern void pri_set_overlapdial(struct pri *pri,int state);
 
-#define PRI_DUMP_INFO
-extern void pri_dump_info(struct pri *pri);
+#define PRI_DUMP_INFO_STR
+extern char *pri_dump_info_str(struct pri *pri);
 
 /* Get file descriptor */
 extern int pri_fd(struct pri *pri);

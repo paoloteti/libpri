@@ -255,6 +255,8 @@ struct q931_call {
 	int callerpres;			/* Caller presentation */
 	char callernum[256];	/* Caller */
 	char callername[256];
+
+	int ani2;               /* ANI II */
 	
 	int  calledplan;
 	int nonisdn;
@@ -756,6 +758,7 @@ char *pri_pres2str(int pres)
 		{ PRES_PROHIB_USER_NUMBER_PASSED_SCREEN, "Presentation prohibited, user number passed network screening" },
 		{ PRES_PROHIB_USER_NUMBER_FAILED_SCREEN, "Presentation prohibited, user number failed network screening" },
 		{ PRES_PROHIB_NETWORK_NUMBER, "Presentation prohibited of network provided number" },
+		{ PRES_NUMBER_NOT_AVAILABLE, "Number not available" },
 	};
 	return code2str(pres, press, sizeof(press) / sizeof(press[0]));
 }
@@ -865,12 +868,26 @@ static FUNC_DUMP(dump_connected_number)
 
 
 static FUNC_RECV(receive_redirecting_number)
-{        
-        call->redirectingplan = ie->data[0] & 0x7f;
-        call->redirectingpres = ie->data[1] & 0x7f;
-        call->redirectingreason = ie->data[2] & 0x0f;
+{
+	int i = 0;
 
-        q931_get_number(call->redirectingnum, sizeof(call->redirectingnum), ie->data + 3, len - 5);
+	/* To follow Q.931 (4.5.1), we must search for start of octet 4 by
+	   walking through all bytes until one with ext bit (8) set to 1 */
+	do {
+		switch(i) {
+		case 0:
+			call->redirectingplan = ie->data[i] & 0x7f;
+			break;
+		case 1:
+			call->redirectingpres = ie->data[i] & 0x7f;
+			break;
+		case 2:
+			call->redirectingreason = ie->data[i] & 0x0f;
+			break;
+		}
+	}
+	while(!(ie->data[i++] & 0x80));
+	q931_get_number(call->redirectingnum, sizeof(call->redirectingnum), ie->data + i, ie->len - i);
 	return 0;
 }
 
@@ -930,7 +947,7 @@ static FUNC_SEND(transmit_calling_party_number)
 {
 	ie->data[0] = call->callerplan;
 	ie->data[1] = 0x80 | call->callerpres;
-	if (strlen(call->callednum)) 
+	if (strlen(call->callernum)) 
 		memcpy(ie->data + 2, call->callernum, strlen(call->callernum));
 	return strlen(call->callernum) + 4;
 }
@@ -1401,6 +1418,7 @@ static FUNC_DUMP(dump_line_information)
 
 static FUNC_RECV(receive_line_information)
 {
+	call->ani2 = ie->data[0];
 	return 0;
 }
 
@@ -1526,7 +1544,7 @@ static char *ie2str(int ie)
 	}
 }	
 
-static inline int ielen(q931_ie *ie)
+static inline unsigned int ielen(q931_ie *ie)
 {
 	if ((ie->ie & 0x80) != 0)
 		return 1;
@@ -2095,6 +2113,7 @@ int q931_connect(struct pri *pri, q931_call *c, int channel, int nonisdn)
 	/* Setup timer */
 	if (c->retranstimer)
 		pri_schedule_del(pri, c->retranstimer);
+	c->retranstimer = 0;
 	if ((pri->localtype == PRI_CPE) && (!pri->subchannel))
 		c->retranstimer = pri_schedule_event(pri, T_313, pri_connect_timeout, c);
 	return send_message(pri, c, Q931_CONNECT, connect_ies);
@@ -2632,6 +2651,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.channel = c->channelno | (c->ds1no << 8);
 		pri->ev.ring.callingpres = c->callerpres;
 		pri->ev.ring.callingplan = c->callerplan;
+		pri->ev.ring.ani2 = c->ani2;
 		strncpy(pri->ev.ring.callingnum, c->callernum, sizeof(pri->ev.ring.callingnum) - 1);
 		strncpy(pri->ev.ring.callingname, c->callername, sizeof(pri->ev.ring.callingname) - 1);
 		pri->ev.ring.calledplan = c->calledplan;
