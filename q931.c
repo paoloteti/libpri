@@ -204,6 +204,8 @@ struct msgtype facilities[] = {
 #define LOC_INTERNATIONAL_NETWORK	0x7
 #define LOC_NETWORK_BEYOND_INTERWORKING	0xa
 
+static char *ie2str(int ie);
+
 
 #define FUNC_DUMP(name) void ((name))(int full_ie, q931_ie *ie, int len, char prefix)
 #define FUNC_RECV(name) int ((name))(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
@@ -1374,8 +1376,14 @@ static FUNC_DUMP(dump_cause)
 	pri_message("%c                  Ext: %d  Cause: %s (%d), class = %s (%d) ]\n",
 		prefix, (ie->data[1] >> 7), pri_cause2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f, 
 			pri_causeclass2str((ie->data[1] & 0x7f) >> 4), (ie->data[1] & 0x7f) >> 4);
-	for (x=2;x<ie->len;x++) 
-		pri_message("%c              Cause data %d: %02x (%d)\n", prefix, x-1, ie->data[x], ie->data[x]);
+	if((ie->data[1] & 0x7f) == 0x63) { /* Cause: Inf. element nonexists or not implemented */
+		for (x=2;x<ie->len;x++) 
+			pri_message("%c              Cause data %d: %02x (%d, %s IE)\n", prefix, x-1, ie->data[x], ie->data[x], ie2str(ie->data[x]));
+	}
+	else {
+		for (x=2;x<ie->len;x++) 
+			pri_message("%c              Cause data %d: %02x (%d)\n", prefix, x-1, ie->data[x], ie->data[x]);
+	}
 }
 
 static FUNC_RECV(receive_cause)
@@ -3125,7 +3133,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		if ((pri->debug & PRI_DEBUG_Q931_ANOMALY) &&
 		    (c->cause != PRI_CAUSE_INTERWORKING)) 
 			pri_error("Received unsolicited status: %s\n", pri_cause2str(c->cause));
-		if (!c->sugcallstate) {
+		/* Workaround for S-12 ver 7.3 - it responds for invalid/non-implemented IEs at SETUP with null call state */
+		if (!c->sugcallstate && (c->ourcallstate != Q931_CALL_STATE_CALL_INITIATED)) {
 			pri->ev.hangup.channel = c->channelno | (c->ds1no << 8);
 			pri->ev.hangup.cref = c->cr;          		
 			pri->ev.hangup.cause = c->cause;      		
