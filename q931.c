@@ -362,7 +362,7 @@ static int transmit_channel_id(struct pri *pri, q931_call *call, int msgtype, q9
 	int pos=0;
 	/* Start with standard stuff */
 	if (pri->switchtype == PRI_SWITCH_GR303_TMC)
-		ie->data[pos] = 0x61;
+		ie->data[pos] = 0x69;
 	else
 		ie->data[pos] = 0xa1;
 	/* Add exclusive flag if necessary */
@@ -634,6 +634,12 @@ static int transmit_bearer_capability(struct pri *pri, q931_call *call, int msgt
 {
 	int tc;
 	tc = call->transcapability;
+	if (pri->subchannel) {
+		/* Bearer capability is *hard coded* in GR-303 */
+		ie->data[0] = 0x88;
+		ie->data[1] = 0x90;
+		return 4;
+	}
 	if (pri->switchtype == PRI_SWITCH_ATT4ESS) {
 		/* 4ESS uses a different trans capability for 3.1khz audio */
 		if (tc == PRI_TRANS_CAP_3_1K_AUDIO)
@@ -1815,6 +1821,8 @@ int q931_disconnect(struct pri *pri, q931_call *c, int cause)
 static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_DISPLAY, Q931_PROGRESS_INDICATOR,
 	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_SENDING_COMPLETE, -1 };
 
+static int gr303_setup_ies[] =  { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, -1 };
+
 int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
 					int nonisdn, char *caller, int callerplan, char *callername, int callerpres, char *called,
 					int calledplan, int userl1)
@@ -1833,8 +1841,6 @@ int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int ex
 	channel &= 0xff;
 	c->channelno = channel;		
 	c->slotmap = -1;
-	c->ds1no = (channel & 0xff00) >> 8;
-	channel &= 0xff;
 	c->nonisdn = nonisdn;
 	c->newcall = 0;		
 	if (exclusive) 
@@ -1871,7 +1877,10 @@ int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int ex
 		c->progress = Q931_PROG_CALLER_NOT_ISDN;
 	else
 		c->progress = -1;
-	res = send_message(pri, c, Q931_SETUP, setup_ies);
+	if (pri->subchannel)
+		res = send_message(pri, c, Q931_SETUP, gr303_setup_ies);
+	else
+		res = send_message(pri, c, Q931_SETUP, setup_ies);
 	if (!res) {
 		c->alive = 1;
 		/* make sure we call PRI_EVENT_HANGUP_ACK once we send/receive RELEASE_COMPLETE */
@@ -1919,7 +1928,7 @@ int q931_hangup(struct pri *pri, q931_call *c, int cause)
 		pri_message("NEW_HANGUP DEBUG: Calling q931_hangup, ourstate %s, peerstate %s\n",callstate2str(c->ourcallstate),callstate2str(c->peercallstate));
 	if (!pri || !c)
 		return -1;
-	if (cause == 34 || cause == 44 || cause == 82 || cause == 1) {
+	if (cause == 34 || cause == 44 || cause == 82 || cause == 1 || cause == 81) {
 		/* We'll send RELEASE_COMPLETE with these causes */
 		disconnect = 0;
 		release_compl = 1;
