@@ -1049,68 +1049,231 @@ static FUNC_RECV(receive_progress_indicator)
 
 static FUNC_SEND(transmit_facility)
 {
-	int i = 0;
-	struct rose_component *comp;
+	int i = 0, j, first_i, compsp = 0;
+	struct rose_component *comp, *compstk[10];
 	unsigned char namelen = strlen(call->callername);
 
-	if (namelen > 15) 
+	if ((pri->switchtype == PRI_SWITCH_NI2) && (namelen > 15))
 		namelen = 15; /* According to GR-1367, for NI2 switches it can't be > 15 characters */
 	if ((namelen > 0) && ((pri->switchtype == PRI_SWITCH_QSIG) ||
 			((pri->switchtype == PRI_SWITCH_NI2) && (pri->localtype == PRI_NETWORK)))) {
-		ie->data[i] = ROSE_NETWORK_EXTENSION;
-		i++;
-		/* Interpretation component */
-		comp = (struct rose_component*)&ie->data[i];
-		comp->type = COMP_TYPE_INTERPRETATION;
-		comp->len = 0x01;
-		comp->data[0] = 0x00; /* Discard unrecognized invokes */
+		do {
+			first_i = i;
+			ie->data[i] = 0x80 | Q932_PROTOCOL_EXTENSIONS;
+			i++;
+			/* Interpretation component */
+			ASN1_ADD_BYTECOMP(comp, COMP_TYPE_INTERPRETATION, ie->data, i, 0x00 /* Discard unrecognized invokes */);
 
-		i += 3;
-		comp = (struct rose_component*)&ie->data[i];
-		/* Invoke ID */
-		comp->type = COMP_TYPE_INVOKE;
-		comp->len = 3 /* sizeof Invoke ID */
-			+ 3 /* sizeof Operation tag */
-			+ 2 /* first two bytes of the Arguement section */
-			+ namelen;
+			/* Invoke ID */
+			ASN1_ADD_SIMPLE(comp, COMP_TYPE_INVOKE, ie->data, i);
+			ASN1_PUSH(compstk, compsp, comp);
 
-		i += 2;
-		comp = (struct rose_component*)&ie->data[i];
-		/* Invoke component contents */
-		/*	Invoke ID */
-		comp->type = ASN1_INTEGER;
-		comp->len = 0x01;
-		comp->data[0] = 0x01; /* Invoke ID value */
-		i += 3;
-		comp = (struct rose_component*)&ie->data[i];
-		/*	Operation Tag */
-		comp->type = ASN1_INTEGER;
-		comp->len = 0x01;
-		comp->data[0] = 0x00; /* Calling name */
-		i += 3;
-		comp = (struct rose_component*)&ie->data[i];
-		/* Arugement Tag */
-		comp->type = ROSE_NAME_PRESENTATION_ALLOWED_SIMPLE;
-		comp->len = namelen;
-		i += 2;
-		memcpy(comp->data, call->callername, namelen);
-		i += namelen;
-		return i+2 /* 2 = length of IE header */;
+			/* Invoke component contents */
+			/*	Invoke ID */
+			ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, ie->data, i, ++pri->last_invoke);
+
+			/*	Operation Tag */
+			ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, ie->data, i, SS_CNID_CALLINGNAME);
+
+			/* Arugement Tag */
+			j = asn1_string_encode(ROSE_NAME_PRESENTATION_ALLOWED_SIMPLE, &ie->data[i], len - i, 15, call->callername, namelen);
+			if (j < 0) {
+				i = first_i;
+				break;
+			}
+			i += j;
+
+			/* Fix length of stacked components */
+			while(compsp > 0) {
+				ASN1_FIXUP(compstk, compsp, ie->data, i);
+			}
+		} while (0);
 	}
+	if (/*(pri->switchtype == PRI_SWITCH_EUROISDN_E1) &&*/ call->redirectingnum && strlen(call->redirectingnum)) {
+		if (!(first_i = i)) {
+			/* Add protocol information header */
+			ie->data[i++] = 0x80 | Q932_PROTOCOL_ROSE;
+		}
 
-	return 0;
+		/* ROSE invoke component */
+		ASN1_ADD_SIMPLE(comp, COMP_TYPE_INVOKE, ie->data, i);
+		ASN1_PUSH(compstk, compsp, comp);
+
+		/* ROSE invokeId component */
+		ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, ie->data, i, ++pri->last_invoke);
+
+		/* ROSE operationId component */
+		ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, ie->data, i, ROSE_DIVERTING_LEG_INFORMATION2);
+
+		/* ROSE ARGUMENT component */
+		ASN1_ADD_SIMPLE(comp, 0x30, ie->data, i);
+
+		/* ROSE DivertingLegInformation2.diversionCounter component */
+		/* Always is 1 because other isn't available in the current design */
+		ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, ie->data, i, 1);
+
+		/* ROSE DivertingLegInformation2.diversionReason component */
+		ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, ie->data, i, redirectingreason_from_q931(pri, call->redirectingreason));
+
+		/* ROSE DivertingLegInformation2.divertingNr component */
+		ASN1_ADD_SIMPLE(comp, 0xA1, ie->data, i);
+		ASN1_PUSH(compstk, compsp, comp);
+
+		/* Redirecting information always not screened */
+		switch(call->redirectingpres) {
+		case PRES_ALLOWED_USER_NUMBER_NOT_SCREENED:
+		case PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN:
+			if (call->redirectingnum && strlen(call->redirectingnum)) {
+				ASN1_ADD_SIMPLE(comp, 0xA0, ie->data, i);
+				ASN1_PUSH(compstk, compsp, comp);
+
+				/* NPI of redirected number is not supported in the current design */
+				ASN1_ADD_SIMPLE(comp, 0xA1, ie->data, i);
+				ASN1_PUSH(compstk, compsp, comp);
+
+				ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, ie->data, i, typeofnumber_from_q931(pri, call->redirectingplan >> 4));
+
+				j = asn1_string_encode(ASN1_NUMERICSTRING, &ie->data[i], len - i, 20, call->redirectingnum, strlen(call->redirectingnum));
+				if (j < 0) {
+					i = first_i;
+					goto finish2;
+				}
+				i += j;
+				ASN1_FIXUP(compstk, compsp, ie->data, i);
+				ASN1_FIXUP(compstk, compsp, ie->data, i);
+				break;
+			}
+			/* fall through */
+		case PRES_PROHIB_USER_NUMBER_PASSED_SCREEN:
+		case PRES_PROHIB_USER_NUMBER_NOT_SCREENED:
+			ASN1_ADD_SIMPLE(comp, 0x81, ie->data, i);
+			break;
+		/* Don't know how to handle this */
+		case PRES_ALLOWED_NETWORK_NUMBER:
+		case PRES_PROHIB_NETWORK_NUMBER:
+		case PRES_ALLOWED_USER_NUMBER_FAILED_SCREEN:
+		case PRES_PROHIB_USER_NUMBER_FAILED_SCREEN:
+			ASN1_ADD_SIMPLE(comp, 0x81, ie->data, i);
+			break;
+		default:
+			pri_message("!! Undefined presentation value for redirecting number: %d\n", call->redirectingpres);
+		case PRES_NUMBER_NOT_AVAILABLE:
+			ASN1_ADD_SIMPLE(comp, 0x82, ie->data, i);
+			break;
+		}
+		ASN1_FIXUP(compstk, compsp, ie->data, i);
+
+		/* ROSE DivertingLegInformation2.originalCalledNr component */
+		/* This information isn't supported by current design - duplicate divertingNr */
+		ASN1_ADD_SIMPLE(comp, 0xA2, ie->data, i);
+		ASN1_PUSH(compstk, compsp, comp);
+
+		/* Redirecting information always not screened */
+		switch(call->redirectingpres) {
+		case PRES_ALLOWED_USER_NUMBER_NOT_SCREENED:
+		case PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN:
+			if (call->redirectingnum && strlen(call->redirectingnum)) {
+				ASN1_ADD_SIMPLE(comp, 0xA0, ie->data, i);
+				ASN1_PUSH(compstk, compsp, comp);
+
+				ASN1_ADD_SIMPLE(comp, 0xA1, ie->data, i);
+				ASN1_PUSH(compstk, compsp, comp);
+
+				ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, ie->data, i, typeofnumber_from_q931(pri, call->redirectingplan >> 4));
+
+				j = asn1_string_encode(ASN1_NUMERICSTRING, &ie->data[i], len - i, 20, call->redirectingnum, strlen(call->redirectingnum));
+				if (j < 0) {
+					i = first_i;
+					goto finish2;
+				}
+				i += j;
+				ASN1_FIXUP(compstk, compsp, ie->data, i);
+				ASN1_FIXUP(compstk, compsp, ie->data, i);
+				break;
+			}
+			/* fall through */
+		case PRES_PROHIB_USER_NUMBER_PASSED_SCREEN:
+		case PRES_PROHIB_USER_NUMBER_NOT_SCREENED:
+			ASN1_ADD_SIMPLE(comp, 0x81, ie->data, i);
+			break;
+		/* Don't know how to handle this */
+		case PRES_ALLOWED_NETWORK_NUMBER:
+		case PRES_PROHIB_NETWORK_NUMBER:
+		case PRES_ALLOWED_USER_NUMBER_FAILED_SCREEN:
+		case PRES_PROHIB_USER_NUMBER_FAILED_SCREEN:
+			ASN1_ADD_SIMPLE(comp, 0x81, ie->data, i);
+			break;
+		default:
+			pri_message("!! Undefined presentation value for redirecting number: %d\n", call->redirectingpres);
+		case PRES_NUMBER_NOT_AVAILABLE:
+			ASN1_ADD_SIMPLE(comp, 0x82, ie->data, i);
+			break;
+		}
+		ASN1_FIXUP(compstk, compsp, ie->data, i);
+
+		/* Fix length of stacked components */
+		while(compsp > 0) {
+			ASN1_FIXUP(compstk, compsp, ie->data, i);
+		}
+	}
+finish2:
+	return (i ? i+2 : 0);
 }
 
 static FUNC_RECV(receive_facility)
 {
 	int i = 0;
+	int protocol, next_protocol;
 	struct rose_component *comp = NULL;
+	enum {
+		Q932_STATE_NFE,				/* Network facility extension */
+		Q932_STATE_NPP,				/* Network protocol profile */
+		Q932_STATE_INTERPRETATION,	/* Interpretation component */
+		Q932_STATE_SERVICE			/* Service component(s) */
+	} state = Q932_STATE_SERVICE;
+#define Q932_HANDLE_PROC(component, my_state, name, handler) \
+				case component: \
+					if(state > my_state) { \
+						pri_error("!! %s component received in wrong place\n"); \
+						break; \
+					} \
+					state = my_state; \
+					if (pri->debug) \
+						pri_message("Handle Q.932 %s component\n", name); \
+					(handler)(pri, call, comp->data, comp->len); \
+					break;
+#define Q932_HANDLE_NULL(component, my_state, name, handle) \
+				case component: \
+					if(state > my_state) { \
+						pri_error("!! %s component received in wrong place\n"); \
+						break; \
+					} \
+					state = my_state; \
+					if (pri->debug) \
+						pri_message("Q.932 %s component is not handled\n", name); \
+					break;
 
 	if (ie->len < 1)
 		return -1;
 
-	if(ie->data[i] != 0x9F) {
-		if (pri->debug) pri_message("!! Don't know how to handle Service Discriminator of type 0x%X\n", ie->data[i]);
+	if ((ie->data[i] & 0xe0) != 0x80) {
+		pri_error ("!! Invalid Protocol Profile field 0x%X\n", ie->data[i]);
+		return -1;
+	}
+	switch(next_protocol = protocol = (ie->data[i] & 0x1f)) {
+	case Q932_PROTOCOL_CMIP:
+	case Q932_PROTOCOL_ACSE:
+		if (pri->debug)
+			pri_message("!! Don't know how to handle Q.932 Protocol Profile of type 0x%X\n", protocol);
+		return -1;
+	case Q932_PROTOCOL_EXTENSIONS:
+		state = Q932_STATE_NFE;
+		next_protocol = Q932_PROTOCOL_ROSE;
+		break;
+	case Q932_PROTOCOL_ROSE:
+		break;
+	default:
+		pri_error("!! Invalid Q.932 Protocol Profile of type 0x%X received\n", protocol);
 		return -1;
 	}
 	i++;
@@ -1121,20 +1284,50 @@ static FUNC_RECV(receive_facility)
 	while ((i+1 < ie->len) && (&ie->data[i])) {
 		comp = (struct rose_component*)&ie->data[i];
 		if (comp->type) {
-			switch (comp->type) {
-				case COMP_TYPE_INTERPRETATION:
-					if (pri->debug) pri_message("Handle ROSE interpretation component\n");
-					break;
-				case COMP_TYPE_INVOKE:
-					rose_invoke_decode(call, comp->data, comp->len);
-					break;
+			if (protocol == Q932_PROTOCOL_EXTENSIONS) {
+				switch (comp->type) {
+				Q932_HANDLE_NULL(COMP_TYPE_INTERPRETATION, Q932_STATE_INTERPRETATION, "Interpretation", NULL);
+				Q932_HANDLE_NULL(COMP_TYPE_NFE, Q932_STATE_NFE, "Network facility extensions", NULL);
+				Q932_HANDLE_NULL(COMP_TYPE_NETWORK_PROTOCOL_PROFILE, Q932_STATE_NPP, "Network protocol profile", NULL);
 				default:
-					if (pri->debug) pri_message("Don't know how to handle ROSE component of type 0x%X\n", comp->type);
+					protocol = next_protocol;
 					break;
+				}
+			}
+			switch (protocol) {
+			case Q932_PROTOCOL_ROSE:
+				switch (comp->type) {
+				Q932_HANDLE_PROC(COMP_TYPE_INVOKE, Q932_STATE_SERVICE, "ROSE Invoke", rose_invoke_decode);
+				Q932_HANDLE_NULL(COMP_TYPE_RETURN_RESULT, Q932_STATE_SERVICE, "ROSE return result", NULL);
+				Q932_HANDLE_NULL(COMP_TYPE_RETURN_ERROR, Q932_STATE_SERVICE, "ROSE return error", NULL);
+				Q932_HANDLE_NULL(COMP_TYPE_REJECT, Q932_STATE_SERVICE, "ROSE reject", NULL);
+				default:
+					if (pri->debug)
+						pri_message("Don't know how to handle ROSE component of type 0x%X\n", comp->type);
+					break;
+				}
+				break;
+			case Q932_PROTOCOL_CMIP:
+				switch (comp->type) {
+				default:
+					if (pri->debug)
+						pri_message("Don't know how to handle CMIP component of type 0x%X\n", comp->type);
+					break;
+				}
+				break;
+			case Q932_PROTOCOL_ACSE:
+				switch (comp->type) {
+				default:
+					if (pri->debug)
+						pri_message("Don't know how to handle ACSE component of type 0x%X\n", comp->type);
+					break;
+				}
+				break;
 			}
 		}
 		i += (comp->len + 2);
 	}
+#undef Q932_HANDLE
 
 	return 0;
 }
