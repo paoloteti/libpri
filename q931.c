@@ -1353,13 +1353,13 @@ q931_call *q931_new_call(struct pri *pri)
 	return q931_getcall(pri, pri->cref | 0x8000);
 }
 
-static void q931_destroycall(struct pri *pri, int cr)
+static void q931_destroy(struct pri *pri, int cr, q931_call *c)
 {
 	q931_call *cur, *prev;
 	prev = NULL;
 	cur = pri->calls;
 	while(cur) {
-		if (cur->cr == cr) {
+		if ((c && (cur == c)) || (!c && (cur->cr == cr))) {
 			if (prev)
 				prev->next = cur->next;
 			else
@@ -1377,11 +1377,19 @@ static void q931_destroycall(struct pri *pri, int cr)
 	pri_error("Can't destroy call %d!\n", cr);
 }
 
-void __q931_destroycall(struct pri *pri, q931_call *c) {
+static void q931_destroycall(struct pri *pri, int cr)
+{
+	return q931_destroy(pri, cr, NULL);
+}
+
+
+void __q931_destroycall(struct pri *pri, q931_call *c) 
+{
 	if (pri && c)
-		q931_destroycall(pri,c->cr);
+		q931_destroy(pri,0, c);
 	return;
 }
+
 static int add_ie(struct pri *pri, q931_call *call, int msgtype, int ie, q931_ie *iet, int maxlen)
 {
 	unsigned int x;
