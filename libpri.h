@@ -412,7 +412,7 @@ pri_event *pri_check_event(struct pri *pri);
 /* Give a name to a given event ID */
 extern char *pri_event2str(int id);
 
-/* Give a name toa  node type */
+/* Give a name to a node type */
 extern char *pri_node2str(int id);
 
 /* Give a name to a switch type */
@@ -420,9 +420,6 @@ extern char *pri_switch2str(int id);
 
 /* Print an event */
 extern void pri_dump_event(struct pri *pri, pri_event *e);
-
-/* Turn an event ID into a string */
-extern char *pri_event2str(int e);
 
 /* Turn presentation into a string */
 extern char *pri_pres2str(int pres);

@@ -39,7 +39,7 @@
 
 struct msgtype {
 	int msgnum;
-	unsigned char *name;
+	char *name;
 	int mandies[MAX_MAND_IES];
 };
 
@@ -741,7 +741,7 @@ static void q931_get_number(unsigned char *num, int maxlen, unsigned char *src, 
 
 static FUNC_DUMP(dump_called_party_number)
 {
-	char cnum[256];
+	unsigned char cnum[256];
 
 	q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
 	pri_message("%c Called Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d) '%s' ]\n",
@@ -750,7 +750,7 @@ static FUNC_DUMP(dump_called_party_number)
 
 static FUNC_DUMP(dump_called_party_subaddr)
 {
-	char cnum[256];
+	unsigned char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
 	pri_message("%c Called Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
 		prefix, len, ie->data[0] >> 7,
@@ -760,7 +760,7 @@ static FUNC_DUMP(dump_called_party_subaddr)
 
 static FUNC_DUMP(dump_calling_party_number)
 {
-	char cnum[256];
+	unsigned char cnum[256];
 	if (ie->data[0] & 0x80)
 		q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
 	else
@@ -774,7 +774,7 @@ static FUNC_DUMP(dump_calling_party_number)
 
 static FUNC_DUMP(dump_calling_party_subaddr)
 {
-	char cnum[256];
+	unsigned char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
 	pri_message("%c Calling Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
 		prefix, len, ie->data[0] >> 7,
@@ -784,7 +784,7 @@ static FUNC_DUMP(dump_calling_party_subaddr)
 
 static FUNC_DUMP(dump_redirecting_number)
 {
-	char cnum[256];
+	unsigned char cnum[256];
 	int i = 0;
 	/* To follow Q.931 (4.5.1), we must search for start of octet 4 by
 	   walking through all bytes until one with ext bit (8) set to 1 */
@@ -811,7 +811,7 @@ static FUNC_DUMP(dump_redirecting_number)
 
 static FUNC_DUMP(dump_connected_number)
 {
-	char cnum[256];
+	unsigned char cnum[256];
 	int i = 0;
 	/* To follow Q.931 (4.5.1), we must search for start of octet 4 by
 	   walking through all bytes until one with ext bit (8) set to 1 */
@@ -853,7 +853,7 @@ static FUNC_RECV(receive_redirecting_number)
 		}
 	}
 	while(!(ie->data[i++] & 0x80));
-	q931_get_number(call->redirectingnum, sizeof(call->redirectingnum), ie->data + i, ie->len - i);
+	q931_get_number((unsigned char *) call->redirectingnum, sizeof(call->redirectingnum), ie->data + i, ie->len - i);
 	return 0;
 }
 
@@ -873,7 +873,7 @@ static FUNC_SEND(transmit_redirecting_number)
 
 static FUNC_DUMP(dump_redirecting_subaddr)
 {
-	char cnum[256];
+	unsigned char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
 	pri_message("%c Redirecting Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
 		prefix, len, ie->data[0] >> 7,
@@ -884,14 +884,14 @@ static FUNC_DUMP(dump_redirecting_subaddr)
 static FUNC_RECV(receive_calling_party_subaddr)
 {
 	/* copy digits to call->callingsubaddr */
- 	q931_get_number(call->callingsubaddr, sizeof(call->callingsubaddr), ie->data + 2, len - 4);
+ 	q931_get_number((unsigned char *) call->callingsubaddr, sizeof(call->callingsubaddr), ie->data + 2, len - 4);
 	return 0;
 }
 
 static FUNC_RECV(receive_called_party_number)
 {
 	/* copy digits to call->callednum */
- 	q931_get_number(call->callednum, sizeof(call->callednum), ie->data + 1, len - 3);
+ 	q931_get_number((unsigned char *) call->callednum, sizeof(call->callednum), ie->data + 1, len - 3);
 	call->calledplan = ie->data[0] & 0x7f;
 	return 0;
 }
@@ -918,11 +918,11 @@ static FUNC_RECV(receive_calling_party_number)
 		return 0;
 
         if (extbit) {
-	  q931_get_number(call->callernum, sizeof(call->callernum), ie->data + 1, len - 3);
+	  q931_get_number((unsigned char *) call->callernum, sizeof(call->callernum), ie->data + 1, len - 3);
 	  call->callerpres = 0; /* PI presentation allowed
 				   SI user-provided, not screened */        
         } else {
-	  q931_get_number(call->callernum, sizeof(call->callernum), ie->data + 2, len - 4);
+	  q931_get_number((unsigned char *) call->callernum, sizeof(call->callernum), ie->data + 2, len - 4);
 	  call->callerpres = ie->data[1] & 0x7f;
         }
 	return 0;
@@ -951,7 +951,7 @@ static FUNC_RECV(receive_user_user)
 {        
         call->useruserprotocoldisc = ie->data[0] & 0xff;
         if (call->useruserprotocoldisc == 4) /* IA5 */
-          q931_get_number(call->useruserinfo, sizeof(call->useruserinfo), ie->data + 1, len - 3);
+          q931_get_number((unsigned char *) call->useruserinfo, sizeof(call->useruserinfo), ie->data + 1, len - 3);
 	return 0;
 }
 
@@ -1015,7 +1015,7 @@ static FUNC_RECV(receive_display)
 		data++;
 		len--;
 	}
-	q931_get_number(call->callername, sizeof(call->callername), data, len - 2);
+	q931_get_number((unsigned char *) call->callername, sizeof(call->callername), data, len - 2);
 	return 0;
 }
 
@@ -1508,7 +1508,7 @@ static FUNC_DUMP(dump_keypad_facility)
 	if (ie->len == 0 || ie->len > sizeof(tmp))
 		return;
 	
-	strncpy(tmp, ie->data, sizeof(tmp));
+	strncpy(tmp, (char *) ie->data, sizeof(tmp));
 	pri_message("%c Keypad Facility (len=%2d) [ %s ]\n", prefix, ie->len, tmp );
 }
 
@@ -1524,7 +1524,7 @@ static FUNC_RECV(receive_keypad_facility)
 	else
 		mylen = ie->len;
 
-	strncpy(call->digitbuf, ie->data, mylen);
+	strncpy(call->digitbuf, (char *) ie->data, mylen);
 
 	/* I must be really neurotic */
 	call->digitbuf[sizeof(call->digitbuf)-1] = '\0';
@@ -2445,7 +2445,7 @@ static int q931_handle_ie(int codeset, struct pri *pri, q931_call *c, int msg, q
 	return -1;
 }
 
-static void init_header(struct pri *pri, q931_call *call, char *buf, q931_h **hb, q931_mh **mhb, int *len)
+static void init_header(struct pri *pri, q931_call *call, unsigned char *buf, q931_h **hb, q931_mh **mhb, int *len)
 {
 	/* Returns header and message header and modifies length in place */
 	q931_h *h = (q931_h *)buf;
