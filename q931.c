@@ -1811,8 +1811,11 @@ static int call_progress_ies[] = { Q931_PROGRESS_INDICATOR, -1 };
 
 int q931_call_progress(struct pri *pri, q931_call *c, int channel, int info)
 {
-	if (!c->proc) 
-		q931_call_proceeding(pri, c, channel, 0);
+	if (channel) { 
+		c->ds1no = (channel & 0xff00) >> 8;
+		channel &= 0xff;
+		c->channelno = channel;		
+	}
 	c->ourcallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
 	c->peercallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
 	if (info) {
@@ -1821,7 +1824,6 @@ int q931_call_progress(struct pri *pri, q931_call *c, int channel, int info)
 		c->progress = Q931_PROG_INBAND_AVAILABLE;
 	} else
 		c->progress = -1;
-	c->proc = 1;
 	c->alive = 1;
 	return send_message(pri, c, Q931_PROGRESS, call_progress_ies);
 }
