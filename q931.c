@@ -911,6 +911,12 @@ static FUNC_RECV(receive_calling_party_number)
         call->callerplan = ie->data[0] & 0x7f;
         extbit = (ie->data[0] >> 7) & 0x01;
 
+	/* Somebody's broken PRI stack sent a calling
+	 party number IE twice.  One with the callernam
+	 and one without. */
+	if (strlen(call->callernum))
+		return 0;
+
         if (extbit) {
 	  q931_get_number(call->callernum, sizeof(call->callernum), ie->data + 1, len - 3);
 	  call->callerpres = 0; /* PI presentation allowed
