@@ -148,7 +148,7 @@ typedef enum q921_state {
 } q921_state;
 
 /* Dumps a *known good* Q.921 packet */
-extern void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx);
+extern void q921_dump(q921_h *h, int len, int showraw, int txrx);
 
 /* Bring up the D-channel */
 extern void q921_start(struct pri *pri, int now);
