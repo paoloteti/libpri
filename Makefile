@@ -34,6 +34,10 @@ INSTALL_PREFIX=
 
 all: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 
+update:
+	@echo "Updating from CVS"
+	@cvs update -d
+
 install: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 	mkdir -p $(INSTALL_PREFIX)/usr/lib
 	mkdir -p $(INSTALL_PREFIX)/usr/include
@@ -62,6 +66,6 @@ $(DYNAMIC_LIBRARY): $(DYNAMIC_OBJS)
 	ln -sf libpri.so.1 libpri.so
 
 clean:
-	rm -f *.o *.so *.lo 
+	rm -f *.o *.so *.lo *.so.1 *.so.1.0
 	rm -f testpri $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 	rm -f pritest pridump
