@@ -1388,7 +1388,7 @@ void q931_dump(q931_h *h, int len, int txrx)
 
 static int q931_handle_ie(struct pri *pri, q931_call *c, int msg, q931_ie *ie)
 {
-	int x;
+	unsigned int x;
 	if (pri->debug & PRI_DEBUG_Q931_STATE)
 		pri_message("-- Processing IE %d (%s)\n", ie->ie, ie2str(ie->ie));
 	for (x=0;x<sizeof(ies) / sizeof(ies[0]);x++) {
