@@ -1496,7 +1496,7 @@ static int information_ies[] = { Q931_CALLED_PARTY_NUMBER, -1 };
 
 int q931_information(struct pri *pri, q931_call *c, char digit)
 {
-	strncpy(c->callednum,&digit,1);
+	c->callednum[0]=digit;
 	c->callednum[1]='\0';
 	return send_message(pri, c, Q931_INFORMATION, information_ies);
 }
