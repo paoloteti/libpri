@@ -507,7 +507,7 @@ void pri_message(char *fmt, ...)
 	if (__pri_message)
 		__pri_message(tmp);
 	else
-		fprintf(stdout, tmp);
+		fputs(stdout, tmp);
 }
 
 void pri_error(char *fmt, ...)
@@ -520,7 +520,7 @@ void pri_error(char *fmt, ...)
 	if (__pri_error)
 		__pri_error(tmp);
 	else
-		fprintf(stderr, tmp);
+		fputs(stderr, tmp);
 }
 
 /* Set overlap mode */
