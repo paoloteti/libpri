@@ -78,6 +78,9 @@ struct pri {
 	
 	/* Q.931 calls */
 	q931_call *calls;
+
+	/* do we do overlap dialing */
+	int overlapdial;
 };
 
 extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);

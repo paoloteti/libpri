@@ -1142,7 +1142,7 @@ static int receive_sending_complete(struct pri *pri, q931_call *call, int msgtyp
 
 static int transmit_sending_complete(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
-	if ((pri->switchtype == PRI_SWITCH_EUROISDN_E1) || (pri->switchtype == PRI_SWITCH_EUROISDN_T1)) {
+	if (!pri->overlapdial && ((pri->switchtype == PRI_SWITCH_EUROISDN_E1) || (pri->switchtype == PRI_SWITCH_EUROISDN_T1))) {
 		/* Include this single-byte IE */
 		ie->f = 1;
 		return 1;

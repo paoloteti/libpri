@@ -351,4 +351,8 @@ extern int pri_call(struct pri *pri, q931_call *c, int transmode, int channel,
 /* Override message and error stuff */
 extern void pri_set_message(void (*__pri_error)(char *));
 extern void pri_set_error(void (*__pri_error)(char *));
+
+/* Set overlap mode */
+#define PRI_SET_OVERLAPDIAL
+extern void pri_set_overlapdial(struct pri *pri,int state);
 #endif

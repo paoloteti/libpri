@@ -304,3 +304,9 @@ void pri_error(char *fmt, ...)
 	else
 		fprintf(stderr, tmp);
 }
+/* Set overlap mode */
+void pri_set_overlapdial(struct pri *pri,int state)
+{
+	pri->overlapdial = state;
+}
+
