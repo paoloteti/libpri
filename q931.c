@@ -1149,7 +1149,7 @@ static int transmit_cause(struct pri *pri, q931_call *call, int msgtype, q931_ie
 
 static void dump_sending_complete(q931_ie *ie, int len, char prefix)
 {
-	pri_message("%c Sending Complete (len=%2d)\n", prefix, ie->len);
+	pri_message("%c Sending Complete.\n", prefix);
 }
 
 static int receive_sending_complete(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
@@ -1410,7 +1410,8 @@ void q931_dump(q931_h *h, int len, int txrx)
 	int x=0, r;
 	c = txrx ? '>' : '<';
 	pri_message("%c Protocol Discriminator: %s (%d)  len=%d\n", c, disc2str(h->pd), h->pd, len);
-	pri_message("%c Call Ref: len=%2d (reference %d/0x%X) (%s)\n", c, h->crlen, q931_cr(h), q931_cr(h), (h->crv[0] & 0x80) ? "Terminator" : "Originator");
+	pri_message("%c Call Ref: len=%2d (reference %d/0x%X) (%s)\n",
+		c, h->crlen, q931_cr(h) & 0x7fff, q931_cr(h) & 0x7fff, (q931_cr(h) & 0x8000) ? "Terminator" : "Originator");
 	/* Message header begins at the end of the call reference number */
 	mh = (q931_mh *)(h->contents + h->crlen);
 	pri_message("%c Message type: %s (%d)\n", c, msg2str(mh->msg), mh->msg);

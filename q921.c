@@ -78,7 +78,7 @@ static int q921_transmit(struct pri *pri, q921_h *h, int len)
 #endif
 	/* Just send it raw */
 	if (pri->debug & PRI_DEBUG_Q921_DUMP)
-		q921_dump(h, len, pri->debug & PRI_DEBUG_Q921_RAW, 1);
+		q921_dump(pri, h, len, pri->debug & PRI_DEBUG_Q921_RAW, 1);
 	/* Write an extra two bytes for the FCS */
 	res = write(pri->fd, h, len + 2);
 	if (res != (len + 2)) {
@@ -486,13 +486,27 @@ static pri_event *q921_handle_iframe(struct pri *pri, q921_i *i, int len)
 	return NULL;
 }
 
-void q921_dump(q921_h *h, int len, int showraw, int txrx)
+void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 {
 	int x;
         char *type;
 	char direction_tag;
+	char *cmd_rsp;
 	
 	direction_tag = txrx ? '>' : '<';
+        /* If we are PRI_CPE: Use "Command" if we are transmitting and C/R bit is 0.
+         *                    Use "Response" if we are transmitting and C/R bit is 1.
+         *                    Use "Command" if we are receiving and C/R bit is 1.
+         *                    Use "Response" if we are receiving and C/R bit is 0.
+         *
+         * If we are PRI_NETWORK: Use "Command" if we are transmitting and C/R bit is 1.
+         *                        Use "Response" if we are transmitting and C/R bit is 0.
+         *                        Use "Command" if we are receiving and C/R bit is 0.
+         *                        Use "Response" if we are receiving and C/R bit is 1.
+         */
+        cmd_rsp = (((pri->localtype == PRI_CPE)?0:1) ^ txrx ^ h->h.c_r) ? "Command" : "Response";
+
+
 	if (showraw) {
 		char *buf = malloc(len * 3 + 1);
 		int buflen = 0;
@@ -518,12 +532,13 @@ void q921_dump(q921_h *h, int len, int showraw, int txrx)
 	}
 	
 	pri_message(
-"%c SAPI: %02d  C/R: %d EA: %d\n"
+"%c SAPI: %02d  C/R: %d EA: %d [%s]\n"
 "%c  TEI: %03d        EA: %d\n", 
     	direction_tag,
 	h->h.sapi, 
 	h->h.c_r,
 	h->h.ea1,
+	cmd_rsp,
     	direction_tag,
 	h->h.tei,
 	h->h.ea2);
@@ -686,7 +701,7 @@ static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 	len -= 2;
 	
 	if (pri->debug & PRI_DEBUG_Q921_DUMP)
-		q921_dump(h, len, pri->debug & PRI_DEBUG_Q921_RAW, 0);
+		q921_dump(pri, h, len, pri->debug & PRI_DEBUG_Q921_RAW, 0);
 
 	/* Check some reject conditions -- Start by rejecting improper ea's */
 	if (h->h.ea1 || !(h->h.ea2))
