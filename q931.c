@@ -1059,10 +1059,14 @@ static void dump_time_date(q931_ie *ie, int len, char prefix)
 static void dump_display(q931_ie *ie, int len, char prefix)
 {
 	int x;
-	pri_message("%c Display (len=%2d) [ ", prefix, ie->len);
-	for (x=0;x<ie->len;x++) 
-		pri_message("%c", ie->data[x] & 0x7f);
-	pri_message(" ]\n");
+	char *buf = malloc(len + 1);
+
+	if (buf) {
+		for (x=0; x<ie->len; x++) 
+			sprintf(&buf[x], "%c", ie->data[x] & 0x7f);
+		pri_message("%c Display (len=%2d) [ %s ]\n", prefix, ie->len, buf);
+		free(buf);
+	}
 }
 
 static void dump_ie_data(unsigned char *c, int len)
