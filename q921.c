@@ -364,13 +364,13 @@ static void t200_expire(void *vpri)
 			q921_rr(pri, 1, 1);
 			pri->t200_timer = pri_schedule_event(pri, T_200, t200_expire, pri);
 		} else {
-	         if (pri->debug & PRI_DEBUG_Q921_STATE) 
-	               pri_message("-- Timeout occured, restarting PRI\n");
-	         pri->q921_state = Q921_LINK_CONNECTION_RELEASED;
-	      	pri->t200_timer = 0;
-	         q921_dchannel_down(pri);
-	         q921_start(pri, 1);
-	         pri->schedev = 1;
+			if (pri->debug & PRI_DEBUG_Q921_STATE) 
+				pri_message("-- Timeout occured, restarting PRI\n");
+			pri->q921_state = Q921_LINK_CONNECTION_RELEASED;
+			pri->t200_timer = 0;
+			q921_dchannel_down(pri);
+			q921_start(pri, 1);
+			pri->schedev = 1;
 		}
 	} else {
 		pri_error("T200 counter expired, nothing to send...\n");
