@@ -1206,7 +1206,7 @@ struct ie ies[] = {
 
 static char *ie2str(int ie) 
 {
-	int x;
+	unsigned int x;
 	for (x=0;x<sizeof(ies) / sizeof(ies[0]); x++) 
 		if (ies[x].ie == ie)
 			return ies[x].name;
@@ -1223,7 +1223,7 @@ static inline int ielen(q931_ie *ie)
 
 static char *msg2str(int msg)
 {
-	int x;
+	unsigned int x;
 	for (x=0;x<sizeof(msgs) / sizeof(msgs[0]); x++) 
 		if (msgs[x].msgnum == msg)
 			return msgs[x].name;
@@ -1247,7 +1247,7 @@ static inline int q931_cr(q931_h *h)
 
 static inline void q931_dumpie(q931_ie *ie, char prefix)
 {
-	int x;
+	unsigned int x;
 	for (x=0;x<sizeof(ies) / sizeof(ies[0]); x++) 
 		if (ies[x].ie == ie->ie) {
 			if (ies[x].dump)
@@ -1329,7 +1329,7 @@ static void q931_destroycall(struct pri *pri, int cr)
 
 static int add_ie(struct pri *pri, q931_call *call, int msgtype, int ie, q931_ie *iet, int maxlen)
 {
-	int x;
+	unsigned int x;
 	int res;
 	for (x=0;x<sizeof(ies) / sizeof(ies[0]);x++) {
 		if (ies[x].ie == ie) {
