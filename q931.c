@@ -1912,7 +1912,6 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->cause = -1;
 		c->causecode = -1;
 		c->causeloc = -1;
-		c->peercallstate = -1;
 		break;
 	case Q931_RESTART_ACKNOWLEDGE:
 		c->channelno = -1;
