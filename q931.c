@@ -2197,6 +2197,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		}
 		if ((c->ourcallstate != Q931_CALL_STATE_CALL_INITIATED) &&
 		    (c->ourcallstate != Q931_CALL_STATE_OVERLAP_SENDING) && 
+		    (c->ourcallstate != Q931_CALL_CALL_DELIVERED) && 
 		    (c->ourcallstate != Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING)) {
 			q931_status(pri,c,PRI_CAUSE_WRONG_MESSAGE);
 			break;
