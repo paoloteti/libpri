@@ -205,6 +205,7 @@ struct msgtype facilities[] = {
 #define LOC_NETWORK_BEYOND_INTERWORKING	0xa
 
 static char *ie2str(int ie);
+static char *msg2str(int msg);
 
 
 #define FUNC_DUMP(name) void ((name))(int full_ie, q931_ie *ie, int len, char prefix)
@@ -1383,6 +1384,10 @@ static FUNC_DUMP(dump_cause)
 	case PRI_CAUSE_IE_NONEXIST:
 		for (x=2;x<ie->len;x++) 
 			pri_message("%c              Cause data %d: %02x (%d, %s IE)\n", prefix, x-1, ie->data[x], ie->data[x], ie2str(ie->data[x]));
+		break;
+	case PRI_CAUSE_WRONG_CALL_STATE:
+		for (x=2;x<ie->len;x++) 
+			pri_message("%c              Cause data %d: %02x (%d, %s message)\n", prefix, x-1, ie->data[x], ie->data[x], msg2str(ie->data[x]));
 		break;
 	case PRI_CAUSE_RECOVERY_ON_TIMER_EXPIRE:
 		pri_message("%c              Cause data:", prefix);
