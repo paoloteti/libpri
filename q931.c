@@ -3389,7 +3389,11 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.answer.progress = c->progress;
 		pri->ev.answer.progressmask = c->progressmask;
 		q931_connect_acknowledge(pri, c);
-		return Q931_RES_HAVEEVENT;
+		if (c->justsignalling) {  /* Make sure WE release when we initiatie a signalling only connection */
+			q931_release(pri, c, PRI_CAUSE_NORMAL_CLEARING);
+			break;
+		} else
+			return Q931_RES_HAVEEVENT;
 	case Q931_FACILITY:
 		if (c->newcall) {
 			q931_release_complete(pri,c,PRI_CAUSE_INVALID_CALL_REFERENCE);
