@@ -1,3 +1,7 @@
+libpri 0.3.0
+-- Fix talking to switch
+-- Add pri dump
+-- Add test application
 -- Fix strncpy stuff
 libpri 0.1.2
 -- Added PRI_EVENT_HANGUP_ACK so you can know when the disconnect was
