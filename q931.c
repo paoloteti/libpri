@@ -944,7 +944,7 @@ static FUNC_SEND(transmit_calling_party_number)
 {
 	ie->data[0] = call->callerplan;
 	ie->data[1] = 0x80 | call->callerpres;
-	if (strlen(call->callednum)) 
+	if (strlen(call->callernum)) 
 		memcpy(ie->data + 2, call->callernum, strlen(call->callernum));
 	return strlen(call->callernum) + 4;
 }
