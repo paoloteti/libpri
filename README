@@ -16,6 +16,11 @@ libpri is distributed under the terms of the GNU General Public License,
 which permit its use and linking with other GPL'd software only.  
 The GNU GPL is included in the file LICENSE in this directory.
 
+As a special exception, libpri may also be linked to the OpenH323
+library, so long as the entirity of the derivative work (as defined
+within the GPL) is licensed either under the MPL of the OpenH323 license
+or the GPL of libpri.
+
 If you wish to use libpri in an application for which the GPL is not 
 appropriate (e.g. a proprietary embedded system), licenses for libpri 
 under more flexible terms can be readily obtained through Digium, Inc. 
