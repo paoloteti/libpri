@@ -1251,9 +1251,21 @@ static inline int q931_cr(q931_h *h)
 		pri_error("Call Reference Length Too long: %d\n", h->crlen);
 		return -1;
 	}
-	for (x=0;x<h->crlen;x++) {
-		cr <<= 8;
-		cr |= h->crv[x];
+	switch (h->crlen) {
+		case 2: 
+			for (x=0;x<h->crlen;x++) {
+				cr <<= 8;
+				cr |= h->crv[x];
+			}
+			break;
+		case 1:
+			cr = h->crv[0];
+			if (cr & 0x80) {
+				cr &= ~0x80;
+				cr |= 0x8000;
+			}
+		default:
+			pri_error("Call Reference Length not supported: %d\n", h->crlen);
 	}
 	return cr;
 }
