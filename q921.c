@@ -82,7 +82,6 @@ static int q921_transmit(struct pri *pri, q921_h *h, int len) {
 	return 0;
 }
 
-
 static void q921_send_ua(struct pri *pri, int pfbit)
 {
 	q921_h h;
@@ -115,8 +114,8 @@ static void q921_send_sabme(void *vpri)
 	pri->sabme_timer = 0;
 	pri->sabme_timer = pri_schedule_event(pri, T_200, q921_send_sabme, pri);
 	Q921_INIT(h);
-	h.u.m3 = 3;		/* M3 = 3 */
-	h.u.m2 = 3;		/* M2 = 3 */
+	h.u.m3 = 3;	/* M3 = 3 */
+	h.u.m2 = 3;	/* M2 = 3 */
 	h.u.p_f = 1;	/* Poll bit set */
 	h.u.ft = Q921_FRAMETYPE_U;
 	switch(pri->localtype) {
@@ -134,7 +133,6 @@ static void q921_send_sabme(void *vpri)
 		printf("Sending Set Asynchronous Balanced Mode Extended\n");
 	q921_transmit(pri, &h, 3);
 	pri->q921_state = Q921_AWAITING_ESTABLISH;
-		
 }
 
 static int q921_ack_packet(struct pri *pri, int num)
@@ -177,7 +175,7 @@ static void q921_ack_rx(struct pri *pri, int ack)
 		cnt += q921_ack_packet(pri, x);	
 	if (!pri->txqueue) {
 		if (pri->debug &  PRI_DEBUG_Q921_STATE)
-			printf("-- Since there wis nothing left, stopping T200 counter\n");
+			printf("-- Since there was nothing left, stopping T200 counter\n");
 		/* Something was ACK'd.  Stop T200 counter */
 		pri_schedule_del(pri, pri->t200_timer);
 		pri->t200_timer = 0;
@@ -200,6 +198,31 @@ static void q921_ack_rx(struct pri *pri, int ack)
 		/* Nothing to transmit, start the T203 counter instead */
 		pri->t203_timer = pri_schedule_event(pri, T_203, t203_expire, pri);
 	}
+}
+
+static void q921_reject(struct pri *pri)
+{
+	q921_h h;
+	Q921_INIT(h);
+	h.s.x0 = 0;	/* Always 0 */
+	h.s.ss = 2;	/* Reject */
+	h.s.ft = 1;	/* Frametype (01) */
+	h.s.n_r = pri->v_r;	/* Where to start retransmission */
+	h.s.p_f = 1;	/* XXX Should it always be set to 1? XXX */
+	switch(pri->localtype) {
+	case PRI_NETWORK:
+		h.h.c_r = 0;
+		break;
+	case PRI_CPE:
+		h.h.c_r = 1;
+		break;
+	default:
+		fprintf(stderr, "Don't know how to U/A on a type %d node\n", pri->localtype);
+		return;
+	}
+	if (pri->debug & PRI_DEBUG_Q921_STATE)
+		printf("Sending Reject (%d)\n", pri->v_r);
+	q921_transmit(pri, &h, 4);
 }
 
 static void q921_rr(struct pri *pri, int pbit) {
@@ -329,7 +352,7 @@ static void t203_expire(void *vpri)
 {
 	struct pri *pri = vpri;
 	if (pri->debug &  PRI_DEBUG_Q921_STATE)
-		printf("T203 counter expired, sending RR and scheduling t203 again\n");
+		printf("T203 counter expired, sending RR and scheduling T203 again\n");
 	/* Solicit an F-bit in the other's RR */
 	pri->solicitfbit = 1;
 	q921_rr(pri, 1);
@@ -365,7 +388,7 @@ static pri_event *q921_handle_iframe(struct pri *pri, q921_i *i, int len)
 			/* It's within our window -- send back an RR */
 			q921_rr(pri, 0);
 		} else
-			fprintf(stderr, "XXX I need to reject (expected %d, got %d) XXX\n", pri->v_r, i->n_s);
+			q921_reject(pri);
 #if 0
 		q931_reject(pri);
 #endif		
@@ -376,37 +399,41 @@ static pri_event *q921_handle_iframe(struct pri *pri, q921_i *i, int len)
 void q921_dump(q921_h *h, int len, int showraw, int txrx)
 {
 	int x;
+        char *type;
+	char direction_tag;
+	
+	direction_tag = txrx ? '>' : '<';
 	if (showraw) {
-		printf("%c   [", (txrx ? '>' : '<'));
+		printf("\n%c [", direction_tag);
 		for (x=0;x<len;x++) 
 			printf("%02x ",h->raw[x]);
-		printf("]\n");
+		printf("]");
 	}
 
-	switch(h->h.data[0] & Q921_FRAMETYPE_MASK) {
+	switch (h->h.data[0] & Q921_FRAMETYPE_MASK) {
 	case 0:
 	case 2:
-		printf("\n  Informational Frame:\n");
+		printf("\n%c Informational frame:\n", direction_tag);
 		break;
 	case 1:
-		printf("\n  Supervisory frame:\n");
+		printf("\n%c Supervisory frame:\n", direction_tag);
 		break;
 	case 3:
-		printf("\n  Unnumbered frame:\n");
+		printf("\n%c Unnumbered frame:\n", direction_tag);
 		break;
 	}
 	
 	printf(
 "%c SAPI: %02d  C/R: %d EA: %d\n"
 "%c  TEI: %03d        EA: %d\n", 
-    (txrx ? '>' : '<'),
+    	direction_tag,
 	h->h.sapi, 
 	h->h.c_r,
 	h->h.ea1,
-    (txrx ? '>' : '<'),
+    	direction_tag,
 	h->h.tei,
 	h->h.ea2);
-	switch(h->h.data[0] & Q921_FRAMETYPE_MASK) {
+	switch (h->h.data[0] & Q921_FRAMETYPE_MASK) {
 	case 0:
 	case 2:
 		/* Informational frame */
@@ -414,42 +441,85 @@ void q921_dump(q921_h *h, int len, int showraw, int txrx)
 "%c N(S): %03d   0: %d\n"
 "%c N(R): %03d   P: %d\n"
 "%c %d bytes of data\n",
-    (txrx ? '>' : '<'),
+    	direction_tag,
 	h->i.n_s,
 	h->i.ft,
-    (txrx ? '>' : '<'),
+    	direction_tag,
 	h->i.n_r,
 	h->i.p_f, 
-    (txrx ? '>' : '<'),
+    	direction_tag,
 	len - 4);
 		break;
 	case 1:
 		/* Supervisory frame */
+		type = "???";
+		switch (h->s.ss) {
+		case 0:
+			type = "RR (receive ready)";
+			break;
+		case 1:
+			type = "RNR (receive not ready)";
+			break;
+		case 2:
+			type = "REJ (reject)";
+			break;
+		}
 		printf(
-"%c Zeros: %d S: %d    01: %d\n"
-"%c N(R): %03d  P/F: %d\n"
+"%c Zero: %d     S: %d 01: %d  [ %s ]\n"
+"%c N(R): %03d P/F: %d\n"
 "%c %d bytes of data\n",
-    (txrx ? '>' : '<'),
+    	direction_tag,
 	h->s.x0,
 	h->s.ss,
 	h->s.ft,
-    (txrx ? '>' : '<'),
+	type,
+	direction_tag,
 	h->s.n_r,
 	h->s.p_f, 
-    (txrx ? '>' : '<'),
+	direction_tag,
 	len - 4);
 		break;
-	case 3:
+	case 3:		
 		/* Unnumbered frame */
+		type = "???";
+		if (h->u.ft == 3) {
+			switch (h->u.m3) {
+			case 0:
+				if (h->u.m2 == 3)
+					type = "DM (disconnect mode)";
+				else if (h->u.m2 == 0)
+					type = "UI (unnumbered information)";
+				break;
+			case 2:
+				if (h->u.m2 == 0)
+					type = "DISC (disconnect)";
+				break;
+			case 3:
+			       	if (h->u.m2 == 3)
+					type = "SABME (set asynchronous balanced mode extended)";
+				else if (h->u.m2 == 0)
+					type = "UA (unnumbered acknowledgement)";
+				break;
+			case 4:
+				if (h->u.m2 == 1)
+					type = "FRMR (frame reject)";
+				break;
+			case 5:
+				if (h->u.m2 == 3)
+					type = "XID (exchange identification note)";
+				break;
+			}
+		}
 		printf(
-"%c M3: %d P/F: %d M2: %d 11: %d\n"
+"%c   M3: %d   P/F: %d M2: %d 11: %d  [ %s ]\n"
 "%c %d bytes of data\n",
-    (txrx ? '>' : '<'),
+	direction_tag,
 	h->u.m3,
 	h->u.p_f,
 	h->u.m2,
 	h->u.ft,
-    (txrx ? '>' : '<'),
+	type,
+	direction_tag,
 	len - 3);
 		break;
 	};
@@ -509,7 +579,7 @@ void q921_reset(struct pri *pri)
 
 pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
 {
-   q921_frame *f;
+	q921_frame *f;
 	/* Discard FCS */
 	len -= 2;
 	
