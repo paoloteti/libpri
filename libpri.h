@@ -337,11 +337,17 @@ extern int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int
    Set non-isdn to non-zero if you are not connecting to ISDN equipment */
 extern int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
+#if 0
+/* deprecated routines, use pri_hangup */
 /* Release/Reject a call */
 extern int pri_release(struct pri *pri, q931_call *call, int cause);
 
 /* Hangup / Disconnect a call */
 extern int pri_disconnect(struct pri *pri, q931_call *call, int cause);
+#endif
+
+/* Hangup a call */
+extern int pri_hangup(struct pri *pri, q931_call *call, int cause);
 
 extern int pri_reset(struct pri *pri, int channel);
 

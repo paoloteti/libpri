@@ -204,6 +204,8 @@ int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn)
 	return q931_connect(pri, call, channel, nonisdn);
 }
 
+#if 0
+/* deprecated routines, use pri_hangup */
 int pri_release(struct pri *pri, q931_call *call, int cause)
 {
 	if (!pri || !call)
@@ -216,6 +218,17 @@ int pri_disconnect(struct pri *pri, q931_call *call, int cause)
 	if (!pri || !call)
 		return -1;
 	return q931_disconnect(pri, call, cause);
+}
+#endif
+
+int pri_hangup(struct pri *pri, q931_call *call, int cause)
+{
+	if (!pri || !call)
+		return -1;
+	if (cause == -1)
+		/* normal clear cause */
+		cause = 16;
+	return q931_hangup(pri, call, cause);
 }
 
 int pri_reset(struct pri *pri, int channel)
