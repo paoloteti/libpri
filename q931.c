@@ -1782,7 +1782,7 @@ void q931_dump(q931_h *h, int len, int txrx)
 	int codeset;
 	c = txrx ? '>' : '<';
 	pri_message("%c Protocol Discriminator: %s (%d)  len=%d\n", c, disc2str(h->pd), h->pd, len);
-	pri_message("%c Call Ref: len=%2d (reference %d/0x%X) (%s)\n", c, h->crlen, q931_cr(h), q931_cr(h), (h->crv[0] & 0x80) ? "Terminator" : "Originator");
+	pri_message("%c Call Ref: len=%2d (reference %d/0x%X) (%s)\n", c, h->crlen, q931_cr(h) & 0x7FFF, q931_cr(h) & 0x7FFF, (h->crv[0] & 0x80) ? "Terminator" : "Originator");
 	/* Message header begins at the end of the call reference number */
 	mh = (q931_mh *)(h->contents + h->crlen);
 	pri_message("%c Message type: %s (%d)\n", c, msg2str(mh->msg), mh->msg);

@@ -72,7 +72,7 @@ static void dump_packet(char *buf, int len, int txrx)
 	q921_h *h = (q921_h *)buf;
 	q921_dump(h, len, 1, txrx);
 	if (!((h->h.data[0] & Q921_FRAMETYPE_MASK) & 0x3)) {
-		q931_dump((q931_h *)(h->i.data), len - 4, txrx);
+		q931_dump((q931_h *)(h->i.data), len - 4 - 2 /* FCS */, txrx);
 	}
 	fflush(stdout);
 	fflush(stderr);
