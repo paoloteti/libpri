@@ -386,4 +386,8 @@ extern void pri_set_error(void (*__pri_error)(char *));
 /* Set overlap mode */
 #define PRI_SET_OVERLAPDIAL
 extern void pri_set_overlapdial(struct pri *pri,int state);
+
+#define PRI_DUMP_INFO
+extern void pri_dump_info(struct pri *pri);
+
 #endif

@@ -1476,6 +1476,9 @@ static int q931_xmit(struct pri *pri, q931_h *h, int len, int cr)
 	   right order in the log */
 	if (pri->debug & PRI_DEBUG_Q931_DUMP)
 		q931_dump(h, len, 1);
+#ifdef LIBPRI_COUNTERS
+	pri->q931_txcount++;
+#endif
 	return 0;
 }
 
@@ -1935,6 +1938,9 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	int missingmand;
 	if (pri->debug & PRI_DEBUG_Q931_DUMP)
 		q931_dump(h, len, 0);
+#ifdef LIBPRI_COUNTERS
+	pri->q931_rxcount++;
+#endif
 	mh = (q931_mh *)(h->contents + h->crlen);
 	if (h->pd == 0x3) {
 		/* This is the weird maintenance stuff.  We majorly

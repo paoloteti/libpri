@@ -66,6 +66,12 @@ struct pri *pri_new(int fd, int node, int switchtype)
 		p->localtype = node;
 		p->switchtype = switchtype;
 		p->cref = 1;
+#ifdef LIBPRI_COUNTERS
+		p->q921_rxcount = 0;
+		p->q921_txcount = 0;
+		p->q931_rxcount = 0;
+		p->q931_txcount = 0;
+#endif
 		/* Start Q.921 layer */
 		q921_start(p, 1);
 	}
@@ -330,5 +336,37 @@ void pri_error(char *fmt, ...)
 void pri_set_overlapdial(struct pri *pri,int state)
 {
 	pri->overlapdial = state;
+}
+
+void pri_dump_info(struct pri *pri)
+{
+#ifdef LIBPRI_COUNTERS
+	struct q921_frame *f;
+	int q921outstanding = 0;
+#endif
+	if (!pri)
+		return;
+
+	/* Might be nice to format these a little better */
+	pri_message("Switchtype: %s\n", pri_switch2str(pri->switchtype));
+	pri_message("Type: %s\n", pri_node2str(pri->localtype));
+#ifdef LIBPRI_COUNTERS
+	/* Remember that Q921 Counters include Q931 packets (and any retransmissions) */
+	pri_message("Q931 RX: %d\n", pri->q931_rxcount);
+	pri_message("Q931 TX: %d\n", pri->q931_txcount);
+	pri_message("Q921 RX: %d\n", pri->q921_rxcount);
+	pri_message("Q921 TX: %d\n", pri->q921_txcount);
+	f = pri->txqueue;
+	while (f) {
+		q921outstanding++;
+		f = f->next;
+	}
+	pri_message("Q921 Outstanding: %d\n", q921outstanding);
+#endif
+	pri_message("Sentrej: %d\n", pri->sentrej);
+	pri_message("SolicitFbit: %d\n", pri->solicitfbit);
+	pri_message("Retrans: %d\n", pri->retrans);
+	pri_message("Busy: %d\n", pri->busy);
+	pri_message("Overlap Dial: %d\n", pri->overlapdial);
 }
 

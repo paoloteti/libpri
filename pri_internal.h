@@ -82,6 +82,14 @@ struct pri {
 
 	/* do we do overlap dialing */
 	int overlapdial;
+
+#ifdef LIBPRI_COUNTERS
+	/* q921/q931 packet counters */
+	unsigned int q921_txcount;
+	unsigned int q921_rxcount;
+	unsigned int q931_txcount;
+	unsigned int q931_rxcount;
+#endif
 };
 
 extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);
