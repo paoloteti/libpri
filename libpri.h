@@ -545,6 +545,7 @@ extern void pri_enslave(struct pri *master, struct pri *slave);
 #define PRI_SETUP_CALL
 #define PRI_RECEIVE_SUBADDR
 #define PRI_REDIRECTING_REASON
+#define PRI_AOC_UNITS
 
 /* Send notification */
 extern int pri_notify(struct pri *pri, q931_call *c, int channel, int info);
