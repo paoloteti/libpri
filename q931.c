@@ -1424,6 +1424,7 @@ static char *disc2str(int disc)
 		{ Q931_PROTOCOL_DISCRIMINATOR, "Q.931" },
 		{ GR303_PROTOCOL_DISCRIMINATOR, "GR-303" },
 		{ 0x3, "AT&T Maintenance" },
+		{ 0x43, "New AT&T Maintenance" },
 	};
 	return code2str(disc, discs, sizeof(discs) / sizeof(discs[0]));
 }
@@ -2037,7 +2038,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	pri->q931_rxcount++;
 #endif
 	mh = (q931_mh *)(h->contents + h->crlen);
-	if (h->pd == 0x3) {
+	if ((h->pd == 0x3) || (h->pd == 0x43)) {
 		/* This is the weird maintenance stuff.  We majorly
 		   KLUDGE this by changing byte 4 from a 0xf (SERVICE) 
 		   to a 0x7 (SERVICE ACKNOWLEDGE) */
