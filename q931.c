@@ -131,16 +131,6 @@ struct msgtype causes[] = {
 #define TRANS_MODE_MULTIRATE	0x18
 #define TRANS_MODE_PACKET		0X40
 
-#define LAYER_1_ITU_RATE_ADAPT	0x21
-#define LAYER_1_ULAW			0x22
-#define LAYER_1_ALAW			0x23
-#define LAYER_1_G721			0x24
-#define LAYER_1_G722_G725		0x25
-#define LAYER_1_G7XX_384K		0x26
-#define LAYER_1_NON_ITU_ADAPT	0x27
-#define LAYER_1_V120_RATE_ADAPT	0x28
-#define LAYER_1_X31_RATE_ADAPT	0x29
-
 #define RATE_ADAPT_56K			0x0f
 
 #define LAYER_2_LAPB			0x46
@@ -184,6 +174,7 @@ struct q931_call {
 	int chanflags;
 	
 	int alive;				/* Whether or not the call is alive */
+	int sendhangupack;			/* Whether or not to send a hangup ack */
 	int proc;				/* Whether we've sent a call proceeding / alerting */
 	
 	int ri;			/* Restart Indicator (Restart Indicator IE) */
@@ -242,6 +233,7 @@ static void call_init(struct q931_call *c)
 {
 	memset(c, 0, sizeof(*c));
 	c->alive = 0;
+	c->sendhangupack = 0;
 	c->cr = -1;
 	c->slotmap = -1;
 	c->channelno = -1;
@@ -477,15 +469,15 @@ static char *mode2str(int mode)
 static char *l12str(int proto)
 {
 	static struct msgtype protos[] = {
-		{ LAYER_1_ITU_RATE_ADAPT, "ITU Rate Adaption" },
-		{ LAYER_1_ULAW, "u-Law" },
-		{ LAYER_1_ALAW, "A-Law" },
-		{ LAYER_1_G721, "G.721 ADPCM" },
-		{ LAYER_1_G722_G725, "G.722/G.725 7kHz Audio" },
-		{ LAYER_1_G7XX_384K, "G.7xx 384k Video" },
-		{ LAYER_1_NON_ITU_ADAPT, "Non-ITU Rate Adaption" },
-		{ LAYER_1_V120_RATE_ADAPT, "V.120 Rate Adaption" },
-		{ LAYER_1_X31_RATE_ADAPT, "X.31 Rate Adaption" },
+		{ PRI_LAYER_1_ITU_RATE_ADAPT, "ITU Rate Adaption" },
+		{ PRI_LAYER_1_ULAW, "u-Law" },
+		{ PRI_LAYER_1_ALAW, "A-Law" },
+		{ PRI_LAYER_1_G721, "G.721 ADPCM" },
+		{ PRI_LAYER_1_G722_G725, "G.722/G.725 7kHz Audio" },
+		{ PRI_LAYER_1_G7XX_384K, "G.7xx 384k Video" },
+		{ PRI_LAYER_1_NON_ITU_ADAPT, "Non-ITU Rate Adaption" },
+		{ PRI_LAYER_1_V120_RATE_ADAPT, "V.120 Rate Adaption" },
+		{ PRI_LAYER_1_X31_RATE_ADAPT, "X.31 Rate Adaption" },
 	};
 	return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
 }
@@ -530,7 +522,7 @@ static void dump_bearer_capability(q931_ie *ie, int len, char prefix)
 	if ((ie->data[1] & 0x7f) != TRANS_MODE_PACKET) {
 		/* Look for octets 5 and 5.a if present */
 		printf("%c                     Ext: %d   User Information Layer 1: %d (%s)\n", prefix, (ie->data[pos] >> 7), ie->data[pos] & 0x7f,l12str(ie->data[pos] & 0x7f));
-		if ((ie->data[pos] & 0x7f) == LAYER_1_ITU_RATE_ADAPT)
+		if ((ie->data[pos] & 0x7f) == PRI_LAYER_1_ITU_RATE_ADAPT)
 			printf("%c                     Ext: %d   Rate Adaptatation: %d (%s)\n", prefix, ie->data[pos] >> 7, ie->data[pos] & 0x7f, ra2str(ie->data[pos] & 0x7f));
 		pos++;
 	} else {
@@ -555,7 +547,7 @@ static int receive_bearer_capability(struct pri* pri, q931_call *call, int msgty
 		call->transmoderate = PRI_TRANS_CAP_3_1K_AUDIO;
 	if (call->transmoderate != TRANS_MODE_PACKET) {
 		call->userl1 = ie->data[pos] & 0x7f;
-		if (call->userl1 == LAYER_1_ITU_RATE_ADAPT) {
+		if (call->userl1 == PRI_LAYER_1_ITU_RATE_ADAPT) {
 			call->rateadaption = ie->data[++pos] & 0x7f;
 		}
 		pos++;
@@ -583,7 +575,7 @@ static int transmit_bearer_capability(struct pri *pri, q931_call *call, int msgt
 		if (pri->switchtype == PRI_SWITCH_ATT4ESS)
 			return 4;
 		ie->data[2] = call->userl1 | 0x80; /* XXX Ext bit? XXX */
-		if (call->userl1 == LAYER_1_ITU_RATE_ADAPT) {
+		if (call->userl1 == PRI_LAYER_1_ITU_RATE_ADAPT) {
 			ie->data[3] = call->rateadaption | 0x80;
 			return 6;
 		}
@@ -648,6 +640,7 @@ static void dump_calling_party_number(q931_ie *ie, int len, char prefix)
 	printf("%c Calling Number len = %d: [ Ext: %d  Type: %s (%d) ", prefix, len, ie->data[0] >> 7, pri_plan2str(ie->data[0] & 0x7f), ie->data[0] & 0x7f);
 	printf("%c                            Presentation: %s (%d) '%s' ]\n", prefix, pri_pres2str(ie->data[1]), ie->data[1] & 0x7f, cnum);
 }
+
 
 static int receive_called_party_number(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
@@ -789,6 +782,12 @@ static int receive_cause(struct pri *pri, q931_call *call, int msgtype, q931_ie 
 	return 0;
 }
 
+static int receive_sending_complete(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
+{
+	/* Do nothing */
+	return 0;
+}
+
 static int transmit_cause(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	if (call->cause > 0) {
@@ -799,6 +798,16 @@ static int transmit_cause(struct pri *pri, q931_call *call, int msgtype, q931_ie
 		/* Leave off */
 		return 0;
 	}
+}
+
+static int transmit_sending_complete(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
+{
+	if ((pri->switchtype == PRI_SWITCH_EUROISDN_E1) || (pri->switchtype == PRI_SWITCH_EUROISDN_T1)) {
+		/* Include this single-byte IE */
+		ie->f = 1;
+		return 1;
+	}
+	return 0;
 }
 
 struct ie ies[] = {
@@ -851,6 +860,7 @@ struct ie ies[] = {
 	{ Q931_IE_ORIGINAL_CALLED_NUMBER, "Original Called Number" },
 	{ Q931_IE_USER_USER_FACILITY, "User-User Facility" },
 	{ Q931_IE_UPDATE, "Update" },
+	{ Q931_SENDING_COMPLETE, "Sending Complete", NULL, receive_sending_complete, transmit_sending_complete },
 };
 
 static char *ie2str(int ie) 
@@ -987,7 +997,8 @@ static int add_ie(struct pri *pri, q931_call *call, int msgtype, int ie, q931_ie
 				res = ies[x].transmit(pri, call, msgtype, iet, maxlen);
 				if (res < 0)
 					return res;
-				iet->len = res - 2;
+				if (!iet->f)
+					iet->len = res - 2;
 				return res;
 			} else {
 				fprintf(stderr, "!! Don't know how to add an IE %s (%d)\n", ie2str(ie), ie);
@@ -1190,17 +1201,18 @@ int q931_disconnect(struct pri *pri, q931_call *c, int cause)
 		c->cause = cause;
 		c->causecode = CODE_CCITT;
 		c->causeloc = LOC_PRIV_NET_LOCAL_USER;
+		c->sendhangupack = 1;
 		return send_message(pri, c, Q931_DISCONNECT, disconnect_ies);
 	} else
 		return 0;
 }
 
 static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR,
-	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, -1 };
+	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_SENDING_COMPLETE, -1 };
 
 int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
 					int nonisdn, char *caller, int callerplan, int callerpres, char *called,
-					int calledplan)
+					int calledplan, int userl1)
 {
 	int res;
 	
@@ -1209,7 +1221,9 @@ int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int ex
 		return -1;
 	c->transcapability = transmode;
 	c->transmoderate = TRANS_MODE_64_CIRCUIT;
-	c->userl1 = LAYER_1_ULAW;
+	if (!userl1)
+		userl1 = PRI_LAYER_1_ULAW;
+	c->userl1 = userl1;
 	c->channelno = channel;
 	c->slotmap = -1;
 	c->ds1no = -1;
@@ -1220,7 +1234,7 @@ int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int ex
 	else
 		c->chanflags = FLAG_PREFERRED;
 	if (caller) {
-		strncpy(c->callernum, caller, sizeof(c->callernum));
+		strncpy(c->callernum, caller, sizeof(c->callernum) - 1);
 		c->callerplan = callerplan;
 		if ((pri->switchtype == PRI_SWITCH_DMS100) ||
 		    (pri->switchtype == PRI_SWITCH_ATT4ESS)) {
@@ -1235,7 +1249,7 @@ int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int ex
 		c->callerpres = PRES_NUMBER_NOT_AVAILABLE;
 	}
 	if (called) {
-		strncpy(c->callednum, called, sizeof(c->callednum));
+		strncpy(c->callednum, called, sizeof(c->callednum) - 1);
 		c->calledplan = calledplan;
 	} else
 		return -1;
@@ -1405,12 +1419,13 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.channel = c->channelno;
 		pri->ev.ring.callingpres = c->callerpres;
 		pri->ev.ring.callingplan = c->callerplan;
-		strncpy(pri->ev.ring.callingnum, c->callernum, sizeof(pri->ev.ring.callingnum));
+		strncpy(pri->ev.ring.callingnum, c->callernum, sizeof(pri->ev.ring.callingnum) - 1);
 		pri->ev.ring.calledplan = c->calledplan;
-		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum));
+		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum) - 1);
 		pri->ev.ring.flexible = ! (c->chanflags & FLAG_EXCLUSIVE);
 		pri->ev.ring.cref = c->cr;
 		pri->ev.ring.call = c;
+		pri->ev.ring.layer1 = c->userl1;
 		if (c->transmoderate != TRANS_MODE_64_CIRCUIT) {
 			q931_release(pri, c, PRI_CAUSE_BEARERCAPABILITY_NOTIMPL);
 			break;
@@ -1463,7 +1478,10 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.hangup.call = c;
 		if (c->alive)
 			res = Q931_RES_HAVEEVENT;
-		else
+		else if (c->sendhangupack) {
+			res = Q931_RES_HAVEEVENT;
+			pri->ev.e = PRI_EVENT_HANGUP_ACK;
+		} else
 			res = 0;
 		q931_release_complete(pri, c);
 		/* Free resources */

@@ -105,13 +105,26 @@ pri_event *pri_check_event(struct pri *pri)
 
 static int wait_pri(struct pri *pri)
 {	
-	struct timeval *tv;
+	struct timeval *tv, real;
 	fd_set fds;
 	int res;
 	FD_ZERO(&fds);
 	FD_SET(pri->fd, &fds);
 	tv = pri_schedule_next(pri);
-	res = select(pri->fd + 1, &fds, NULL, NULL, tv);
+	if (tv) {
+		gettimeofday(&real, NULL);
+		real.tv_sec = tv->tv_sec - real.tv_sec;
+		real.tv_usec = tv->tv_usec - real.tv_usec;
+		if (real.tv_usec < 0) {
+			real.tv_usec += 1000000;
+			real.tv_sec -= 1;
+		}
+		if (real.tv_sec < 0) {
+			real.tv_sec = 0;
+			real.tv_usec = 0;
+		}
+	}
+	res = select(pri->fd + 1, &fds, NULL, NULL, tv ? &real : tv);
 	if (res < 0) 
 		return -1;
 	return res;
@@ -121,7 +134,7 @@ pri_event *pri_mkerror(struct pri *pri, char *errstr)
 {
 	/* Return a configuration error */
 	pri->ev.err.e = PRI_EVENT_CONFIG_ERR;
-	strncpy(pri->ev.err.err, errstr, sizeof(pri->ev.err.err));
+	strncpy(pri->ev.err.err, errstr, sizeof(pri->ev.err.err) - 1);
 	return &pri->ev;
 }
 
@@ -140,7 +153,7 @@ pri_event *pri_dchannel_run(struct pri *pri, int block)
 			if (res < 0)
 				return NULL;
 			if (!res)
-				pri_schedule_run(pri);
+				e = pri_schedule_run(pri);
 			else
 				e = pri_check_event(pri);
 		} while(!e);
@@ -222,9 +235,9 @@ void pri_dump_event(struct pri *pri, pri_event *e)
 
 int pri_call(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
 					int nonisdn, char *caller, int callerplan, int callerpres, char *called,
-					int calledplan)
+					int calledplan,int ulayer1)
 {
 	if (!pri || !c)
 		return -1;
-	return q931_setup(pri, c, transmode, channel, exclusive, nonisdn, caller, callerplan, callerpres, called, calledplan);					
+	return q931_setup(pri, c, transmode, channel, exclusive, nonisdn, caller, callerplan, callerpres, called, calledplan, ulayer1);					
 }	

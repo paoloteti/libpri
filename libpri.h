@@ -58,6 +58,7 @@
 #define PRI_EVENT_HANGUP	 6	/* Call got hung up */
 #define PRI_EVENT_RINGING	 7	/* Call is ringing (alerting) */
 #define PRI_EVENT_ANSWER	 8  /* Call has been answered */
+#define PRI_EVENT_HANGUP_ACK	 9  /* Call hangup has been acknowledged */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
@@ -135,6 +136,16 @@
 #define PRI_TRANS_CAP_7K_AUDIO					0x11
 #define PRI_TRANS_CAP_VIDEO						0x18
 
+#define PRI_LAYER_1_ITU_RATE_ADAPT	0x21
+#define PRI_LAYER_1_ULAW		0x22
+#define PRI_LAYER_1_ALAW		0x23
+#define PRI_LAYER_1_G721		0x24
+#define PRI_LAYER_1_G722_G725		0x25
+#define PRI_LAYER_1_G7XX_384K		0x26
+#define PRI_LAYER_1_NON_ITU_ADAPT	0x27
+#define PRI_LAYER_1_V120_RATE_ADAPT	0x28
+#define PRI_LAYER_1_X31_RATE_ADAPT	0x29
+
 typedef struct q931_call q931_call;
 
 typedef struct pri_event_generic {
@@ -177,6 +188,7 @@ typedef struct pri_event_ring {
 	int flexible;				/* Are we flexible with our channel selection? */
 	int cref;					/* Call Reference Number */
 	int ctype;					/* Call type (see PRI_TRANS_CAP_* */
+	int layer1;				/* User layer 1 */
 	q931_call *call;			/* Opaque call pointer */
 } pri_event_ring;
 
@@ -264,9 +276,9 @@ extern q931_call *pri_new_call(struct pri *pri);
 extern struct timeval *pri_schedule_next(struct pri *pri);
 
 /* Run any pending schedule events */
-extern int pri_schedule_run(struct pri *pri);
+extern pri_event *pri_schedule_run(struct pri *pri);
 
 extern int pri_call(struct pri *pri, q931_call *c, int transmode, int channel,
    int exclusive, int nonisdn, char *caller, int callerplan, int callerpres,
-	 char *called,int calledplan);
+	 char *called,int calledplan, int ulayer1);
 #endif

@@ -214,6 +214,9 @@ typedef struct q931_ie {
 #define Q931_IE_USER_USER				0x7E
 #define Q931_IE_ESCAPE_FOR_EXT			0x7F
 
+/* EuroISDN  */
+#define Q931_SENDING_COMPLETE		0x21
+
 extern int q931_receive(struct pri *pri, q931_h *h, int len);
 
 extern int q931_alerting(struct pri *pri, q931_call *call, int channel, int info);
@@ -230,6 +233,6 @@ extern q931_call *q931_new_call(struct pri *pri);
 
 extern int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
 					int nonisdn, char *caller, int callerplan, int callerpres, char *called,
-					int calledplan);
+					int calledplan, int ulay1);
 
 #endif
