@@ -1327,6 +1327,11 @@ static void q931_destroycall(struct pri *pri, int cr)
 	pri_error("Can't destroy call %d!\n", cr);
 }
 
+void __q931_destroycall(struct pri *pri, q931_call *c) {
+	if (pri && c)
+		q931_destroycall(pri,c->cr);
+	return;
+}
 static int add_ie(struct pri *pri, q931_call *call, int msgtype, int ie, q931_ie *iet, int maxlen)
 {
 	unsigned int x;

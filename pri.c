@@ -190,6 +190,13 @@ int pri_information(struct pri *pri, q931_call *call, char digit)
 	return q931_information(pri, call, digit);
 }
 
+void pri_destroycall(struct pri *pri, q931_call *call)
+{
+	if (pri && call)
+		__q931_destroycall(pri, call);
+	return;
+}
+
 int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisdn)
 {
 	if (!pri || !call)

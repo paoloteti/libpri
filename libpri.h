@@ -361,6 +361,9 @@ extern int pri_disconnect(struct pri *pri, q931_call *call, int cause);
 #define PRI_HANGUP
 extern int pri_hangup(struct pri *pri, q931_call *call, int cause);
 
+#define PRI_DESTROYCALL
+extern void pri_destroycall(struct pri *pri, q931_call *call);
+
 extern int pri_reset(struct pri *pri, int channel);
 
 /* Create a new call */
