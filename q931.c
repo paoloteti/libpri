@@ -35,7 +35,9 @@
 struct msgtype {
 	int msgnum;
 	unsigned char *name;
-} msgs[] = {
+};
+
+struct msgtype msgs[] = {
 	/* Call establishment messages */
 	{ Q931_ALERTING, "ALERTING" },
 	{ Q931_CALL_PROCEEDING, "CALL PROCEEDING" },
@@ -54,10 +56,64 @@ struct msgtype {
 	/* Miscellaneous */
 	{ Q931_STATUS, "STATUS" },
 	{ Q931_STATUS_ENQUIRY, "STATUS ENQUIRY" },
+	{ Q931_USER_INFORMATION, "USER_INFORMATION" },
+	{ Q931_SEGMENT, "SEGMENT" },
+	{ Q931_CONGESTION_CONTROL, "CONGESTION CONTROL" },
+	{ Q931_INFORMATION, "INFORMATION" },
+	{ Q931_FACILITY, "FACLITY" },
+	{ Q931_NOTIFY, "NOTIFY" },
+
+	/* Call Management */
+	{ Q931_HOLD, "HOLD" },
+	{ Q931_HOLD_ACKNOWLEDGE, "HOLD ACKNOWLEDGE" },
+	{ Q931_HOLD_REJECT, "HOLD REJECT" },
+	{ Q931_RETRIEVE, "RETRIEVE" },
+	{ Q931_RETRIEVE_ACKNOWLEDGE, "RETRIEVE ACKNOWLEDGE" },
+	{ Q931_RETRIEVE_REJECT, "RETRIEVE REJECT" },
+	{ Q931_RESUME, "RESUME" },
+	{ Q931_RESUME_ACKNOWLEDGE, "RESUME ACKNOWLEDGE" },
+	{ Q931_RESUME_REJECT, "RESUME REJECT" },
+	{ Q931_SUSPEND, "SUSPEND" },
+	{ Q931_SUSPEND_ACKNOWLEDGE, "SUSPEND ACKNOWLEDGE" },
+	{ Q931_SUSPEND_REJECT, "SUSPEND REJECT" },
 
 	/* Maintenance */
 	{ NATIONAL_SERVICE, "SERVICE" },
 	{ NATIONAL_SERVICE_ACKNOWLEDGE, "SERVICE ACKNOWLEDGE" },
+};
+
+struct msgtype causes[] = {
+	{ PRI_CAUSE_UNALLOCATED, "Unallocated (unassigned) number" },
+	{ PRI_CAUSE_NO_ROUTE_TRANSIT_NET, "No route to specified transmit network" },
+	{ PRI_CAUSE_NO_ROUTE_DESTINATION, "No route to destination" },
+	{ PRI_CAUSE_CHANNEL_UNACCEPTABLE, "Channel unacceptable" },
+	{ PRI_CAUSE_CALL_AWARDED_DELIVERED, "Call awarded and being delivered in an established channel" },
+	{ PRI_CAUSE_NORMAL_CLEARING, "Normal Clearing" },
+	{ PRI_CAUSE_USER_BUSY, "User busy" },
+	{ PRI_CAUSE_NO_USER_RESPONSE, "No user responding" },
+	{ PRI_CAUSE_NO_ANSWER, "User alerting, no answer" },
+	{ PRI_CAUSE_CALL_REJECTED, "Call Rejected" },
+	{ PRI_CAUSE_DESTINATION_OUT_OF_ORDER, "Destination out of order" },
+	{ PRI_CAUSE_INVALID_NUMBER_FORMAT, "Invalid number format" },
+	{ PRI_CAUSE_RESPONSE_TO_STATUS_ENQUIRY, "Response to STATus ENQuiry" },
+	{ PRI_CAUSE_NORMAL_UNSPECIFIED, "Normal, unspecified" },
+	{ PRI_CAUSE_NORMAL_CIRCUIT_CONGESTION, "Circuit/channel congestion" },
+	{ PRI_CAUSE_NORMAL_TEMPORARY_FAILURE, "Temporary failure" },
+	{ PRI_CAUSE_SWITCH_CONGESTION, "Switching equipment congestion" },
+	{ PRI_CAUSE_ACCESS_INFO_DISCARDED, "Access information discarded" },
+	{ PRI_CAUSE_REQUESTED_CHAN_UNAVAIL, "Requested channel not available" },
+	{ PRI_CAUSE_BEARERCAPABILITY_NOTAUTH, "Bearer capability not authorized" },
+	{ PRI_CAUSE_BEARERCAPABILITY_NOTIMPL, "Bearer capability not implemented" },
+	{ PRI_CAUSE_INVALID_CALL_REFERENCE, "Invalid call reference value" },
+	{ PRI_CAUSE_INCOMPATIBLE_DESTINATION, "Incompatible destination" },
+	{ PRI_CAUSE_MANDATORY_IE_MISSING, "Mandatory information element is missing" },
+	{ PRI_CAUSE_MESSAGE_TYPE_NONEXIST, "Message type nonexist." },
+	{ PRI_CAUSE_IE_NONEXIST, "Info. element nonexist or not implemented" },
+	{ PRI_CAUSE_INVALID_IE_CONTENTS, "Invalid information element contents" },
+	{ PRI_CAUSE_WRONG_CALL_STATE, "Message not compatible with call state" },
+	{ PRI_CAUSE_RECOVERY_ON_TIMER_EXPIRE, "Recover on timer expiry" },
+	{ PRI_CAUSE_PROTOCOL_ERROR, "Protocol error, unspecified" },
+	{ PRI_CAUSE_INTERWORKING, "Interworking, unspecified" },
 };
 
 #define FLAG_PREFERRED 2
@@ -68,13 +124,22 @@ struct msgtype {
 #define RESET_INDICATOR_PRI		7
 
 #define TRANS_MODE_64_CIRCUIT	0x10
+#define TRANS_MODE_2x64_CIRCUIT	0x11
 #define TRANS_MODE_384_CIRCUIT	0x13
 #define TRANS_MODE_1536_CIRCUIT	0x15
+#define TRANS_MODE_1920_CIRCUIT	0x17
 #define TRANS_MODE_MULTIRATE	0x18
 #define TRANS_MODE_PACKET		0X40
 
-#define LAYER_1_RATE_ADAPT		0x21
+#define LAYER_1_ITU_RATE_ADAPT	0x21
 #define LAYER_1_ULAW			0x22
+#define LAYER_1_ALAW			0x23
+#define LAYER_1_G721			0x24
+#define LAYER_1_G722_G725		0x25
+#define LAYER_1_G7XX_384K		0x26
+#define LAYER_1_NON_ITU_ADAPT	0x27
+#define LAYER_1_V120_RATE_ADAPT	0x28
+#define LAYER_1_X31_RATE_ADAPT	0x29
 
 #define RATE_ADAPT_56K			0x0f
 
@@ -86,15 +151,16 @@ struct msgtype {
 #define PRI_TRANS_CAP_AUDIO_4ESS	0x08
 
 
-#define Q931_CALL_NOT_E2E_ISDN	0x1
-#define Q931_CALLED_NOT_ISDN	0x2
-#define Q931_CALLER_NOT_ISDN	0x3
-#define Q931_INBAND_AVAILABLE	0X8
-#define Q931_DELAY_AT_INTERF	0xa
+#define Q931_CALL_NOT_E2E_ISDN		0x1
+#define Q931_CALLED_NOT_ISDN		0x2
+#define Q931_CALLER_NOT_ISDN		0x3
+#define Q931_INBAND_AVAILABLE		0x8
+#define Q931_DELAY_AT_INTERF		0xa
 
-#define CODE_CCITT				0x0
-#define CODE_NATIONAL 			0x2
-#define CODE_NETWORK_SPECIFIC	0x3
+#define CODE_CCITT					0x0
+#define CODE_INTERNATIONAL 			0x1
+#define CODE_NATIONAL 				0x2
+#define CODE_NETWORK_SPECIFIC		0x3
 
 #define LOC_USER					0x0
 #define LOC_PRIV_NET_LOCAL_USER		0x1
@@ -108,7 +174,7 @@ struct msgtype {
 struct q931_call {
 	int cr;		/* Call Reference */
 	q931_call *next;
-	/* Slotmap specified (bitmap of channels 24-1) (Channel Identifier IE) (-1 means not specified) */
+	/* Slotmap specified (bitmap of channels 31/24-1) (Channel Identifier IE) (-1 means not specified) */
 	int slotmap;
 	/* An explicit channel (Channel Identifier IE) (-1 means not specified) */
 	int channelno;
@@ -162,6 +228,15 @@ struct ie {
 	/* Add IE to a message, return the # of bytes added or -1 on failure */
 	int (*transmit)(struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int maxlen);
 };
+
+static char *code2str(int code, struct msgtype *codes, int max)
+{
+	int x;
+	for (x=0;x<max; x++) 
+		if (codes[x].msgnum == code)
+			return codes[x].name;
+	return "Unknown";
+}
 
 static void call_init(struct q931_call *c)
 {
@@ -330,16 +405,12 @@ static void dump_channel_id(q931_ie *ie, int len, char prefix)
 
 static char *ri2str(int ri)
 {
-	switch(ri) {
-	case 0:
-		return "Indicated Channel";
-	case 6:
-		return "Single DS1 Facility";
-	case 7:
-		return "All DS1 Facilities";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype ris[] = {
+		{ 0, "Indicated Channel" },
+		{ 6, "Single DS1 Facility" },
+		{ 7, "All DS1 Facilities" },
+	};
+	return code2str(ri, ris, sizeof(ris) / sizeof(ris[0]));
 }
 
 static void dump_restart_indicator(q931_ie *ie, int len, char prefix)
@@ -377,79 +448,70 @@ static int transmit_restart_indicator(struct pri *pri, q931_call *call, int msgt
 
 static char *cap2str(int mode)
 {
-	switch (mode) {
-	case PRI_TRANS_CAP_SPEECH:
-		return "Speech";
-	case PRI_TRANS_CAP_DIGITAL:
-		return "Unrestricted digital information";
-	case PRI_TRANS_CAP_AUDIO:
-		return "3.1-kHz audio";
-	case PRI_TRANS_CAP_AUDIO_4ESS:
-		return "3.1-khz audio (4ESS)";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype modes[] = {
+		{ PRI_TRANS_CAP_SPEECH, "Speech" },
+		{ PRI_TRANS_CAP_DIGITAL, "Unrestricted digital information" },
+		{ PRI_TRANS_CAP_RESTRICTED_DIGITAL, "Restricted digital information" },
+		{ PRI_TRANS_CAP_3_1K_AUDIO, "3.1kHz audio" },
+		{ PRI_TRANS_CAP_7K_AUDIO, "7kHz audio" },
+		{ PRI_TRANS_CAP_VIDEO, "Video" },
+		{ PRI_TRANS_CAP_AUDIO_4ESS, "3.1khz audio (4ESS)" },
+	};
+	return code2str(mode, modes, sizeof(modes) / sizeof(modes[0]));
 }
 
 static char *mode2str(int mode)
 {
-	switch(mode) {
-	case TRANS_MODE_64_CIRCUIT:
-		return "64-kbps, circuit-mode";
-	case TRANS_MODE_384_CIRCUIT:
-		return "384kbps, circuit-mode";
-	case TRANS_MODE_1536_CIRCUIT:
-		return "1536kbps, circuit-mode";
-	case TRANS_MODE_MULTIRATE:
-		return "Multirate (Nx64kbps)";
-	case TRANS_MODE_PACKET:
-		return "Packet Mode";
-	}
-	return "Unknown";
+	static struct msgtype modes[] = {
+		{ TRANS_MODE_64_CIRCUIT, "64kbps, circuit-mode" },
+		{ TRANS_MODE_2x64_CIRCUIT, "2x64kbps, circuit-mode" },
+		{ TRANS_MODE_384_CIRCUIT, "384kbps, circuit-mode" },
+		{ TRANS_MODE_1536_CIRCUIT, "1536kbps, circuit-mode" },
+		{ TRANS_MODE_1920_CIRCUIT, "1920kbps, circuit-mode" },
+		{ TRANS_MODE_MULTIRATE, "Multirate (Nx64kbps)" },
+		{ TRANS_MODE_PACKET, "Packet Mode" },
+	};
+	return code2str(mode, modes, sizeof(modes) / sizeof(modes[0]));
 }
 
 static char *l12str(int proto)
 {
-	switch(proto) {
-	case LAYER_1_RATE_ADAPT:
-		return "Rate Adaption";
-	case LAYER_1_ULAW:
-		return "u-Law";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype protos[] = {
+		{ LAYER_1_ITU_RATE_ADAPT, "ITU Rate Adaption" },
+		{ LAYER_1_ULAW, "u-Law" },
+		{ LAYER_1_ALAW, "A-Law" },
+		{ LAYER_1_G721, "G.721 ADPCM" },
+		{ LAYER_1_G722_G725, "G.722/G.725 7kHz Audio" },
+		{ LAYER_1_G7XX_384K, "G.7xx 384k Video" },
+		{ LAYER_1_NON_ITU_ADAPT, "Non-ITU Rate Adaption" },
+		{ LAYER_1_V120_RATE_ADAPT, "V.120 Rate Adaption" },
+		{ LAYER_1_X31_RATE_ADAPT, "X.31 Rate Adaption" },
+	};
+	return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
 }
 
 static char *ra2str(int proto)
 {
-	switch(proto) {
-	case RATE_ADAPT_56K:
-		return "from 56kbps";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype protos[] = {
+		{ RATE_ADAPT_56K, "from 56kbps" },
+	};
+	return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
 }
-
-
 
 static char *l22str(int proto)
 {
-	switch(proto) {
-	case LAYER_2_LAPB:
-		return "LAPB";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype protos[] = {
+		{ LAYER_2_LAPB, "LAPB" },
+	};
+	return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
 }
 
 static char *l32str(int proto)
 {
-	switch(proto) {
-	case LAYER_3_X25:
-		return "X.25";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype protos[] = {
+		{ LAYER_3_X25, "X.25" },
+	};
+	return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
 }
 
 static void dump_bearer_capability(q931_ie *ie, int len, char prefix)
@@ -468,7 +530,7 @@ static void dump_bearer_capability(q931_ie *ie, int len, char prefix)
 	if ((ie->data[1] & 0x7f) != TRANS_MODE_PACKET) {
 		/* Look for octets 5 and 5.a if present */
 		printf("%c                     Ext: %d   User Information Layer 1: %d (%s)\n", prefix, (ie->data[pos] >> 7), ie->data[pos] & 0x7f,l12str(ie->data[pos] & 0x7f));
-		if ((ie->data[pos] & 0x7f) == LAYER_1_RATE_ADAPT)
+		if ((ie->data[pos] & 0x7f) == LAYER_1_ITU_RATE_ADAPT)
 			printf("%c                     Ext: %d   Rate Adaptatation: %d (%s)\n", prefix, ie->data[pos] >> 7, ie->data[pos] & 0x7f, ra2str(ie->data[pos] & 0x7f));
 		pos++;
 	} else {
@@ -490,10 +552,10 @@ static int receive_bearer_capability(struct pri* pri, q931_call *call, int msgty
 	call->transcapability = ie->data[0] & 0x1f;
 	call->transmoderate = ie->data[1] & 0x7f;
 	if (call->transmoderate == PRI_TRANS_CAP_AUDIO_4ESS)
-		call->transmoderate = PRI_TRANS_CAP_AUDIO;
+		call->transmoderate = PRI_TRANS_CAP_3_1K_AUDIO;
 	if (call->transmoderate != TRANS_MODE_PACKET) {
 		call->userl1 = ie->data[pos] & 0x7f;
-		if (call->userl1 == LAYER_1_RATE_ADAPT) {
+		if (call->userl1 == LAYER_1_ITU_RATE_ADAPT) {
 			call->rateadaption = ie->data[++pos] & 0x7f;
 		}
 		pos++;
@@ -511,7 +573,7 @@ static int transmit_bearer_capability(struct pri *pri, q931_call *call, int msgt
 	tc = call->transcapability;
 	if (pri->switchtype == PRI_SWITCH_ATT4ESS) {
 		/* 4ESS uses a different trans capability for 3.1khz audio */
-		if (tc == PRI_TRANS_CAP_AUDIO)
+		if (tc == PRI_TRANS_CAP_3_1K_AUDIO)
 			tc = PRI_TRANS_CAP_AUDIO_4ESS;
 	}
 	ie->data[0] = 0x80 | tc;
@@ -521,7 +583,7 @@ static int transmit_bearer_capability(struct pri *pri, q931_call *call, int msgt
 		if (pri->switchtype == PRI_SWITCH_ATT4ESS)
 			return 4;
 		ie->data[2] = call->userl1 | 0x80; /* XXX Ext bit? XXX */
-		if (call->userl1 == LAYER_1_RATE_ADAPT) {
+		if (call->userl1 == LAYER_1_ITU_RATE_ADAPT) {
 			ie->data[3] = call->rateadaption | 0x80;
 			return 6;
 		}
@@ -535,46 +597,30 @@ static int transmit_bearer_capability(struct pri *pri, q931_call *call, int msgt
 
 char *pri_plan2str(int plan)
 {
-	switch(plan) {
-	case PRI_INTERNATIONAL_ISDN:
-		return "International number in ISDN";
-	case PRI_NATIONAL_ISDN:
-		return "National number in ISDN";
-	case PRI_LOCAL_ISDN:
-		return "Local number in ISDN";
-	case PRI_PRIVATE:
-		return "Private numbering plan";
-	case PRI_UNKNOWN:
-		return "Unknown numbering plan";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype plans[] = {
+		{ PRI_INTERNATIONAL_ISDN, "International number in ISDN" },
+		{ PRI_NATIONAL_ISDN, "National number in ISDN" },
+		{ PRI_LOCAL_ISDN, "Local number in ISDN" },
+		{ PRI_PRIVATE, "Private numbering plan" },
+		{ PRI_UNKNOWN, "Unknown numbering plan" },
+	};
+	return code2str(plan, plans, sizeof(plans) / sizeof(plans[0]));
 }
 
 char *pri_pres2str(int pres)
 {
-	switch(pres) {
-	case PRES_ALLOWED_USER_NUMBER_NOT_SCREENED:
-		return "Presentation permitted, user number not screened";
-	case PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN:
-		return "Presentation permitted, user number passed network screening";
-	case PRES_ALLOWED_USER_NUMBER_FAILED_SCREEN:	
-		return "Presentation permitted, user number failed network screening";
-	case PRES_ALLOWED_NETWORK_NUMBER:
-		return "Presentation allowed of network provided number";
-	case PRES_PROHIB_USER_NUMBER_NOT_SCREENED:
-		return "Presentation prohibited, user number not screened";
-	case PRES_PROHIB_USER_NUMBER_PASSED_SCREEN:
-		return "Presentation prohibited, user number passed network screening";
-	case PRES_PROHIB_USER_NUMBER_FAILED_SCREEN:	
-		return "Presentation prohibited, user number failed network screening";
-	case PRES_PROHIB_NETWORK_NUMBER:
-		return "Presentation prohibbited of network provided number";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype press[] = {
+		{ PRES_ALLOWED_USER_NUMBER_NOT_SCREENED, "Presentation permitted, user number not screened" },
+		{ PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN, "Presentation permitted, user number passed network screening" },
+		{ PRES_ALLOWED_USER_NUMBER_FAILED_SCREEN, "Presentation permitted, user number failed network screening" },
+		{ PRES_ALLOWED_NETWORK_NUMBER, "Presentation allowed of network provided number" },
+		{ PRES_PROHIB_USER_NUMBER_NOT_SCREENED, "Presentation prohibited, user number not screened" },
+		{ PRES_PROHIB_USER_NUMBER_PASSED_SCREEN, "Presentation prohibited, user number passed network screening" },
+		{ PRES_PROHIB_USER_NUMBER_FAILED_SCREEN, "Presentation prohibited, user number failed network screening" },
+		{ PRES_PROHIB_NETWORK_NUMBER, "Presentation prohibbited of network provided number" },
+	};
+	return code2str(pres, press, sizeof(press) / sizeof(press[0]));
 }
-
 
 static void q931_get_number(unsigned char *num, int maxlen, unsigned char *src, int len)
 {
@@ -637,58 +683,40 @@ static int transmit_calling_party_number(struct pri *pri, q931_call *call, int m
 
 static char *prog2str(int prog)
 {
-	switch(prog) {
-	case Q931_CALL_NOT_E2E_ISDN:
-		return "Call is not end-to-end ISDN; further call progress information may be available inband.";
-	case Q931_CALLED_NOT_ISDN:
-		return "Called equipment is non-ISDN.";
-	case Q931_CALLER_NOT_ISDN:
-		return "Calling equipment is non-ISDN.";
-	case Q931_INBAND_AVAILABLE:
-		return "Inband information or appropriate pattern now available.";
-	case Q931_DELAY_AT_INTERF:
-		return "Delay in response at called Interface.";
-	default:
-		return  "Unknown";
-	}
+	static struct msgtype progs[] = {
+		{ Q931_CALL_NOT_E2E_ISDN, "Call is not end-to-end ISDN; further call progress information may be available inband." },
+		{ Q931_CALLED_NOT_ISDN, "Called equipment is non-ISDN." },
+		{ Q931_CALLER_NOT_ISDN, "Calling equipment is non-ISDN." },
+		{ Q931_INBAND_AVAILABLE, "Inband information or appropriate pattern now available." },
+		{ Q931_DELAY_AT_INTERF, "Delay in response at called Interface." },
+	};
+	return code2str(prog, progs, sizeof(progs) / sizeof(progs[0]));
 }
 
 static char *coding2str(int cod)
 {
-	switch(cod) {
-	case CODE_CCITT:
-		return "CCITT (ITU) standard";
-	case CODE_NATIONAL:
-		return "National standard";
-	case CODE_NETWORK_SPECIFIC:
-		return "Network specific standard";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype cods[] = {
+		{ CODE_CCITT, "CCITT (ITU) standard" },
+		{ CODE_INTERNATIONAL, "Non-ITU international standard" }, 
+		{ CODE_NATIONAL, "National standard" }, 
+		{ CODE_NETWORK_SPECIFIC, "Network specific standard" },
+	};
+	return code2str(cod, cods, sizeof(cods) / sizeof(cods[0]));
 }
 
 static char *loc2str(int loc)
 {
-	switch(loc) {
-	case LOC_USER:
-		return "User";
-	case LOC_PRIV_NET_LOCAL_USER:
-		return "Private network serving the local user";
-	case LOC_PUB_NET_LOCAL_USER:
-		return "Public network serving the local user";
-	case LOC_TRANSIT_NET:
-		return "Transit network";
-	case LOC_PUB_NET_REMOTE_USER:
-		return "Public network serving the remote user";
-	case LOC_PRIV_NET_REMOTE_USER:
-		return "Private network serving the remote user";
-	case LOC_INTERNATIONAL_NETWORK:
-		return "International network";
-	case LOC_NETWORK_BEYOND_INTERWORKING:
-		return "Network beyond the interworking point";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype locs[] = {
+		{ LOC_USER, "User" },
+		{ LOC_PRIV_NET_LOCAL_USER, "Private network serving the local user" },
+		{ LOC_PUB_NET_LOCAL_USER, "Public network serving the local user" },
+		{ LOC_TRANSIT_NET, "Transit network" },
+		{ LOC_PUB_NET_REMOTE_USER, "Public network serving the remote user" },
+		{ LOC_PRIV_NET_REMOTE_USER, "Private network serving the remote user" },
+		{ LOC_INTERNATIONAL_NETWORK, "International network" },
+		{ LOC_NETWORK_BEYOND_INTERWORKING, "Network beyond the interworking point" },
+	};
+	return code2str(loc, locs, sizeof(locs) / sizeof(locs[0]));
 }
 
 static void dump_progress_indicator(q931_ie *ie, int len, char prefix)
@@ -722,95 +750,22 @@ static int transmit_progress_indicator(struct pri *pri, q931_call *call, int msg
 
 char *pri_cause2str(int cause)
 {
-	switch(cause) {
-	case PRI_CAUSE_UNALLOCATED:
-		return "Unallocated (unassigned) number";
-	case PRI_CAUSE_NO_ROUTE_TRANSIT_NET:
-		return "No route to specified transmit network";
-	case PRI_CAUSE_NO_ROUTE_DESTINATION:
-		return "No route to destination";
-	case PRI_CAUSE_CHANNEL_UNACCEPTABLE:
-		return "Channel unacceptable";
-	case PRI_CAUSE_CALL_AWARDED_DELIVERED:
-		return "Call awarded and being delivered in an established channel";
-	case PRI_CAUSE_NORMAL_CLEARING:
-		return "Normal Clearing";
-	case PRI_CAUSE_USER_BUSY:
-		return "User busy";
-	case PRI_CAUSE_NO_USER_RESPONSE:
-		return "No user responding";
-	case PRI_CAUSE_NO_ANSWER:
-		return "User alerting, no answer";
-	case PRI_CAUSE_CALL_REJECTED:
-		return "Call Rejected";
-	case PRI_CAUSE_DESTINATION_OUT_OF_ORDER:
-		return "Destination out of order";
-	case PRI_CAUSE_INVALID_NUMBER_FORMAT:
-		return "Invalid number format";
-	case PRI_CAUSE_RESPONSE_TO_STATUS_ENQUIRY:
-		return "Response to STATus ENQuiry";
-	case PRI_CAUSE_NORMAL_UNSPECIFIED:
-		return "Normal, unspecified";
-	case PRI_CAUSE_NORMAL_CIRCUIT_CONGESTION:
-		return "Circuit/channel congestion";
-	case PRI_CAUSE_NORMAL_TEMPORARY_FAILURE:
-		return "Temporary failure";
-	case PRI_CAUSE_SWITCH_CONGESTION:
-		return "Switching equipment congestion";
-	case PRI_CAUSE_ACCESS_INFO_DISCARDED:
-		return "Access information discarded";
-	case PRI_CAUSE_REQUESTED_CHAN_UNAVAIL:
-		return "Requested channel not available";
-	case PRI_CAUSE_BEARERCAPABILITY_NOTAUTH:
-		return "Bearer capability not authorized";
-	case PRI_CAUSE_BEARERCAPABILITY_NOTIMPL:
-		return "Bearer capability not implemented";
-	case PRI_CAUSE_INVALID_CALL_REFERENCE:
-		return "Invalid call reference value";
-	case PRI_CAUSE_INCOMPATIBLE_DESTINATION:
-		return "Incompatible destination";
-	case PRI_CAUSE_MANDATORY_IE_MISSING:
-		return "Mandatory information element is missing";
-	case PRI_CAUSE_MESSAGE_TYPE_NONEXIST:
-		return "Message type nonexist.";
-	case PRI_CAUSE_IE_NONEXIST:
-		return "Info. element nonexist or not implemented";
-	case PRI_CAUSE_INVALID_IE_CONTENTS:
-		return "Invalid information element contents";
-	case PRI_CAUSE_WRONG_CALL_STATE:
-		return "Message not compatible with call state";
-	case PRI_CAUSE_RECOVERY_ON_TIMER_EXPIRE:
-		return "Recover on timer expiry";
-	case PRI_CAUSE_PROTOCOL_ERROR:
-		return "Protocol error, unspecified";
-	case PRI_CAUSE_INTERWORKING:
-		return "Interworking, unspecified";
-	default:
-		return "Unknown";
-	}
+	return code2str(cause, causes, sizeof(causes) / sizeof(causes[0]));
 }
 
 static char *pri_causeclass2str(int cause)
 {
-	switch(cause) {
-	case 0:
-	case 1:
-		return "Normal Event";
-	case 2:
-		return "Network Congestion";
-	case 3:
-		return "Service or Option not Available";
-	case 4:
-		return "Service or Option not Implemented";
-	case 5:
-		return "Invalid message";
-	case 6:
-		return "Protocol Error";
-	case 7:
-		return "Interworking";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype causeclasses[] = {
+		{ 0, "Normal Event" },
+		{ 1, "Normal Event" },
+		{ 2, "Network Congestion" },
+		{ 3, "Service or Option not Available" },
+		{ 4, "Service or Option not Implemented" },
+		{ 5, "Invalid message" },
+		{ 6, "Protocol Error" },
+		{ 7, "Interworking" },
+	};
+	return code2str(cause, causeclasses, sizeof(causeclasses) / sizeof(causeclasses[0]));
 }
 
 static void dump_cause(q931_ie *ie, int len, char prefix)
@@ -872,6 +827,30 @@ struct ie ies[] = {
 	{ Q931_RESTART_INDICATOR, "Restart Indicator", dump_restart_indicator, receive_restart_indicator, transmit_restart_indicator },
 	{ Q931_LOW_LAYER_COMPAT, "Low-layer Compatibility" },
 	{ Q931_HIGH_LAYER_COMPAT, "High-layer Compatibility" },
+	{ Q931_PACKET_SIZE, "Packet Size" },
+	{ Q931_IE_FACILITY, "Facility" },
+	{ Q931_IE_REDIRECTION_NUMBER, "Redirection Number" },
+	{ Q931_IE_REDIRECTION_SUBADDR, "Redirection Subaddress" },
+	{ Q931_IE_FEATURE_ACTIVATE, "Feature Activation" },
+    { Q931_IE_INFO_REQUEST, "Feature Request" },
+	{ Q931_IE_FEATURE_IND, "Feature Indication" },
+	{ Q931_IE_SEGMENTED_MSG, "Segmented Message" },
+	{ Q931_IE_CALL_IDENTITY, "Call Identity" },
+    { Q931_IE_ENDPOINT_ID, "Endpoint Identification" },
+	{ Q931_IE_NOTIFY_IND, "Notification Indicator" },
+	{ Q931_IE_DISPLAY, "Display" },
+	{ Q931_IE_TIME_DATE, "Date/Time" },
+	{ Q931_IE_KEYPAD_FACILITY, "Keypad Facility" },
+	{ Q931_IE_SIGNAL, "Signal" },
+	{ Q931_IE_SWITCHHOOK, "Switch-hook" },
+	{ Q931_IE_USER_USER, "User-User" },
+	{ Q931_IE_ESCAPE_FOR_EXT, "Escape for Extension" },
+	{ Q931_IE_CALL_STATUS, "Call Status" },
+	{ Q931_IE_CHANGE_STATUS, "Change Status" },
+	{ Q931_IE_CONNECTED_NUM, "Connected Number" },
+	{ Q931_IE_ORIGINAL_CALLED_NUMBER, "Original Called Number" },
+	{ Q931_IE_USER_USER_FACILITY, "User-User Facility" },
+	{ Q931_IE_UPDATE, "Update" },
 };
 
 static char *ie2str(int ie) 
@@ -1024,14 +1003,11 @@ static int add_ie(struct pri *pri, q931_call *call, int msgtype, int ie, q931_ie
 
 static char *disc2str(int disc)
 {
-	switch(disc) {
-	case Q931_PROTOCOL_DISCRIMINATOR:
-		return "Q.931";
-	case 0x3:
-		return "AT&T Maintenance";
-	default:
-		return "Unknown";
-	}
+	static struct msgtype discs[] = {
+		{ Q931_PROTOCOL_DISCRIMINATOR, "Q.931" },
+		{ 0x3, "AT&T Maintenance" },
+	};
+	return code2str(disc, discs, sizeof(discs) / sizeof(discs[0]));
 }
 
 static void q931_dump(q931_h *h, int len, int txrx)
@@ -1069,7 +1045,8 @@ static int q931_handle_ie(struct pri *pri, q931_call *c, int msg, q931_ie *ie)
 			if (ies[x].receive)
 				return ies[x].receive(pri, c, msg, ie, ielen(ie));
 			else {
-				fprintf(stderr, "!! No handler for IE %d (%s)\n", ie->ie, ie2str(ie->ie));
+				if (pri->debug & PRI_DEBUG_Q931_ANOMALY)
+					fprintf(stderr, "!! No handler for IE %d (%s)\n", ie->ie, ie2str(ie->ie));
 				return -1;
 			}
 		}
@@ -1369,6 +1346,31 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->causeloc = -1;
 		c->callstate = -1;
 		break;
+
+	case Q931_SETUP_ACKNOWLEDGE:
+	case Q931_RESTART_ACKNOWLEDGE:
+	case Q931_STATUS_ENQUIRY:
+	case Q931_USER_INFORMATION:
+	case Q931_SEGMENT:
+	case Q931_CONGESTION_CONTROL:
+	case Q931_INFORMATION:
+	case Q931_FACILITY:
+	case Q931_NOTIFY:
+	case Q931_HOLD:
+	case Q931_HOLD_ACKNOWLEDGE:
+	case Q931_HOLD_REJECT:
+	case Q931_RETRIEVE:
+	case Q931_RETRIEVE_ACKNOWLEDGE:
+	case Q931_RETRIEVE_REJECT:
+	case Q931_RESUME:
+	case Q931_RESUME_ACKNOWLEDGE:
+	case Q931_RESUME_REJECT:
+	case Q931_SUSPEND:
+	case Q931_SUSPEND_ACKNOWLEDGE:
+	case Q931_SUSPEND_REJECT:
+		fprintf(stderr, "!! Not yet handling post-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		return -1;
+		
 	default:
 		fprintf(stderr, "!! Don't know how to pre-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
 		return -1;
@@ -1431,7 +1433,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	case Q931_CONNECT_ACKNOWLEDGE:
 	case Q931_STATUS:
 		/* Do nothing */
-		if (c->cause != PRI_CAUSE_INTERWORKING)
+		if ((pri->debug & PRI_DEBUG_Q931_ANOMALY) &&
+		    (c->cause != PRI_CAUSE_INTERWORKING))
 			fprintf(stderr, "Received unsolicited status: %s\n", pri_cause2str(c->cause));
 		break;
 	case Q931_CALL_PROCEEDING:
@@ -1478,6 +1481,30 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.hangup.cause = c->cause;
 		pri->ev.hangup.call = c;
 		return Q931_RES_HAVEEVENT;
+		
+	case Q931_SETUP_ACKNOWLEDGE:
+	case Q931_RESTART_ACKNOWLEDGE:
+	case Q931_STATUS_ENQUIRY:
+	case Q931_USER_INFORMATION:
+	case Q931_SEGMENT:
+	case Q931_CONGESTION_CONTROL:
+	case Q931_INFORMATION:
+	case Q931_FACILITY:
+	case Q931_NOTIFY:
+	case Q931_HOLD:
+	case Q931_HOLD_ACKNOWLEDGE:
+	case Q931_HOLD_REJECT:
+	case Q931_RETRIEVE:
+	case Q931_RETRIEVE_ACKNOWLEDGE:
+	case Q931_RETRIEVE_REJECT:
+	case Q931_RESUME:
+	case Q931_RESUME_ACKNOWLEDGE:
+	case Q931_RESUME_REJECT:
+	case Q931_SUSPEND:
+	case Q931_SUSPEND_ACKNOWLEDGE:
+	case Q931_SUSPEND_REJECT:
+		fprintf(stderr, "!! Not yet handling post-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		return -1;
 		
 	default:
 		fprintf(stderr, "!! Don't know how to post-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
