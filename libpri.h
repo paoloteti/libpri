@@ -46,11 +46,11 @@
 #define PRI_SWITCH_DMS100		2	/* DMS 100 */
 #define PRI_SWITCH_LUCENT5E		3	/* Lucent 5E */
 #define PRI_SWITCH_ATT4ESS		4	/* AT&T 4ESS */
-#define PRI_SWITCH_EUROISDN_E1	5	/* Standard EuroISDN (CTR4, ETSI 300-102) */
-#define PRI_SWITCH_EUROISDN_T1	6	/* T1 EuroISDN variant (ETSI 300-102) */
+#define PRI_SWITCH_EUROISDN_E1		5	/* Standard EuroISDN (CTR4, ETSI 300-102) */
+#define PRI_SWITCH_EUROISDN_T1		6	/* T1 EuroISDN variant (ETSI 300-102) */
 #define PRI_SWITCH_NI1			7	/* National ISDN 1 */
-#define PRI_SWITCH_GR303_EOC	8	/* GR-303 Embedded Operations Channel */
-#define PRI_SWITCH_GR303_TMC	9	/* GR-303 Timeslot Management Channel */
+#define PRI_SWITCH_GR303_EOC		8	/* GR-303 Embedded Operations Channel */
+#define PRI_SWITCH_GR303_TMC		9	/* GR-303 Timeslot Management Channel */
 #define PRI_SWITCH_QSIG			10	/* QSIG Switch */
 /* Switchtypes 10 - 20 are reserved for internal use */
 
@@ -73,6 +73,7 @@
 #define PRI_EVENT_HANGUP_REQ	15	/* Requesting the higher layer to hangup */
 #define PRI_EVENT_NOTIFY		16	/* Notification received */
 #define PRI_EVENT_PROGRESS		17	/* When we get CALL_PROCEEDING or PROGRESS */
+#define PRI_EVENT_KEYPAD_DIGIT		18	/* When we receive during ACTIVE state */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
@@ -347,6 +348,13 @@ typedef struct pri_event_notify {
 	int info;
 } pri_event_notify;
 
+typedef struct pri_event_keypad_digit {
+	int e;
+	int channel;
+	q931_call *call;
+	char digits[64];
+} pri_event_keypad_digit;
+
 typedef union {
 	int e;
 	pri_event_generic gen;		/* Generic view */
@@ -361,6 +369,7 @@ typedef union {
 	pri_event_proceeding  proceeding;	/* Call proceeding & Progress */
 	pri_event_setup_ack   setup_ack;	/* SETUP_ACKNOWLEDGE structure */
 	pri_event_notify notify;		/* Notification */
+	pri_event_keypad_digit digit;			/* Digits that come during a call */
 } pri_event;
 
 struct pri;
@@ -477,7 +486,21 @@ extern int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, 
 extern int pri_sr_set_redirecting(struct pri_sr *sr, char *num, int plan, int pres, int reason);
 
 extern int pri_setup(struct pri *pri, q931_call *call, struct pri_sr *req);
-	 
+
+/* Set a call has a call indpendent signalling connection (i.e. no bchan) */
+extern int pri_sr_set_connection_call_independent(struct pri_sr *req);
+
+/* Send an MWI indication to a remote location.  If activate is non zero, activates, if zero, decativates */
+extern int pri_mwi_activate(struct pri *pri, q931_call *c, char *caller, int callerplan, char *callername, int callerpres, char *called, int calledplan);
+
+/* Send an MWI deactivate request to a remote location */
+extern int pri_mwi_deactivate(struct pri *pri, q931_call *c, char *caller, int callerplan, char *callername, int callerpres, char *called, int calledplan);
+
+#define PRI_2BCT
+/* Attempt to pass the channels back to the NET side if compatable and
+ * suscribed.  Sometimes called 2 bchannel transfer (2BCT) */
+int pri_channel_bridge(q931_call *call1, q931_call *call2);
+
 /* Override message and error stuff */
 extern void pri_set_message(void (*__pri_error)(char *));
 extern void pri_set_error(void (*__pri_error)(char *));

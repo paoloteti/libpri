@@ -22,6 +22,7 @@
 #include "compat.h"
 #include "libpri.h"
 #include "pri_internal.h"
+#include "pri_facility.h"
 #include "pri_q921.h"
 #include "pri_q931.h"
 #include "pri_timers.h"
@@ -231,6 +232,30 @@ char *pri_event2str(int id)
 		return "Restart channel";
 	case PRI_EVENT_RING:
 		return "Ring";
+	case PRI_EVENT_HANGUP:
+		return "Hangup";
+	case PRI_EVENT_RINGING:
+		return "Ringing";
+	case PRI_EVENT_ANSWER:
+		return "Answer";
+	case PRI_EVENT_HANGUP_ACK:
+		return "Hangup ACK";
+	case PRI_EVENT_RESTART_ACK:
+		return "Restart ACK";
+	case PRI_EVENT_FACNAME:
+		return "FacName";
+	case PRI_EVENT_INFO_RECEIVED:
+		return "Info Received";
+	case PRI_EVENT_PROCEEDING:
+		return "Proceeding";
+	case PRI_EVENT_SETUP_ACK:
+		return "Setup ACK";
+	case PRI_EVENT_HANGUP_REQ:
+		return "Hangup Req";
+	case PRI_EVENT_NOTIFY:
+		return "Notify";
+	case PRI_EVENT_PROGRESS:
+		return "Progress";
 	case PRI_EVENT_CONFIG_ERR:
 		return "Configuration Error";
 	default:
@@ -399,6 +424,28 @@ int pri_disconnect(struct pri *pri, q931_call *call, int cause)
 }
 #endif
 
+int pri_channel_bridge(q931_call *call1, q931_call *call2)
+{
+	if (!call1 || !call2)
+		return -1;
+
+	/* Check switchtype compatibility */
+	if (call1->pri->switchtype != PRI_SWITCH_LUCENT5E ||
+			call2->pri->switchtype != PRI_SWITCH_LUCENT5E)
+		return -1;
+
+	/* Check to see if calls are on the same PRI dchannel
+	 * Currently only support calls on the same dchannel
+	 */
+	if (call1->pri != call2->pri)
+		return -1;
+	
+	if (eect_initiate_transfer(call1->pri, call1, call2))
+		return -1;
+
+	return 0;
+}
+
 int pri_hangup(struct pri *pri, q931_call *call, int cause)
 {
 	if (!pri || !call)
@@ -456,10 +503,71 @@ static void pri_sr_init(struct pri_sr *req)
 	
 }
 
+int pri_sr_set_connection_call_independent(struct pri_sr *req)
+{
+	if (!req)
+		return -1;
+
+	req->justsignalling = 1; /* have to set justsignalling for all those pesky IEs we need to setup */
+	return 0;
+}
+
+/* Don't call any other pri functions on this */
+int pri_mwi_activate(struct pri *pri, q931_call *c, char *caller, int callerplan, char *callername, int callerpres, char *called,
+					int calledplan)
+{
+	struct pri_sr req;
+	if (!pri || !c)
+		return -1;
+
+	pri_sr_init(&req);
+	pri_sr_set_connection_call_independent(&req);
+
+	req.caller = caller;
+	req.callerplan = callerplan;
+	req.callername = callername;
+	req.callerpres = callerpres;
+	req.called = called;
+	req.calledplan = calledplan;
+
+	if (mwi_message_send(pri, c, &req, 1) < 0) {
+		pri_message("Unable to send MWI activate message\n");
+		return -1;
+	}
+	/* Do more stuff when we figure out that the CISC stuff works */
+	return q931_setup(pri, c, &req);
+}
+
+int pri_mwi_deactivate(struct pri *pri, q931_call *c, char *caller, int callerplan, char *callername, int callerpres, char *called,
+					int calledplan)
+{
+	struct pri_sr req;
+	if (!pri || !c)
+		return -1;
+
+	pri_sr_init(&req);
+	pri_sr_set_connection_call_independent(&req);
+
+	req.caller = caller;
+	req.callerplan = callerplan;
+	req.callername = callername;
+	req.callerpres = callerpres;
+	req.called = called;
+	req.calledplan = calledplan;
+
+	if(mwi_message_send(pri, c, &req, 0) < 0) {
+		pri_message("Unable to send MWI deactivate message\n");
+		return -1;
+	}
+
+	return q931_setup(pri, c, &req);
+}
+	
 int pri_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 {
 	if (!pri || !c)
 		return -1;
+
 	return q931_setup(pri, c, req);
 }
 

@@ -53,6 +53,7 @@
 #include <pthread.h>
 #include <sys/select.h>
 #include "libpri.h"
+#include "pri_q931.h"
 
 #ifndef AF_LOCAL
 #define AF_LOCAL AF_UNIX
@@ -89,7 +90,7 @@ static void event1(struct pri *pri, pri_event *e)
 			}
 #if 0
 			sr = pri_sr_new();
-			pri_sr_set_channel(sr, x, 0, 0);
+			pri_sr_set_channel(sr, x+1, 0, 0);
 			pri_sr_set_bearer(sr, 0, PRI_LAYER_1_ULAW);
 			pri_sr_set_called(sr, dest, PRI_NATIONAL_ISDN, 1);
 			pri_sr_set_caller(sr, num, name, PRI_NATIONAL_ISDN, PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN);
@@ -107,6 +108,11 @@ static void event1(struct pri *pri, pri_event *e)
 		}
 		printf("Setup %d calls!\n", TEST_CALLS);
 		break;
+	case PRI_EVENT_RINGING:
+		printf("PRI 1: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
+		q931_facility(pri, e->ringing.call);
+		pri_answer(pri, e->ringing.call, e->ringing.channel, 0);
+		break;
 	default:
 		printf("PRI 1: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
 	}
@@ -116,6 +122,11 @@ static void event2(struct pri *pri, pri_event *e)
 {
 	/* CPE */
 	switch(e->gen.e) {
+	case PRI_EVENT_RING:
+		printf("PRI 2: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
+		pri_proceeding(pri, e->ring.call, e->ring.channel, 0);
+		pri_acknowledge(pri, e->ring.call, e->ring.channel, 0);
+		break;
 	case PRI_EVENT_DCHAN_UP:
 	default:
 		printf("PRI 2: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);

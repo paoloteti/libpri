@@ -124,11 +124,22 @@ struct pri_sr {
 	int redirectingplan;
 	int redirectingpres;
 	int redirectingreason;
+	int justsignalling;
 };
 
 /* Internal switch types */
-#define PRI_SWITCH_GR303_EOC_PATH	10
-#define PRI_SWITCH_GR303_TMC_SWITCHING	11
+#define PRI_SWITCH_GR303_EOC_PATH	19
+#define PRI_SWITCH_GR303_TMC_SWITCHING	20
+
+struct apdu_event {
+	int message;			/* What message to send the ADPU in */
+	void (*callback)(void *data);	/* Callback function for when response is received */
+	void *data;			/* Data to callback */
+	unsigned char apdu[255];			/* ADPU to send */
+	int apdu_len; 			/* Length of ADPU */
+	int sent;  			/* Have we been sent already? */
+	struct apdu_event *next;	/* Linked list pointer */
+};
 
 /* q931_call datastructure */
 
@@ -163,6 +174,7 @@ struct q931_call {
 	int rateadaption;
 	
 	int sentchannel;
+	int justsignalling;		/* for a signalling-only connection */
 
 	int progcode;			/* Progress coding */
 	int progloc;			/* Progress Location */	
@@ -184,6 +196,8 @@ struct q931_call {
 	char callernum[256];	/* Caller */
 	char callername[256];
 
+	char digitbuf[64];	/* Buffer for digits that come in KEYPAD_FACILITY */
+
 	int ani2;               /* ANI II */
 	
 	int  calledplan;
@@ -202,6 +216,8 @@ struct q931_call {
         int useruserprotocoldisc;
 	char useruserinfo[256];
 	char callingsubaddr[256];	/* Calling parties sub address */
+
+	struct apdu_event *apdus;	/* APDU queue for call */
 };
 
 extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);

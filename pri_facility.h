@@ -4,7 +4,7 @@
    within those messages.
 
    by Matthew Fredrickson <creslin@digium.com>
-   Copyright (C) Digium, Inc. 2004
+   Copyright (C) Digium, Inc. 2004-2005
 */
 
 #ifndef _PRI_FACILITY_H
@@ -134,38 +134,80 @@ struct rose_component {
 	}
 	
 #define ASN1_GET_INTEGER(component, variable) \
-	{ \
+	do { \
 		int comp_idx; \
 		(variable) = 0; \
 		for (comp_idx = 0; comp_idx < (component)->len; ++comp_idx) \
 			(variable) = ((variable) << 8) | (component)->data[comp_idx]; \
-	}
+	} while (0)
 
 #define ASN1_ADD_SIMPLE(component, comptype, ptr, idx) \
-	(component) = (struct rose_component *)&((ptr)[(idx)]); \
-	(component)->type = (comptype); \
-	(component)->len = 0; \
-	(idx) += 2;
+	do { \
+		(component) = (struct rose_component *)&((ptr)[(idx)]); \
+		(component)->type = (comptype); \
+		(component)->len = 0; \
+		(idx) += 2; \
+	} while (0)
 
 #define ASN1_ADD_BYTECOMP(component, comptype, ptr, idx, value) \
-	(component) = (struct rose_component *)&((ptr)[(idx)]); \
-	(component)->type = (comptype); \
-	(component)->len = 1; \
-	(component)->data[0] = (value); \
-	(idx) += 3;
+	do { \
+		(component) = (struct rose_component *)&((ptr)[(idx)]); \
+		(component)->type = (comptype); \
+		(component)->len = 1; \
+		(component)->data[0] = (value); \
+		(idx) += 3; \
+	} while (0)
+
+#define ASN1_ADD_WORDCOMP(component, comptype, ptr, idx, value) \
+	do { \
+		int __val = (value); \
+		int __i = 0; \
+		(component) = (struct rose_component *)&((ptr)[(idx)]); \
+		(component)->type = (comptype); \
+		if ((__val >> 24)) \
+			(component)->data[__i++] = (__val >> 24) & 0xff; \
+		if ((__val >> 16)) \
+			(component)->data[__i++] = (__val >> 16) & 0xff; \
+		if ((__val >> 8)) \
+			(component)->data[__i++] = (__val >> 8) & 0xff; \
+		(component)->data[__i++] = __val & 0xff; \
+		(component)->len = __i; \
+		(idx) += 2 + __i; \
+	} while (0)
 
 #define ASN1_PUSH(stack, stackpointer, component) \
-	(stack)[(stackpointer)++] = (component);
+	(stack)[(stackpointer)++] = (component)
 
 #define ASN1_FIXUP(stack, stackpointer, data, idx) \
-	--(stackpointer); \
-	(stack)[(stackpointer)]->len = (unsigned char *)&((data)[(idx)]) - (unsigned char *)(stack)[(stackpointer)] - 2;
+	do { \
+		--(stackpointer); \
+		(stack)[(stackpointer)]->len = (unsigned char *)&((data)[(idx)]) - (unsigned char *)(stack)[(stackpointer)] - 2; \
+	} while (0)
 
-/* Decoder fo the invoke part of a ROSE request
-   It currently only support calling name decode */
+/* Decoder for the invoke part of a ROSE request */
 extern int rose_invoke_decode(struct pri *pri, struct q931_call *call, unsigned char *data, int len);
+
 extern int asn1_string_encode(unsigned char asn1_type, void *data, int len, int max_len, void *src, int src_len);
-int typeofnumber_from_q931(struct pri *pri, int ton);
-int redirectingreason_from_q931(struct pri *pri, int redirectingreason);
+
+extern int typeofnumber_from_q931(struct pri *pri, int ton);
+
+extern int redirectingreason_from_q931(struct pri *pri, int redirectingreason);
+
+/* Queues an MWI apdu on a the given call */
+extern int mwi_message_send(struct pri *pri, q931_call *call, struct pri_sr *req, int activate);
+
+/* starts a 2BCT */
+extern int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
+
+/* Use this function to queue a facility-IE born ADPU onto a call
+ * call is the call to use, messagetype is any one of the Q931 messages,
+ * apdu is the apdu data, apdu_len is the length of the apdu data  */
+extern int pri_call_apdu_queue(q931_call *call, int messagetype, void *apdu, int apdu_len, void (*function)(void *data), void *data);
+
+/* Used by q931.c to cleanup the apdu queue upon destruction of a call */
+extern int pri_call_apdu_queue_cleanup(q931_call *call);
+
+/* Adds the "standard" ADPUs to a call */
+extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call);
 
 #endif /* _PRI_FACILITY_H */

@@ -277,9 +277,15 @@ static FUNC_RECV(receive_channel_id)
  	}
 #endif
 #ifndef NOAUTO_CHANNEL_SELECTION_SUPPORT
-	if ((ie->data[0] & 3) != 1) {
-		pri_error("!! Unexpected Channel selection %d\n", ie->data[0] & 3);
-		return -1;
+	switch (ie->data[0] & 3) {
+		case 0:
+			call->justsignalling = 1;
+			break;
+		case 1:
+			break;
+		default:
+			pri_error("!! Unexpected Channel selection %d\n", ie->data[0] & 3);
+			return -1;
 	}
 #endif
 	if (ie->data[0] & 0x08)
@@ -326,10 +332,17 @@ static FUNC_SEND(transmit_channel_id)
 {
 	int pos=0;
 
+	
 	/* We are ready to transmit single IE only */
 	if (order > 1)
 		return 0;
-
+	
+	if (call->justsignalling) {
+		ie->data[pos++] = 0xac; /* Read the standards docs to figure this out
+					   ECMA-165 section 7.3 */
+		return pos + 2;
+	}
+		
 	/* Start with standard stuff */
 	if (pri->switchtype == PRI_SWITCH_GR303_TMC)
 		ie->data[pos] = 0x69;
@@ -615,6 +628,13 @@ static FUNC_SEND(transmit_bearer_capability)
 		ie->data[1] = 0x90;
 		return 4;
 	}
+	
+	if (call->justsignalling) {
+		ie->data[0] = 0xa8;
+		ie->data[1] = 0x80;
+		return 4;
+	}
+	
 	if (pri->switchtype == PRI_SWITCH_ATT4ESS) {
 		/* 4ESS uses a different trans capability for 3.1khz audio */
 		if (tc == PRI_TRANS_CAP_3_1K_AUDIO)
@@ -1049,6 +1069,33 @@ static FUNC_RECV(receive_progress_indicator)
 
 static FUNC_SEND(transmit_facility)
 {
+	struct apdu_event *tmp;
+	int i = 0;
+
+	for (tmp = call->apdus; tmp; tmp = tmp->next) {
+		if (tmp->message == msgtype)
+			break;
+	}
+
+	if (!tmp)	/* No APDU found */
+		return 0;
+
+	if (tmp->apdu_len > 235) { /* TODO: find out how much sapce we can use */
+		pri_message("Requested ADPU (%d bytes) is too long\n", tmp->apdu_len);
+
+
+		return 0;
+	}
+	
+	memcpy(ie->data, tmp->apdu, tmp->apdu_len);
+	i += tmp->apdu_len;
+
+	return i + 2;
+}
+
+#if 0
+static FUNC_SEND(transmit_facility)
+{
 	int i = 0, j, first_i, compsp = 0;
 	struct rose_component *comp, *compstk[10];
 	unsigned char namelen = strlen(call->callername);
@@ -1220,6 +1267,7 @@ static FUNC_SEND(transmit_facility)
 finish2:
 	return (i ? i+2 : 0);
 }
+#endif
 
 static FUNC_RECV(receive_facility)
 {
@@ -1445,6 +1493,37 @@ static FUNC_DUMP(dump_time_date)
 	if (ie->len > 5)
 		pri_message(":%02d", ie->data[5]);
 	pri_message(" ]\n");
+}
+
+static FUNC_DUMP(dump_keypad_facility)
+{
+	char tmp[64] = "";
+	
+	if (ie->len == 0 || ie->len > sizeof(tmp))
+		return;
+	
+	strncpy(tmp, ie->data, sizeof(tmp));
+	pri_message("%c Keypad Facility (len=%2d) [ %s ]\n", prefix, ie->len, tmp );
+}
+
+static FUNC_RECV(receive_keypad_facility)
+{
+	int mylen = 0;
+
+	if (ie->len == 0)
+		return -1;
+
+	if (ie->len > sizeof(call->digitbuf))
+		mylen = sizeof(call->digitbuf) - 1;
+	else
+		mylen = ie->len;
+
+	strncpy(call->digitbuf, ie->data, mylen);
+
+	/* I must be really neurotic */
+	call->digitbuf[sizeof(call->digitbuf)-1] = '\0';
+
+	return 0;
 }
 
 static FUNC_DUMP(dump_display)
@@ -2000,7 +2079,7 @@ struct ie ies[] = {
 	{ 1, Q931_IE_NOTIFY_IND, "Notification Indicator", dump_notify, receive_notify, transmit_notify },
 	{ 1, Q931_DISPLAY, "Display", dump_display, receive_display, transmit_display },
 	{ 1, Q931_IE_TIME_DATE, "Date/Time", dump_time_date },
-	{ 1, Q931_IE_KEYPAD_FACILITY, "Keypad Facility" },
+	{ 1, Q931_IE_KEYPAD_FACILITY, "Keypad Facility", dump_keypad_facility, receive_keypad_facility },
 	{ 0, Q931_IE_SIGNAL, "Signal", dump_signal },
 	{ 1, Q931_IE_SWITCHHOOK, "Switch-hook" },
 	{ 1, Q931_IE_USER_USER, "User-User", dump_user_user, receive_user_user },
@@ -2212,6 +2291,7 @@ static void q931_destroy(struct pri *pri, int cr, q931_call *c)
 				pri_message("NEW_HANGUP DEBUG: Destroying the call, ourstate %s, peerstate %s\n",callstate2str(cur->ourcallstate),callstate2str(cur->peercallstate));
 			if (cur->retranstimer)
 				pri_schedule_del(pri, cur->retranstimer);
+			pri_call_apdu_queue_cleanup(cur);
 			free(cur);
 			return;
 		}
@@ -2410,6 +2490,8 @@ static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
 	int offset=0;
 	int x;
 	int codeset;
+	struct apdu_event *facevent = c->apdus;
+	
 	memset(buf, 0, sizeof(buf));
 	len = sizeof(buf);
 	init_header(pri, c, buf, &h, &mh, &len);
@@ -2417,11 +2499,30 @@ static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
 	x=0;
 	codeset = 0;
 	while(ies[x] > -1) {
-		res = add_ie(pri, c, mh->msg, ies[x], (q931_ie *)(mh->data + offset), len, &codeset);
+		if (ies[x] == Q931_IE_FACILITY) {
+			res = 0;
+			while (facevent) {
+				if (!facevent->sent && (facevent->message == msgtype)) { 
+					int tmpres;
+					tmpres = add_ie(pri, c, mh->msg, ies[x], (q931_ie *)(mh->data + offset), len, &codeset);
+					if (tmpres < 0) {
+						pri_error("!! Unable to add IE '%s'\n", ie2str(ies[x]));
+						return -1;
+					}
+					res += tmpres;
+					facevent->sent = 1;
+				}
+				facevent = facevent->next;
+			}
+		} else {
+			res = add_ie(pri, c, mh->msg, ies[x], (q931_ie *)(mh->data + offset), len, &codeset);
+		}
+
 		if (res < 0) {
 			pri_error("!! Unable to add IE '%s'\n", ie2str(ies[x]));
 			return -1;
 		}
+
 		offset += res;
 		len -= res;
 		x++;
@@ -2477,6 +2578,13 @@ static int restart_ack(struct pri *pri, q931_call *c)
 	c->ourcallstate = Q931_CALL_STATE_NULL;
 	c->peercallstate = Q931_CALL_STATE_NULL;
 	return send_message(pri, c, Q931_RESTART_ACKNOWLEDGE, restart_ack_ies);
+}
+
+static int facility_ies[] = { Q931_IE_FACILITY, -1 };
+
+int q931_facility(struct pri*pri, q931_call *c)
+{
+	return send_message(pri, c, Q931_FACILITY, facility_ies);
 }
 
 static int notify_ies[] = { Q931_IE_NOTIFY_IND, -1 };
@@ -2737,6 +2845,8 @@ static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_IE_F
 
 static int gr303_setup_ies[] =  { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, -1 };
 
+static int cis_setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_IE_FACILITY, Q931_CALLED_PARTY_NUMBER, -1 };
+
 int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 {
 	int res;
@@ -2757,7 +2867,8 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 	c->channelno = req->channel;		
 	c->slotmap = -1;
 	c->nonisdn = req->nonisdn;
-	c->newcall = 0;		
+	c->newcall = 0;
+	c->justsignalling = req->justsignalling;		
 	c->complete = req->numcomplete; 
 	if (req->exclusive) 
 		c->chanflags = FLAG_EXCLUSIVE;
@@ -2810,8 +2921,13 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 		c->progressmask = PRI_PROG_CALLER_NOT_ISDN;
 	else
 		c->progressmask = 0;
+
+	pri_call_add_standard_apdus(pri, c);
+
 	if (pri->subchannel)
 		res = send_message(pri, c, Q931_SETUP, gr303_setup_ies);
+	else if (c->justsignalling)
+		res = send_message(pri, c, Q931_SETUP, cis_setup_ies);
 	else
 		res = send_message(pri, c, Q931_SETUP, setup_ies);
 	if (!res) {
@@ -2961,6 +3077,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	int missingmand;
 	int codeset, cur_codeset;
 	int last_ie[8];
+	struct apdu_event *cur = NULL;
+
 	memset(last_ie, 0, sizeof(last_ie));
 	if (pri->debug & PRI_DEBUG_Q931_DUMP)
 		q931_dump(h, len, 0);
@@ -3455,8 +3573,13 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_release_complete(pri,c,PRI_CAUSE_INVALID_CALL_REFERENCE);
 			break;
 		}
-		if (c->ourcallstate!=Q931_CALL_STATE_OVERLAP_RECEIVING)
-			break;
+		if (c->ourcallstate != Q931_CALL_STATE_OVERLAP_RECEIVING) {
+			pri->ev.e = PRI_EVENT_KEYPAD_DIGIT;
+			pri->ev.digit.call = c;
+			pri->ev.digit.channel = c->channelno | (c->ds1no << 8);
+			strncpy(pri->ev.digit.digits, c->digitbuf, sizeof(pri->ev.digit.digits));
+			return Q931_RES_HAVEEVENT;
+		}
 		pri->ev.e = PRI_EVENT_INFO_RECEIVED;
 		pri->ev.ring.call = c;
 		pri->ev.ring.channel = c->channelno | (c->ds1no << 8);
@@ -3464,7 +3587,6 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		strncpy(pri->ev.ring.callingsubaddr, c->callingsubaddr, sizeof(pri->ev.ring.callingsubaddr) - 1);
 		pri->ev.ring.complete = c->complete; 	/* this covers IE 33 (Sending Complete) */
 		return Q931_RES_HAVEEVENT;
-		break;
 	case Q931_STATUS_ENQUIRY:
 		if (c->newcall) {
 			q931_release_complete(pri, c, PRI_CAUSE_INVALID_CALL_REFERENCE);
@@ -3480,6 +3602,16 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->peercallstate = Q931_CALL_STATE_OVERLAP_RECEIVING;
 		pri->ev.e = PRI_EVENT_SETUP_ACK;
 		pri->ev.setup_ack.channel = c->channelno;
+
+		cur = c->apdus;
+		while (cur) {
+			if (!cur->sent && cur->message == Q931_FACILITY) {
+				q931_facility(pri, c);
+				break;
+			}
+			cur = cur->next;
+		}
+
 		return Q931_RES_HAVEEVENT;
 	case Q931_NOTIFY:
 		pri->ev.e = PRI_EVENT_NOTIFY;

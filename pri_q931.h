@@ -267,6 +267,8 @@ extern int q931_hangup(struct pri *pri, q931_call *call, int cause);
 
 extern int q931_restart(struct pri *pri, int channel);
 
+extern int q931_facility(struct pri *pri, q931_call *call);
+
 extern int q931_call_getcrv(struct pri *pri, q931_call *call, int *callmode);
 
 extern int q931_call_setcrv(struct pri *pri, q931_call *call, int crv, int callmode);
