@@ -153,13 +153,38 @@ int pri_timer2idx(char *timer)
 		return -1;
 }
 
-static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *master)
+static int __pri_read(struct pri *pri, void *buf, int buflen)
+{
+	int res = read(pri->fd, buf, buflen);
+	if (res < 0) {
+		if (errno != EAGAIN)
+			pri_error("Read on %d failed: %s\n", pri->fd, strerror(errno));
+		return 0;
+	}
+	return res;
+}
+
+static int __pri_write(struct pri *pri, void *buf, int buflen)
+{
+	int res = write(pri->fd, buf, buflen);
+	if (res < 0) {
+		if (errno != EAGAIN)
+			pri_error("Write to %d failed: %s\n", pri->fd, strerror(errno));
+		return 0;
+	}
+	return res;
+}
+
+static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata)
 {
 	struct pri *p;
 	p = malloc(sizeof(struct pri));
 	if (p) {
 		memset(p, 0, sizeof(struct pri));
 		p->fd = fd;
+		p->read_func = rd;
+		p->write_func = wr;
+		p->userdata = userdata;
 		p->localtype = node;
 		p->switchtype = switchtype;
 		p->cref = 1;
@@ -180,7 +205,7 @@ static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *maste
 			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
 			p->sapi = Q921_SAPI_GR303_EOC;
 			p->tei = Q921_TEI_GR303_EOC_OPS;
-			p->subchannel = __pri_new(-1, node, PRI_SWITCH_GR303_EOC_PATH, p);
+			p->subchannel = __pri_new(-1, node, PRI_SWITCH_GR303_EOC_PATH, p, NULL, NULL, NULL);
 			if (!p->subchannel) {
 				free(p);
 				p = NULL;
@@ -189,7 +214,7 @@ static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *maste
 			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
 			p->sapi = Q921_SAPI_GR303_TMC_CALLPROC;
 			p->tei = Q921_TEI_GR303_TMC_CALLPROC;
-			p->subchannel = __pri_new(-1, node, PRI_SWITCH_GR303_TMC_SWITCHING, p);
+			p->subchannel = __pri_new(-1, node, PRI_SWITCH_GR303_TMC_SWITCHING, p, NULL, NULL, NULL);
 			if (!p->subchannel) {
 				free(p);
 				p = NULL;
@@ -210,9 +235,29 @@ static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *maste
 	return p;
 }
 
-struct pri *pri_new(int fd, int node, int switchtype)
+struct pri *pri_new(int fd, int nodetype, int switchtype)
 {
-	return __pri_new(fd, node, switchtype, NULL);
+	return __pri_new(fd, nodetype, switchtype, NULL, __pri_read, __pri_write, NULL);
+}
+
+struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata)
+{
+	if (!io_read)
+		io_read = __pri_read;
+	if (!io_write)
+		io_write = __pri_write;
+	return __pri_new(fd, nodetype, switchtype, NULL, io_read, io_write, userdata);
+}
+
+void *pri_get_userdata(struct pri *pri)
+{
+	return pri ? pri->userdata : NULL;
+}
+
+void pri_set_userdata(struct pri *pri, void *userdata)
+{
+	if (pri)
+		pri->userdata = userdata;
 }
 
 void pri_set_nsf(struct pri *pri, int nsf)
@@ -268,12 +313,7 @@ pri_event *pri_check_event(struct pri *pri)
 	char buf[1024];
 	int res;
 	pri_event *e;
-	res = read(pri->fd, buf, sizeof(buf));
-	if (res < 0) {
-		if (errno != EAGAIN)
-			pri_error("Read on %d failed: %s\n", pri->fd, strerror(errno));
-		return NULL;
-	}
+	res = pri->read_func ? pri->read_func(pri, buf, sizeof(buf)) : 0;
 	if (!res)
 		return NULL;
 	/* Receive the q921 packet */

@@ -376,12 +376,24 @@ typedef union {
 struct pri;
 struct pri_sr;
 
+#define PRI_IO_FUNCS
+/* Type declaration for callbacks to read or write a HDLC frame as below */
+typedef int (*pri_io_cb)(struct pri *pri, void *buf, int buflen);
 
 /* Create a D-channel on a given file descriptor.  The file descriptor must be a
    channel operating in HDLC mode with FCS computed by the fd's driver.  Also it
    must be NON-BLOCKING! Frames received on the fd should include FCS.  Nodetype 
    must be one of PRI_NETWORK or PRI_CPE.  switchtype should be PRI_SWITCH_* */
 extern struct pri *pri_new(int fd, int nodetype, int switchtype);
+
+/* Create D-channel just as above with user defined I/O callbacks and data */
+extern struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata);
+
+/* Retrieve the user data associated with the D channel */
+extern void *pri_get_userdata(struct pri *pri);
+
+/* Set the user data associated with the D channel */
+extern void pri_set_userdata(struct pri *pri, void *userdata);
 
 /* Set Network Specific Facility for PRI */
 extern void pri_set_nsf(struct pri *pri, int nsf);

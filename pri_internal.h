@@ -44,6 +44,9 @@ enum q931_mode;
 
 struct pri {
 	int fd;				/* File descriptor for D-Channel */
+	pri_io_cb read_func;		/* Read data callback */
+	pri_io_cb write_func;		/* Write data callback */
+	void *userdata;
 	struct pri *subchannel;	/* Sub-channel if appropriate */
 	struct pri *master;		/* Master channel if appropriate */
 	struct pri_sched pri_sched[MAX_SCHED];	/* Scheduled events */

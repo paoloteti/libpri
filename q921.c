@@ -83,7 +83,7 @@ static int q921_transmit(struct pri *pri, q921_h *h, int len)
 	if (pri->debug & PRI_DEBUG_Q921_DUMP)
 		q921_dump(h, len, pri->debug & PRI_DEBUG_Q921_RAW, 1);
 	/* Write an extra two bytes for the FCS */
-	res = write(pri->fd, h, len + 2);
+	res = pri->write_func ? pri->write_func(pri, h, len + 2) : 0;
 	if (res != (len + 2)) {
 		pri_error("Short write: %d/%d (%s)\n", res, len + 2, strerror(errno));
 		return -1;

@@ -1929,10 +1929,10 @@ static FUNC_RECV(receive_generic_digits)
 	}
 	if (len == 3)	/* No number information */
 		return 0;
+	value = 0;
 	switch(type) {
 	/* Integer value handling */
 	case 4:		/* Info Digits */
-		value = 0;
 		for(idx = 3; idx < len; ++idx) {
 			switch(encoding) {
 			case 0:		/* BCD even */
