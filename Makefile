@@ -36,7 +36,7 @@ DYNAMIC_OBJS=pri.lo q921.lo prisched.lo q931.lo
 CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g $(ALERTING) $(LIBPRI_COUNTERS)
 INSTALL_PREFIX=
 
-all: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
+all: depend $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 
 update:
 	@echo "Updating from CVS"
@@ -70,6 +70,8 @@ testprilib: testprilib.o
 pridump: pridump.o
 	$(CC) -o pridump pridump.o -L. -lpri -lzap
 
+include .depend
+
 %.lo : %.c
 	$(CC) -fPIC $(CFLAGS) -o $@ -c $<
 
@@ -86,3 +88,9 @@ clean:
 	rm -f *.o *.so *.lo *.so.1 *.so.1.0
 	rm -f testpri testprilib $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 	rm -f pritest pridump
+	rm -f .depend
+
+depend: .depend
+
+.depend: 
+	./mkdep ${CFLAGS} `ls *.c`
