@@ -1376,6 +1376,8 @@ static FUNC_DUMP(dump_cause)
 	pri_message("%c                  Ext: %d  Cause: %s (%d), class = %s (%d) ]\n",
 		prefix, (ie->data[1] >> 7), pri_cause2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f, 
 			pri_causeclass2str((ie->data[1] & 0x7f) >> 4), (ie->data[1] & 0x7f) >> 4);
+	if (ie->len < 3)
+		return;
 	/* Dump cause data in readable form */
 	switch(ie->data[1] & 0x7f) {
 	case PRI_CAUSE_IE_NONEXIST:
