@@ -702,7 +702,7 @@ char *pri_pres2str(int pres)
 		{ PRES_PROHIB_USER_NUMBER_NOT_SCREENED, "Presentation prohibited, user number not screened" },
 		{ PRES_PROHIB_USER_NUMBER_PASSED_SCREEN, "Presentation prohibited, user number passed network screening" },
 		{ PRES_PROHIB_USER_NUMBER_FAILED_SCREEN, "Presentation prohibited, user number failed network screening" },
-		{ PRES_PROHIB_NETWORK_NUMBER, "Presentation prohibbited of network provided number" },
+		{ PRES_PROHIB_NETWORK_NUMBER, "Presentation prohibited of network provided number" },
 	};
 	return code2str(pres, press, sizeof(press) / sizeof(press[0]));
 }
@@ -742,7 +742,7 @@ static void dump_calling_party_number(q931_ie *ie, int len, char prefix)
 
 	q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
 	pri_message("%c Calling Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)\n", prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
-	pri_message("%c                           Presentation: %s (%d) '%s' ]\n", prefix, pri_pres2str(ie->data[1]), ie->data[1] & 0x7f, cnum);
+	pri_message("%c                           Presentation: %s (%d) '%s' ]\n", prefix, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f, cnum);
 }
 
 static void dump_calling_party_subaddr(q931_ie *ie, int len, char prefix)
@@ -760,7 +760,7 @@ static void dump_redirecting_number(q931_ie *ie, int len, char prefix)
 	char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 3, len - 5);
 	pri_message("%c Redirecting Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)\n", prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
-	pri_message("%c                               Presentation: %s (%d)  Reason: %s (%d)  '%s' ]\n", prefix, pri_pres2str(ie->data[1]), ie->data[1] & 0x7f, redirection_reason2str(ie->data[2]), ie->data[2], cnum);
+	pri_message("%c                               Presentation: %s (%d)  Reason: %s (%d)  '%s' ]\n", prefix, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f, redirection_reason2str(ie->data[2]), ie->data[2], cnum);
 }
 
 
