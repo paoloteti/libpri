@@ -158,7 +158,7 @@ struct msgtype causes[] = {
 #define PRI_TRANS_CAP_AUDIO_4ESS	0x08
 
 
-#define Q931_PROG_CALL_NOT_E2E_ISDN						0x011
+#define Q931_PROG_CALL_NOT_E2E_ISDN						0x01
 #define Q931_PROG_CALLED_NOT_ISDN						0x02
 #define Q931_PROG_CALLER_NOT_ISDN						0x03
 #define Q931_PROG_INBAND_AVAILABLE						0x08
