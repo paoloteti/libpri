@@ -78,6 +78,7 @@ install: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 	mkdir -p $(INSTALL_PREFIX)/$(INSTALL_BASE)/include
 	install -m 644 libpri.h $(INSTALL_PREFIX)/$(INSTALL_BASE)/include
 	install -m 755 $(DYNAMIC_LIBRARY) $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib
+	if [ -x /usr/sbin/sestatus ] && ( /usr/sbin/sestatus | grep "SELinux status:" | grep -q "enabled"); then  restorecon -v $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib/$(DYNAMIC_LIBRARY); fi
 	( cd $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib ; ln -sf libpri.so.1 libpri.so )
 	install -m 644 $(STATIC_LIBRARY) $(INSTALL_PREFIX)/$(INSTALL_BASE)/lib
 	$(LDCONFIG)
