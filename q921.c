@@ -494,10 +494,14 @@ void q921_dump(q921_h *h, int len, int showraw, int txrx)
 	
 	direction_tag = txrx ? '>' : '<';
 	if (showraw) {
-		pri_message("\n%c [", direction_tag);
-		for (x=0;x<len;x++) 
-			pri_message("%02x ",h->raw[x]);
-		pri_message("]\n");
+		char *buf = malloc(len * 3 + 1);
+		int buflen = 0;
+		if (buf) {
+			for (x=0;x<len;x++) 
+				buflen += sprintf(buf + buflen, "%02x ", h->raw[x]);
+			pri_message("\n%c [ %s]\n", direction_tag, buf);
+			free(buf);
+		}
 	}
 
 	switch (h->h.data[0] & Q921_FRAMETYPE_MASK) {
