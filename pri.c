@@ -76,6 +76,7 @@ static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *maste
 		p->tei = 0;
 		p->protodisc = Q931_PROTOCOL_DISCRIMINATOR;
 		p->master = master;
+		p->callpool = &p->localpool;
 #ifdef LIBPRI_COUNTERS
 		p->q921_rxcount = 0;
 		p->q921_txcount = 0;
@@ -443,4 +444,10 @@ int pri_get_crv(struct pri *pri, q931_call *call, int *callmode)
 int pri_set_crv(struct pri *pri, q931_call *call, int crv, int callmode)
 {
 	return q931_call_setcrv(pri, call, crv, callmode);
+}
+
+void pri_enslave(struct pri *master, struct pri *slave)
+{
+	if (master && slave)
+		slave->callpool = &master->localpool;
 }

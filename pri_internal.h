@@ -85,7 +85,8 @@ struct pri {
 	struct q921_frame *txqueue;
 	
 	/* Q.931 calls */
-	q931_call *calls;
+	q931_call **callpool;
+	q931_call *localpool;
 
 	/* do we do overlap dialing */
 	int overlapdial;

@@ -405,5 +405,10 @@ extern int pri_progress(struct pri *pri, q931_call *c, int channel, int info);
 /* Send call proceeding */
 extern int pri_proceeding(struct pri *pri, q931_call *c, int channel, int info);
 
+/* Enslave a PRI to another, so they share the same call list
+   (and maybe some timers) */
+extern void pri_enslave(struct pri *master, struct pri *slave);
+
 #define PRI_GR303_SUPPORT
+#define PRI_ENSLAVE_SUPPORT
 #endif

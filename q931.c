@@ -1310,7 +1310,7 @@ static inline void q931_dumpie(q931_ie *ie, char prefix)
 static q931_call *q931_getcall(struct pri *pri, int cr)
 {
 	q931_call *cur, *prev;
-	cur = pri->calls;
+	cur = *pri->callpool;
 	prev = NULL;
 	while(cur) {
 		if (cur->cr == cr)
@@ -1331,7 +1331,7 @@ static q931_call *q931_getcall(struct pri *pri, int cr)
 		if (prev)
 			prev->next = cur;
 		else
-			pri->calls = cur;
+			*pri->callpool = cur;
 	}
 	return cur;
 }
@@ -1340,7 +1340,7 @@ q931_call *q931_new_call(struct pri *pri)
 {
 	q931_call *cur;
 	do {
-		cur = pri->calls;
+		cur = *pri->callpool;
 		pri->cref++;
 		if (pri->cref > 32767)
 			pri->cref = 1;
@@ -1357,13 +1357,13 @@ static void q931_destroy(struct pri *pri, int cr, q931_call *c)
 {
 	q931_call *cur, *prev;
 	prev = NULL;
-	cur = pri->calls;
+	cur = *pri->callpool;
 	while(cur) {
 		if ((c && (cur == c)) || (!c && (cur->cr == cr))) {
 			if (prev)
 				prev->next = cur->next;
 			else
-				pri->calls = cur->next;
+				*pri->callpool = cur->next;
 			if (pri->debug & PRI_DEBUG_Q931_STATE)
 				pri_message("NEW_HANGUP DEBUG: Destroying the call, ourstate %s, peerstate %s\n",callstate2str(cur->ourcallstate),callstate2str(cur->peercallstate));
 			if (cur->retranstimer)
@@ -1550,7 +1550,7 @@ static int q931_status(struct pri *pri, q931_call *c, int cause)
 	if (!cause)
 		cause = PRI_CAUSE_RESPONSE_TO_STATUS_ENQUIRY;
 	if (c->cr > -1)
-		cur = pri->calls;
+		cur = *pri->callpool;
 	while(cur) {
 		if (cur->cr == c->cr) {
 			cur->cause=cause;
