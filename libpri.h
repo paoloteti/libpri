@@ -393,4 +393,8 @@ extern void pri_dump_info(struct pri *pri);
 /* Get file descriptor */
 extern int pri_fd(struct pri *pri);
 
+#define PRI_PROGRESS
+/* Send call proceeding */
+extern int pri_progress(struct pri *pri, q931_call *c);
+
 #endif
