@@ -1501,11 +1501,11 @@ static FUNC_DUMP(dump_generic_digits)
 		switch(encoding) {
 		case 0:		/* BCD even */
 		case 1:		/* BCD odd */
-			pri_message("%d", (ie->data[idx-2] >> 4) & 0x0f);
-			value = value * 10 + ((ie->data[idx-2] >> 4) & 0x0f);
+			pri_message("%d", ie->data[idx-2] & 0x0f);
+			value = value * 10 + (ie->data[idx-2] & 0x0f);
 			if(!encoding || (idx+1 < len)) {	/* Special handling for BCD odd */
-				pri_message("%d", ie->data[idx-2] & 0x0f);
-				value = value * 10 + (ie->data[idx-2] & 0x0f);
+				pri_message("%d", (ie->data[idx-2] >> 4) & 0x0f);
+				value = value * 10 + ((ie->data[idx-2] >> 4) & 0x0f);
 			}
 			break;
 		case 2:		/* IA5 */
@@ -1551,9 +1551,9 @@ static FUNC_RECV(receive_generic_digits)
 			switch(encoding) {
 			case 0:		/* BCD even */
 			case 1:		/* BCD odd */
-				value = value * 10 + ((ie->data[idx-2] >> 4) & 0x0f);
+				value = value * 10 + (ie->data[idx-2] & 0x0f);
 				if(!encoding || (idx+1 < len))	/* Special handling for BCD odd */
-					value = value * 10 + (ie->data[idx-2] & 0x0f);
+					value = value * 10 + ((ie->data[idx-2] >> 4) & 0x0f);
 				break;
 			case 2:		/* IA5 */
 				value = value * 10 + (ie->data[idx-2] - '0');
@@ -2938,8 +2938,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			c->ourcallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
 			c->peercallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
 		}
-		else
-			pri->ev.proceeding.progress = c->progress;
+		pri->ev.proceeding.progress = c->progress;
 		pri->ev.proceeding.cref = c->cr;
 		pri->ev.proceeding.call = c;
 		return Q931_RES_HAVEEVENT;
