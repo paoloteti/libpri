@@ -2247,7 +2247,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			break;
 		}
 		if (c->newcall) {
-			q931_release_complete(pri,c,PRI_CAUSE_WRONG_CALL_STATE);
+			if (c->cr & 0x7fff)
+				q931_release_complete(pri,c,PRI_CAUSE_WRONG_CALL_STATE);
 			break;
 		}
 		/* Do nothing */
