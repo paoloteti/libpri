@@ -1963,6 +1963,11 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.restartack.channel = c->channelno;
 		return Q931_RES_HAVEEVENT;
 	case Q931_INFORMATION:
+		/* XXX We're handling only INFORMATION messages that contain
+		       overlap dialing received digit
+		   XXX */
+		if (c->ourcallstate!=Q931_CALL_STATE_OVERLAP_RECEIVING)
+			break;
 		pri->ev.e = PRI_EVENT_INFO_RECEIVED;
 		pri->ev.ring.call = c;
 
