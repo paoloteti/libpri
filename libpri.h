@@ -22,8 +22,8 @@
  *
  */
  
-#ifndef _PRI_H
-#define _PRI_H
+#ifndef _LIBPRI_H
+#define _LIBPRI_H
 
 /* Node types */
 #define PRI_NETWORK		1
@@ -50,19 +50,46 @@
 #define PRI_SWITCH_EUROISDN_T1	6	/* T1 EuroISDN variant (ETSI 300-102) */
 
 /* PRI D-Channel Events */
-#define PRI_EVENT_DCHAN_UP	 1	/* D-channel is up */
-#define PRI_EVENT_DCHAN_DOWN 2	/* D-channel is down */
-#define PRI_EVENT_RESTART	 3	/* B-channel is restarted */
-#define PRI_EVENT_CONFIG_ERR 4  /* Configuration Error Detected */
-#define PRI_EVENT_RING		 5  /* Incoming call */
-#define PRI_EVENT_HANGUP	 6	/* Call got hung up */
-#define PRI_EVENT_RINGING	 7	/* Call is ringing (alerting) */
-#define PRI_EVENT_ANSWER	 8  /* Call has been answered */
-#define PRI_EVENT_HANGUP_ACK	 9  /* Call hangup has been acknowledged */
+#define PRI_EVENT_DCHAN_UP	 	1	/* D-channel is up */
+#define PRI_EVENT_DCHAN_DOWN 	2	/* D-channel is down */
+#define PRI_EVENT_RESTART	 	3	/* B-channel is restarted */
+#define PRI_EVENT_CONFIG_ERR 	4	/* Configuration Error Detected */
+#define PRI_EVENT_RING		 	5	/* Incoming call */
+#define PRI_EVENT_HANGUP	 	6	/* Call got hung up */
+#define PRI_EVENT_RINGING	 	7	/* Call is ringing (alerting) */
+#define PRI_EVENT_ANSWER	 	8	/* Call has been answered */
+#define PRI_EVENT_HANGUP_ACK	9	/* Call hangup has been acknowledged */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
 #define PRI_STATE_UP		1
+
+/* Numbering plan identifier */
+#define PRI_NPI_UNKNOWN					0x0
+#define PRI_NPI_E163_E164				0x1
+#define PRI_NPI_X121					0x3
+#define PRI_NPI_F69						0x4
+#define PRI_NPI_NATIONAL				0x8
+#define PRI_NPI_PRIVATE					0x9
+#define PRI_NPI_RESERVED				0xF
+
+/* Type of number */
+#define PRI_TON_UNKNOWN					0x0
+#define PRI_TON_INTERNATIONAL			0x1
+#define PRI_TON_NATIONAL				0x2
+#define PRI_TON_NET_SPECIFIC			0x3
+#define PRI_TON_SUBSCRIBER				0x4
+#define PRI_TON_ABBREVIATED				0x6
+#define PRI_TON_RESERVED				0x7
+
+/* Redirection reasons */
+#define PRI_REDIR_UNKNOWN				0x0
+#define PRI_REDIR_FORWARD_ON_BUSY		0x1
+#define PRI_REDIR_FORWARD_ON_NO_REPLY	0x2
+#define PRI_REDIR_DEFLECTION			0x3
+#define PRI_REDIR_DTE_OUT_OF_ORDER		0x9
+#define PRI_REDIR_FORWARDED_BY_DTE		0xA
+#define PRI_REDIR_UNCONDITIONAL			0xF
 
 /* Dialing plan */
 #define PRI_INTERNATIONAL_ISDN		0x11
@@ -119,12 +146,12 @@
 #define PRI_CAUSE_INVALID_MSG_UNSPECIFIED  		95
 #define PRI_CAUSE_MANDATORY_IE_MISSING			96
 #define PRI_CAUSE_MESSAGE_TYPE_NONEXIST			97
-#define PRI_CAUSE_WRONG_MESSAGE            		98
+#define PRI_CAUSE_WRONG_MESSAGE					98
 #define PRI_CAUSE_IE_NONEXIST					99
 #define PRI_CAUSE_INVALID_IE_CONTENTS			100
 #define PRI_CAUSE_WRONG_CALL_STATE				101
 #define PRI_CAUSE_RECOVERY_ON_TIMER_EXPIRE		102
-#define PRI_CAUSE_MANDATORY_IE_LENGTH_ERROR   	103
+#define PRI_CAUSE_MANDATORY_IE_LENGTH_ERROR		103
 #define PRI_CAUSE_PROTOCOL_ERROR				111
 #define PRI_CAUSE_INTERWORKING					127
 
@@ -137,9 +164,9 @@
 #define PRI_TRANS_CAP_VIDEO						0x18
 
 #define PRI_LAYER_1_ITU_RATE_ADAPT	0x21
-#define PRI_LAYER_1_ULAW		0x22
-#define PRI_LAYER_1_ALAW		0x23
-#define PRI_LAYER_1_G721		0x24
+#define PRI_LAYER_1_ULAW			0x22
+#define PRI_LAYER_1_ALAW			0x23
+#define PRI_LAYER_1_G721			0x24
 #define PRI_LAYER_1_G722_G725		0x25
 #define PRI_LAYER_1_G7XX_384K		0x26
 #define PRI_LAYER_1_NON_ITU_ADAPT	0x27
