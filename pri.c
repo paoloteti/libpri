@@ -51,6 +51,8 @@ char *pri_switch2str(int sw)
 		return "AT&T 4ESS";
 	case PRI_SWITCH_NI1:
 		return "National ISDN 1";
+	case PRI_SWITCH_EUROISDN_E1:
+		return "EuroISDN";
 	default:
 		return "Unknown switchtype";
 	}
