@@ -183,6 +183,7 @@ struct msgtype facilities[] = {
 #define Q931_PROG_CALL_NOT_E2E_ISDN						0x01
 #define Q931_PROG_CALLED_NOT_ISDN						0x02
 #define Q931_PROG_CALLER_NOT_ISDN						0x03
+#define Q931_PROG_CALLER_RETURNED_TO_ISDN					0x04
 #define Q931_PROG_INBAND_AVAILABLE						0x08
 #define Q931_PROG_DELAY_AT_INTERF						0x0a
 #define Q931_PROG_INTERWORKING_WITH_PUBLIC				0x10
@@ -1047,6 +1048,9 @@ static FUNC_RECV(receive_progress_indicator)
 		break;
 	case Q931_PROG_CALLER_NOT_ISDN:
 		call->progressmask |= PRI_PROG_CALLER_NOT_ISDN;
+		break;
+	case Q931_PROG_CALLER_RETURNED_TO_ISDN:
+		call->progressmask |= PRI_PROG_CALLER_RETURNED_TO_ISDN;
 		break;
 	case Q931_PROG_INBAND_AVAILABLE:
 		call->progressmask |= PRI_PROG_INBAND_AVAILABLE;

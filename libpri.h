@@ -93,6 +93,7 @@
 #define PRI_PROG_INTERWORKING_NO_RELEASE				(1 << 6)
 #define PRI_PROG_INTERWORKING_NO_RELEASE_PRE_ANSWER		(1 << 7)
 #define PRI_PROG_INTERWORKING_NO_RELEASE_POST_ANSWER	(1 << 8)
+#define PRI_PROG_CALLER_RETURNED_TO_ISDN					(1 << 9)
 
 /* Numbering plan identifier */
 #define PRI_NPI_UNKNOWN					0x0
