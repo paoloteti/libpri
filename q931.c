@@ -1377,6 +1377,23 @@ int q931_release(struct pri *pri, q931_call *c, int cause)
 		return 0;
 }
 
+static int restart_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
+
+int q931_restart(struct pri *pri, int channel)
+{
+	struct q931_call *c;
+	c = q931_getcall(pri, 0 | 0x8000);
+	if (!c)
+		return -1;
+	if (!channel)
+		return -1;
+	c->ri = 0;
+	c->channelno = channel;
+	c->chanflags &= ~FLAG_PREFERRED;
+	c->chanflags |= FLAG_EXCLUSIVE;
+	return send_message(pri, c, Q931_RESTART, restart_ies);
+}
+
 static int disconnect_ies[] = { Q931_CAUSE, -1 };
 
 int q931_disconnect(struct pri *pri, q931_call *c, int cause)
@@ -1545,9 +1562,10 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->causeloc = -1;
 		c->callstate = -1;
 		break;
-
-	case Q931_SETUP_ACKNOWLEDGE:
 	case Q931_RESTART_ACKNOWLEDGE:
+		c->channelno = -1;
+		break;
+	case Q931_SETUP_ACKNOWLEDGE:
 	case Q931_STATUS_ENQUIRY:
 	case Q931_USER_INFORMATION:
 	case Q931_SEGMENT:
@@ -1567,7 +1585,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	case Q931_SUSPEND:
 	case Q931_SUSPEND_ACKNOWLEDGE:
 	case Q931_SUSPEND_REJECT:
-		fprintf(stderr, "!! Not yet handling post-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		fprintf(stderr, "!! Not yet handling pre-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
 		return -1;
 		
 	default:
@@ -1684,9 +1702,11 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.hangup.cause = c->cause;
 		pri->ev.hangup.call = c;
 		return Q931_RES_HAVEEVENT;
-		
-	case Q931_SETUP_ACKNOWLEDGE:
 	case Q931_RESTART_ACKNOWLEDGE:
+		pri->ev.e = PRI_EVENT_RESTART_ACK;
+		pri->ev.restartack.channel = c->channelno;
+		return Q931_RES_HAVEEVENT;
+	case Q931_SETUP_ACKNOWLEDGE:
 	case Q931_STATUS_ENQUIRY:
 	case Q931_USER_INFORMATION:
 	case Q931_SEGMENT:
