@@ -1109,18 +1109,19 @@ static FUNC_DUMP(dump_time_date)
 
 static FUNC_DUMP(dump_display)
 {
-	int x;
+	int x, y;
 	char *buf = malloc(len + 1);
 	char tmp[80]="";
 	if (buf) {
-		x=0;
+		x=y=0;
 		if ((x < ie->len) && (ie->data[x] & 0x80)) {
 			sprintf(tmp, "Charset: %02x ", ie->data[x] & 0x7f);
 			++x;
 		}
-		for (; x<ie->len; x++) 
-			sprintf(&buf[x], "%c", ie->data[x] & 0x7f);
-		pri_message("%c Display (len=%2d) %s[ %s ]\n", prefix, ie->len, tmp, buf);
+		for (y=x; x<ie->len; x++) 
+			buf[x] = ie->data[x] & 0x7f;
+		buf[x] = '\0';
+		pri_message("%c Display (len=%2d) %s[ %s ]\n", prefix, ie->len, tmp, &buf[y]);
 		free(buf);
 	}
 }
@@ -1296,10 +1297,68 @@ static FUNC_SEND(transmit_notify)
 	return 0;
 }
 
+static FUNC_DUMP(dump_shift)
+{
+	pri_message("%c %sLocking Shift (len=%02d): Requested codeset %d\n", prefix, (full_ie & 8) ? "Non-" : "", len, full_ie & 7);
+}
+
+static char *lineinfo2str(int info)
+{
+	/* NAPNA ANI II digits */
+	static struct msgtype lineinfo[] = {
+		{  0, "Plain Old Telephone Service (POTS)" },
+		{  1, "Multiparty line (more than 2)" },
+		{  2, "ANI failure" },
+		{  6, "Station Level Rating" },
+		{  7, "Special Operator Handling Required" },
+		{ 20, "Automatic Identified Outward Dialing (AIOD)" },
+		{ 23, "Coing or Non-Coin" },
+		{ 24, "Toll free translated to POTS originated for non-pay station" },
+		{ 25, "Toll free translated to POTS originated from pay station" },
+		{ 27, "Pay station with coin control signalling" },
+		{ 29, "Prison/Inmate Service" },
+		{ 30, "Intercept (blank)" },
+		{ 31, "Intercept (trouble)" },
+		{ 32, "Intercept (regular)" },
+		{ 34, "Telco Operator Handled Call" },
+		{ 52, "Outward Wide Area Telecommunications Service (OUTWATS)" },
+		{ 60, "TRS call from unrestricted line" },
+		{ 61, "Cellular/Wireless PCS (Type 1)" },
+		{ 62, "Cellular/Wireless PCS (Type 2)" },
+		{ 63, "Cellular/Wireless PCS (Roaming)" },
+		{ 66, "TRS call from hotel/motel" },
+		{ 67, "TRS call from restricted line" },
+		{ 70, "Line connected to pay station" },
+		{ 93, "Private virtual network call" },
+	};
+	return code2str(info, lineinfo, sizeof(lineinfo) / sizeof(lineinfo[0]));
+}
+
+static FUNC_DUMP(dump_line_information)
+{
+	pri_message("%c Originating Line Information (len=%02d): %s (%d)\n", prefix, len, lineinfo2str(ie->data[0]), ie->data[0]);
+}
+
+static FUNC_RECV(receive_line_information)
+{
+	return 0;
+}
+
+static FUNC_SEND(transmit_line_information)
+{
+#if 0	/* XXX Is this IE possible for 4ESS? XXX */
+	if(pri->switchtype == PRI_SWITCH_ATT4ESS) {
+		ie->data[0] = 0;
+		return 3;
+	}
+#endif
+	return 0;
+}
+
 struct ie ies[] = {
-	/* Codeset 0 */
+	/* Codeset 0 - Common */
 	{ NATIONAL_CHANGE_STATUS, "Change Status" },
-	{ Q931_LOCKING_SHIFT, "Locking Shift" },
+	{ Q931_LOCKING_SHIFT, "Locking Shift", dump_shift },
 	{ Q931_BEARER_CAPABILITY, "Bearer Capability", dump_bearer_capability, receive_bearer_capability, transmit_bearer_capability },
 	{ Q931_CAUSE, "Cause", dump_cause, receive_cause, transmit_cause },
 	{ Q931_CALL_STATE, "Call State", dump_call_state, receive_call_state, transmit_call_state },
@@ -1349,9 +1408,9 @@ struct ie ies[] = {
 	{ Q931_IE_USER_USER_FACILITY, "User-User Facility" },
 	{ Q931_IE_UPDATE, "Update" },
 	{ Q931_SENDING_COMPLETE, "Sending Complete", dump_sending_complete, receive_sending_complete, transmit_sending_complete },
-	/* Codeset 6 */
+	/* Codeset 6 - Network specific */
 	{ Q931_IE_FACILITY | Q931_CODESET(6), "Facility", dump_facility, receive_facility },
-	{ Q931_IE_ORIGINATING_LINE_INFO, "Originating Line Information" },
+	{ Q931_IE_ORIGINATING_LINE_INFO, "Originating Line Information", dump_line_information, receive_line_information, transmit_line_information },
 	/* Codeset 7 */
 };
 
@@ -1456,6 +1515,7 @@ static inline void q931_dumpie(int codeset, q931_ie *ie, char prefix)
 {
 	unsigned int x;
 	int full_ie = Q931_FULL_IE(codeset, ie->ie);
+	int base_ie;
 
 	pri_message("%c [", prefix);
 	pri_message("%02x", ie->ie);
@@ -1466,8 +1526,14 @@ static inline void q931_dumpie(int codeset, q931_ie *ie, char prefix)
 	}
 	pri_message("]\n");
 
+	/* Special treatment for shifts */
+	if((full_ie & 0xf0) == Q931_LOCKING_SHIFT)
+		full_ie &= 0xff;
+
+	base_ie = (((full_ie & ~0x7f) == Q931_FULL_IE(0, 0x80)) && ((full_ie & 0x70) != 0x20)) ? full_ie & ~0x0f : full_ie;
+
 	for (x=0;x<sizeof(ies) / sizeof(ies[0]); x++) 
-		if (ies[x].ie == full_ie) {
+		if (ies[x].ie == base_ie) {
 			if (ies[x].dump)
 				ies[x].dump(full_ie, ie, ielen(ie), prefix);
 			else
@@ -1475,7 +1541,7 @@ static inline void q931_dumpie(int codeset, q931_ie *ie, char prefix)
 			return;
 		}
 	
-	pri_error("!! %c Unknown IE %d (len = %d)\n", prefix, ie->ie, ielen(ie));
+	pri_error("!! %c Unknown IE %d (len = %d)\n", prefix, base_ie, ielen(ie));
 }
 
 static q931_call *q931_getcall(struct pri *pri, int cr)
@@ -1656,19 +1722,19 @@ static int q931_handle_ie(int codeset, struct pri *pri, q931_call *c, int msg, q
 	unsigned int x;
 	int full_ie = Q931_FULL_IE(codeset, ie->ie);
 	if (pri->debug & PRI_DEBUG_Q931_STATE)
-		pri_message("-- Processing IE %d (%s)\n", full_ie, ie2str(full_ie));
+		pri_message("-- Processing IE %d (cs%d, %s)\n", ie->ie, codeset, ie2str(full_ie));
 	for (x=0;x<sizeof(ies) / sizeof(ies[0]);x++) {
 		if (full_ie == ies[x].ie) {
 			if (ies[x].receive)
 				return ies[x].receive(full_ie, pri, c, msg, ie, ielen(ie));
 			else {
 				if (pri->debug & PRI_DEBUG_Q931_ANOMALY)
-					pri_error("!! No handler for IE %d (%s)\n", full_ie, ie2str(full_ie));
+					pri_error("!! No handler for IE %d (cs%d, %s)\n", ie->ie, codeset, ie2str(full_ie));
 				return -1;
 			}
 		}
 	}
-	pri_message("!! Unknown IE %d (%s)\n", full_ie, ie2str(full_ie));
+	pri_message("!! Unknown IE %d (cs%d, %s)\n", ie->ie, codeset, ie2str(full_ie));
 	return -1;
 }
 
@@ -2044,7 +2110,7 @@ int q931_disconnect(struct pri *pri, q931_call *c, int cause)
 }
 
 static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR, Q931_DISPLAY,
-	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_SENDING_COMPLETE, -1 };
+	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_SENDING_COMPLETE, Q931_IE_ORIGINATING_LINE_INFO, -1 };
 
 static int gr303_setup_ies[] =  { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, -1 };
 
@@ -2445,7 +2511,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 				/* Fall through */
 			default:
 				y = q931_handle_ie(cur_codeset, pri, c, mh->msg, ie);
-				if (!(ie->ie & 0xf0) && (y < 0))
+				/* XXX Applicable to codeset 0 only? XXX */
+				if (!cur_codeset && !(ie->ie & 0xf0) && (y < 0))
 					mandies[MAX_MAND_IES - 1] = Q931_FULL_IE(cur_codeset, ie->ie);
 			}
 			/* Reset current codeset */
@@ -2459,7 +2526,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		if (mandies[x]) {
 			/* check if there is no channel identification when we're configured as network -> that's not an error */
 			if ((pri->localtype != PRI_NETWORK) || (mh->msg != Q931_SETUP) || (mandies[x] != Q931_CHANNEL_IDENT)) {
-				pri_error("XXX Missing mandatory IE %d/%s XXX\n", mandies[x], ie2str(mandies[x]));
+				pri_error("XXX Missing handling for mandatory IE %d (cs%d, %s) XXX\n", Q931_IE_IE(mandies[x]), Q931_IE_CODESET(mandies[x]), ie2str(mandies[x]));
 				missingmand++;
 			}
 		}
