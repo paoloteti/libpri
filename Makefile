@@ -20,12 +20,16 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. 
 #
+#
+# Uncomment if you want libpri not send PROGRESS_INDICATOR w/ALERTING
+#ALERTING=-DALERTING_NO_PROGRESS
+
 TOBJS=testpri.o
 STATIC_LIBRARY=libpri.a
 DYNAMIC_LIBRARY=libpri.so.1.0
 STATIC_OBJS=pri.o q921.o prisched.o q931.o
 DYNAMIC_OBJS=pri.lo q921.lo prisched.lo q931.lo
-CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g
+CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g $(ALERTING)
 INSTALL_PREFIX=
 
 all: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
