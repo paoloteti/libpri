@@ -1,3 +1,4 @@
+ -- fix compile warnings for gcc4
 libpri 1.0.7
  -- No Changes
 libpri 1.0.6
