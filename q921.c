@@ -355,9 +355,26 @@ static void t200_expire(void *vpri)
          q921_start(pri, 1);
          pri->schedev = 1;
       }
+	} else if (pri->solicitfbit) {
+         if (pri->debug & PRI_DEBUG_Q921_STATE)
+            pri_message("-- Retrying poll with f-bit\n");
+		pri->retrans++;
+		if (pri->retrans < N_200) {
+			pri->solicitfbit = 1;
+			q921_rr(pri, 1, 1);
+			pri->t200_timer = pri_schedule_event(pri, T_200, t200_expire, pri);
+		} else {
+	         if (pri->debug & PRI_DEBUG_Q921_STATE) 
+	               pri_message("-- Timeout occured, restarting PRI\n");
+	         pri->q921_state = Q921_LINK_CONNECTION_RELEASED;
+	      	pri->t200_timer = 0;
+	         q921_dchannel_down(pri);
+	         q921_start(pri, 1);
+	         pri->schedev = 1;
+		}
 	} else {
 		pri_error("T200 counter expired, nothing to send...\n");
-   	pri->t200_timer = 0;
+	   	pri->t200_timer = 0;
 	}
 }
 
@@ -439,12 +456,13 @@ static void t203_expire(void *vpri)
 			pri_message("T203 counter expired, sending RR and scheduling T203 again\n");
 		/* Solicit an F-bit in the other's RR */
 		pri->solicitfbit = 1;
+		pri->retrans = 0;
 		q921_rr(pri, 1, 1);
-		/* Restart ourselves */
-		pri->t203_timer = pri_schedule_event(pri, T_203, t203_expire, pri);
+		/* Start timer T200 to resend our RR if we don't get it */
+		pri->t203_timer = pri_schedule_event(pri, T_200, t200_expire, pri);
 	} else {
 		if (pri->debug &  PRI_DEBUG_Q921_STATE)
-			pri_message("T203 counter expired in weird statd %d\n", pri->q921_state);
+			pri_message("T203 counter expired in weird state %d\n", pri->q921_state);
 		pri->t203_timer = 0;
 	}
 }

@@ -1923,9 +1923,16 @@ static int q931_release_complete(struct pri *pri, q931_call *c, int cause)
 
 static int connect_acknowledge_ies[] = { -1 };
 
+static int gr303_connect_acknowledge_ies[] = { Q931_CHANNEL_IDENT, -1 };
+
 static int q931_connect_acknowledge(struct pri *pri, q931_call *c)
 {
-	return send_message(pri, c, Q931_CONNECT_ACKNOWLEDGE, connect_acknowledge_ies);
+	if (pri->subchannel) {
+		if (pri->localtype == PRI_CPE)
+			return send_message(pri, c, Q931_CONNECT_ACKNOWLEDGE, gr303_connect_acknowledge_ies);
+	} else
+		return send_message(pri, c, Q931_CONNECT_ACKNOWLEDGE, connect_acknowledge_ies);
+	return 0;
 }
 
 int q931_hangup(struct pri *pri, q931_call *c, int cause)
