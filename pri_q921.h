@@ -41,6 +41,13 @@
 #define Q921_FRAMETYPE_I	0x0
 #define Q921_FRAMETYPE_S	0x1
 
+#define Q921_TEI_GROUP				127
+
+#define Q921_SAPI_CALL_CTRL			0
+#define Q921_SAPI_PACKET_MODE		1
+#define Q921_SAPI_X25_LAYER3      	16
+#define Q921_SAPI_LAYER2_MANAGEMENT	63
+
 
 typedef struct q921_header {
 #if __BYTE_ORDER == __BIG_ENDIAN

@@ -347,6 +347,7 @@ void q921_dump(q921_h *h, int len, int showraw, int txrx)
 			printf("%02x ",h->raw[x]);
 		printf("]\n");
 	}
+
 	switch(h->h.data[0] & Q921_FRAMETYPE_MASK) {
 	case 0:
 	case 2:
@@ -482,7 +483,15 @@ pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
 	/* Check some reject conditions -- Start by rejecting improper ea's */
 	if (h->h.ea1 || !(h->h.ea2))
 		return NULL;
+
+	/* Check for broadcasts - not yet handled */
+	if (h->h.tei == Q921_TEI_GROUP)
+		return NULL;
 	
+	/* Check for SAPIs we don't yet handle */
+	if (h->h.sapi != Q921_SAPI_CALL_CTRL)
+		return NULL;
+
 	switch(h->h.data[0] & Q921_FRAMETYPE_MASK) {
 	case 0:
 	case 2:
@@ -620,4 +629,3 @@ void q921_start(struct pri *pri)
 	/* Do the SABME XXX Maybe we should implement T_WAIT? XXX */
 	q921_send_sabme(pri);
 }
-
