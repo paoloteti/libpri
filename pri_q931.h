@@ -98,13 +98,7 @@ typedef struct q931_mh {
 
 /* Information element format */
 typedef struct q931_ie {
-#if __BYTE_ORDER == __BIG_ENDIAN
-	u_int8_t f:1;
-	u_int8_t ie:7;
-#else
-	u_int8_t ie:7;
-	u_int8_t f:1;
-#endif
+	u_int8_t ie;
 	u_int8_t len;
 	u_int8_t data[0];
 } q931_ie;
@@ -166,6 +160,7 @@ typedef struct q931_ie {
 
 /* Q.931 / National ISDN Information Elements */
 #define Q931_LOCKING_SHIFT			0x90
+#define Q931_NON_LOCKING_SHIFT		0x98
 #define Q931_BEARER_CAPABILITY		0x04
 #define Q931_CAUSE					0x08
 #define Q931_CALL_STATE				0x14
@@ -191,9 +186,15 @@ typedef struct q931_ie {
 #define Q931_LOW_LAYER_COMPAT		0x7c
 #define Q931_HIGH_LAYER_COMPAT		0x7d
 
+#define Q931_CODESET(x)			((x) << 8)
+#define Q931_IE_CODESET(x)		((x) >> 8)
+#define Q931_IE_IE(x)			((x) & 0xff)
+#define Q931_FULL_IE(codeset, ie)	(((codeset) << 8) | ((ie) & 0xff))
+
 #define Q931_DISPLAY					0x28
 #define Q931_IE_SEGMENTED_MSG			0x00
 #define Q931_IE_CHANGE_STATUS			0x01
+#define Q931_IE_ORIGINATING_LINE_INFO		(0x01 | Q931_CODESET(6))
 #define Q931_IE_CONNECTED_ADDR			0x0C
 #define Q931_IE_CONNECTED_NUM			0x4C
 #define Q931_IE_CALL_IDENTITY			0x10
@@ -239,7 +240,7 @@ typedef struct q931_ie {
 
 
 /* EuroISDN  */
-#define Q931_SENDING_COMPLETE		0x21
+#define Q931_SENDING_COMPLETE		0xa1
 
 extern int q931_receive(struct pri *pri, q931_h *h, int len);
 
