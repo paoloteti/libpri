@@ -59,6 +59,7 @@
 #define PRI_EVENT_RINGING	 	7	/* Call is ringing (alerting) */
 #define PRI_EVENT_ANSWER	 	8	/* Call has been answered */
 #define PRI_EVENT_HANGUP_ACK	9	/* Call hangup has been acknowledged */
+#define PRI_EVENT_RESTART_ACK	10	/* Restart complete on a given channel */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
@@ -227,6 +228,11 @@ typedef struct pri_event_hangup {
 	q931_call *call;			/* Opaque call pointer */
 } pri_event_hangup;	
 
+typedef struct pri_event_restart_ack {
+	int e;
+	int channel;
+} pri_event_restart_ack;
+
 typedef union {
 	int e;
 	pri_event_generic gen;		/* Generic view */
@@ -236,6 +242,7 @@ typedef union {
 	pri_event_hangup  hangup;	/* Hang up */
 	pri_event_ringing ringing;	/* Ringing */
 	pri_event_ringing answer;	/* Answer */
+	pri_event_restart_ack restartack;	/* Restart Acknowledge */
 } pri_event;
 
 struct pri;
@@ -295,6 +302,8 @@ extern int pri_release(struct pri *pri, q931_call *call, int cause);
 
 /* Hangup / Disconnect a call */
 extern int pri_disconnect(struct pri *pri, q931_call *call, int cause);
+
+extern int pri_reset(struct pri *pri, int channel);
 
 /* Create a new call */
 extern q931_call *pri_new_call(struct pri *pri);
