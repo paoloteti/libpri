@@ -1644,6 +1644,15 @@ static void pri_release_finaltimeout(void *data)
 	if (pri->debug & PRI_DEBUG_Q931_STATE)
 		pri_message("Final time-out looking for release complete\n");
 	c->t308_timedout++;
+	c->ourcallstate = Q931_CALL_STATE_NULL;
+	c->peercallstate = Q931_CALL_STATE_NULL;
+	pri->schedev = 1;
+	pri->ev.e = PRI_EVENT_HANGUP_ACK;
+	pri->ev.hangup.channel = c->channelno;
+	pri->ev.hangup.cref = c->cr;
+	pri->ev.hangup.cause = c->cause;
+	pri->ev.hangup.call = c;
+	q931_hangup(pri, c, c->cause);
 }
 
 static void pri_disconnect_timeout(void *data)
