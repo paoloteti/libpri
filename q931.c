@@ -639,6 +639,10 @@ static int transmit_bearer_capability(struct pri *pri, q931_call *call, int msgt
 	}
 	ie->data[0] = 0x80 | tc;
 	ie->data[1] = call->transmoderate | 0x80;
+	if ((tc & PRI_TRANS_CAP_DIGITAL)&&(pri->switchtype == PRI_SWITCH_EUROISDN_E1)) {
+		/* Apparently EuroISDN switches don't seem to like user layer 2/3 */
+		return 4;
+	}
 	if (call->transmoderate != TRANS_MODE_PACKET) {
 		/* If you have an AT&T 4ESS, you don't send any more info */
 		if ((pri->switchtype != PRI_SWITCH_ATT4ESS) && (call->userl1 > -1)) {
