@@ -383,8 +383,8 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 	q921_frame *f, *prev=NULL;
 	for (f=pri->txqueue; f; f = f->next) prev = f;
 	f = malloc(sizeof(q921_frame) + len + 2);
-	memset(f,0,sizeof(q921_frame) + len + 2);
 	if (f) {
+		memset(f,0,sizeof(q921_frame) + len + 2);
 		Q921_INIT(pri, f->h);
 		switch(pri->localtype) {
 		case PRI_NETWORK:
