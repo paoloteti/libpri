@@ -191,11 +191,18 @@ int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info)
 	return q931_alerting(pri, call, channel, info);
 }
 
-int pri_progress(struct pri *pri, q931_call *call, int info)
+int pri_proceeding(struct pri *pri, q931_call *call, int info)
 {
 	if (!pri || !call)
 		return -1;
 	return q931_call_proceeding(pri, call,info);
+}
+
+int pri_progress(struct pri *pri, q931_call *call, int info)
+{
+	if (!pri || !call)
+		return -1;
+	return q931_call_progress(pri, call,info);
 }
 
 int pri_information(struct pri *pri, q931_call *call, char digit)

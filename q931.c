@@ -1564,6 +1564,29 @@ static int restart_ack(struct pri *pri, q931_call *c)
 }
 
 #ifdef ALERTING_NO_PROGRESS
+static int call_progress_ies[] = { Q931_CHANNEL_IDENT, -1 };
+#else
+static int call_progress_ies[] = { Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR, -1 };
+#endif
+
+int q931_call_progress(struct pri *pri, q931_call *c, int info)
+{
+	c->ourcallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
+	c->peercallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
+	if (info) {
+		c->progloc = LOC_PRIV_NET_LOCAL_USER;
+		c->progcode = CODE_CCITT;
+		c->progress = Q931_PROG_INBAND_AVAILABLE;
+	} else
+		c->progress = -1;
+	if (!c->proc)
+		q931_call_proceeding(pri, c, 0);
+	c->proc = 1;
+	c->alive = 1;
+	return send_message(pri, c, Q931_PROGRESS, call_progress_ies);
+}
+
+#ifdef ALERTING_NO_PROGRESS
 static int call_proceeding_ies[] = { Q931_CHANNEL_IDENT, -1 };
 #else
 static int call_proceeding_ies[] = { Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR, -1 };
