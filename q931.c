@@ -1648,7 +1648,6 @@ int q931_setup(struct pri *pri, q931_call *c, int transmode, int channel, int ex
 	c->slotmap = -1;
 	c->ds1no = -1;
 	c->nonisdn = nonisdn;
-	c->complete = 0; 
 		
 	if (exclusive) 
 		c->chanflags = FLAG_EXCLUSIVE;
@@ -1777,6 +1776,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
                 c->useruserprotocoldisc = -1; 
 		strcpy(c->useruserinfo, "");
 		c->ourcallstate = Q931_CALL_STATE_CALL_INITIATED;
+		c->complete = 0;
 		break;
 	case Q931_CONNECT:
 		c->ourcallstate = Q931_CALL_STATE_ACTIVE;
@@ -1878,7 +1878,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.cref = c->cr;
 		pri->ev.ring.call = c;
 		pri->ev.ring.layer1 = c->userl1;
-		pri->ev.ring.complete = 0; 
+		pri->ev.ring.complete = c->complete; 
 		if (c->transmoderate != TRANS_MODE_64_CIRCUIT) {
 			q931_release(pri, c, PRI_CAUSE_BEARERCAPABILITY_NOTIMPL);
 			break;
