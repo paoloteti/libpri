@@ -865,12 +865,26 @@ static FUNC_DUMP(dump_connected_number)
 
 
 static FUNC_RECV(receive_redirecting_number)
-{        
-        call->redirectingplan = ie->data[0] & 0x7f;
-        call->redirectingpres = ie->data[1] & 0x7f;
-        call->redirectingreason = ie->data[2] & 0x0f;
+{
+	int i = 0;
 
-        q931_get_number(call->redirectingnum, sizeof(call->redirectingnum), ie->data + 3, len - 5);
+	/* To follow Q.931 (4.5.1), we must search for start of octet 4 by
+	   walking through all bytes until one with ext bit (8) set to 1 */
+	do {
+		switch(i) {
+		case 0:
+			call->redirectingplan = ie->data[i] & 0x7f;
+			break;
+		case 1:
+			call->redirectingpres = ie->data[i] & 0x7f;
+			break;
+		case 2:
+			call->redirectingreason = ie->data[i] & 0x0f;
+			break;
+		}
+	}
+	while(!(ie->data[i++] & 0x80));
+	q931_get_number(call->redirectingnum, sizeof(call->redirectingnum), ie->data + i, ie->len - i);
 	return 0;
 }
 
