@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
 
 #define MAX_MAND_IES 10
 
@@ -178,7 +179,7 @@ struct msgtype facilities[] = {
 /* The 4ESS uses a different audio field */
 #define PRI_TRANS_CAP_AUDIO_4ESS	0x08
 
-
+/* Don't forget to update PRI_PROG_xxx at libpri.h */
 #define Q931_PROG_CALL_NOT_E2E_ISDN						0x01
 #define Q931_PROG_CALLED_NOT_ISDN						0x02
 #define Q931_PROG_CALLER_NOT_ISDN						0x03
@@ -206,11 +207,15 @@ struct msgtype facilities[] = {
 
 #define FUNC_DUMP(name) void ((name))(int full_ie, q931_ie *ie, int len, char prefix)
 #define FUNC_RECV(name) int ((name))(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
-#define FUNC_SEND(name) int ((name))(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
+#define FUNC_SEND(name) int ((name))(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 
 
 struct ie {
+	/* Maximal count of same IEs at the message (0 - any, 1..n - limited) */
+	int max_count;
+	/* IE code */
 	int ie;
+	/* IE friendly name */
 	char *name;
 	/* Dump an IE for debugging (preceed all lines by prefix) */
 	FUNC_DUMP(*dump);
@@ -317,6 +322,11 @@ static FUNC_RECV(receive_channel_id)
 static FUNC_SEND(transmit_channel_id)
 {
 	int pos=0;
+
+	/* We are ready to transmit single IE only */
+	if (order > 1)
+		return 0;
+
 	/* Start with standard stuff */
 	if (pri->switchtype == PRI_SWITCH_GR303_TMC)
 		ie->data[pos] = 0x69;
@@ -590,6 +600,11 @@ static FUNC_RECV(receive_bearer_capability)
 static FUNC_SEND(transmit_bearer_capability)
 {
 	int tc;
+
+	/* We are ready to transmit single IE only */	
+	if(order > 1)
+		return 0;
+
 	tc = call->transcapability;
 	if (pri->subchannel) {
 		/* Bearer capability is *hard coded* in GR-303 */
@@ -821,6 +836,8 @@ static FUNC_RECV(receive_redirecting_number)
 
 static FUNC_SEND(transmit_redirecting_number)
 {
+	if (order > 1)
+		return 0;
 	if (call->redirectingnum && strlen(call->redirectingnum)) {
 		ie->data[0] = call->redirectingplan;
 		ie->data[1] = call->redirectingpres;
@@ -992,7 +1009,38 @@ static FUNC_RECV(receive_progress_indicator)
 {
 	call->progloc = ie->data[0] & 0xf;
 	call->progcode = (ie->data[0] & 0x60) >> 5;
-	call->progress = (ie->data[1] & 0x7f);
+	switch (call->progress = (ie->data[1] & 0x7f)) {
+	case Q931_PROG_CALL_NOT_E2E_ISDN:
+		call->progressmask |= PRI_PROG_CALL_NOT_E2E_ISDN;
+		break;
+	case Q931_PROG_CALLED_NOT_ISDN:
+		call->progressmask |= PRI_PROG_CALLED_NOT_ISDN;
+		break;
+	case Q931_PROG_CALLER_NOT_ISDN:
+		call->progressmask |= PRI_PROG_CALLER_NOT_ISDN;
+		break;
+	case Q931_PROG_INBAND_AVAILABLE:
+		call->progressmask |= PRI_PROG_INBAND_AVAILABLE;
+		break;
+	case Q931_PROG_DELAY_AT_INTERF:
+		call->progressmask |= PRI_PROG_DELAY_AT_INTERF;
+		break;
+	case Q931_PROG_INTERWORKING_WITH_PUBLIC:
+		call->progressmask |= PRI_PROG_INTERWORKING_WITH_PUBLIC;
+		break;
+	case Q931_PROG_INTERWORKING_NO_RELEASE:
+		call->progressmask |= PRI_PROG_INTERWORKING_NO_RELEASE;
+		break;
+	case Q931_PROG_INTERWORKING_NO_RELEASE_PRE_ANSWER:
+		call->progressmask |= PRI_PROG_INTERWORKING_NO_RELEASE_PRE_ANSWER;
+		break;
+	case Q931_PROG_INTERWORKING_NO_RELEASE_POST_ANSWER:
+		call->progressmask |= PRI_PROG_INTERWORKING_NO_RELEASE_POST_ANSWER;
+		break;
+	default:
+		pri_error("XXX Invalid Progress indicator value received: %02x\n",(ie->data[1] & 0x7f));
+		break;
+	}
 	return 0;
 }
 
@@ -1090,15 +1138,42 @@ static FUNC_RECV(receive_facility)
 
 static FUNC_SEND(transmit_progress_indicator)
 {
+	int code, mask;
 	/* Can't send progress indicator on GR-303 -- EVER! */
-	if (!pri->subchannel && (call->progress > 0)) {
-		ie->data[0] = 0x80 | (call->progcode << 5)  | (call->progloc);
-		ie->data[1] = 0x80 | (call->progress);
-		return 4;
-	} else {
-		/* Leave off */
+	if (pri->subchannel)
 		return 0;
+	if (call->progressmask > 0) {
+		if (call->progressmask & (mask = PRI_PROG_CALL_NOT_E2E_ISDN))
+			code = Q931_PROG_CALL_NOT_E2E_ISDN;
+		else if (call->progressmask & (mask = PRI_PROG_CALLED_NOT_ISDN))
+			code = Q931_PROG_CALLED_NOT_ISDN;
+		else if (call->progressmask & (mask = PRI_PROG_CALLER_NOT_ISDN))
+			code = Q931_PROG_CALLER_NOT_ISDN;
+		else if (call->progressmask & (mask = PRI_PROG_INBAND_AVAILABLE))
+			code = Q931_PROG_INBAND_AVAILABLE;
+		else if (call->progressmask & (mask = PRI_PROG_DELAY_AT_INTERF))
+			code = Q931_PROG_DELAY_AT_INTERF;
+		else if (call->progressmask & (mask = PRI_PROG_INTERWORKING_WITH_PUBLIC))
+			code = Q931_PROG_INTERWORKING_WITH_PUBLIC;
+		else if (call->progressmask & (mask = PRI_PROG_INTERWORKING_NO_RELEASE))
+			code = Q931_PROG_INTERWORKING_NO_RELEASE;
+		else if (call->progressmask & (mask = PRI_PROG_INTERWORKING_NO_RELEASE_PRE_ANSWER))
+			code = Q931_PROG_INTERWORKING_NO_RELEASE_PRE_ANSWER;
+		else if (call->progressmask & (mask = PRI_PROG_INTERWORKING_NO_RELEASE_POST_ANSWER))
+			code = Q931_PROG_INTERWORKING_NO_RELEASE_POST_ANSWER;
+		else {
+			code = 0;
+			pri_error("XXX Undefined progress bit: %x\n", call->progressmask);
+		}
+		if (code) {
+			ie->data[0] = 0x80 | (call->progcode << 5)  | (call->progloc);
+			ie->data[1] = 0x80 | code;
+			call->progressmask &= ~mask;
+			return 4;
+		}
 	}
+	/* Leave off */
+	return 0;
 }
 static FUNC_SEND(transmit_call_state)
 {
@@ -1241,30 +1316,33 @@ static FUNC_DUMP(dump_facility)
 
 static FUNC_DUMP(dump_network_spec_fac)
 {
-       pri_message("%c Network-Specific Facilities (len=%2d) [ ", prefix, ie->len);
-       if (ie->data[0] == 0x00) {
-               pri_message (code2str(ie->data[1], facilities, sizeof(facilities) / sizeof(facilities[0])));
-       }
-       else
-               dump_ie_data(ie->data, ie->len);
-       pri_message(" ]\n");
+	pri_message("%c Network-Specific Facilities (len=%2d) [ ", prefix, ie->len);
+	if (ie->data[0] == 0x00) {
+		pri_message (code2str(ie->data[1], facilities, sizeof(facilities) / sizeof(facilities[0])));
+	}
+	else
+		dump_ie_data(ie->data, ie->len);
+	pri_message(" ]\n");
 }
 
 static FUNC_RECV(receive_network_spec_fac)
 {
-       return 0;
+	return 0;
 }
 
 static FUNC_SEND(transmit_network_spec_fac)
 {
-       if (pri->nsf != PRI_NSF_NONE) {
-               ie->data[0] = 0x00;
-               ie->data[1] = pri->nsf;
-               return 4;
-       } else {
-               /* Leave off */
-               return 0;
-       }
+	/* We are ready to transmit single IE only */
+	if (order > 1)
+		return 0;
+
+	if (pri->nsf != PRI_NSF_NONE) {
+		ie->data[0] = 0x00;
+		ie->data[1] = pri->nsf;
+		return 4;
+	}
+	/* Leave off */
+	return 0;
 }
 
 char *pri_cause2str(int cause)
@@ -1310,6 +1388,10 @@ static FUNC_RECV(receive_cause)
 
 static FUNC_SEND(transmit_cause)
 {
+	/* We are ready to transmit single IE only */
+	if (order > 1)
+		return 0;
+
 	if (call->cause > 0) {
 		ie->data[0] = 0x80 | (call->causecode << 5)  | (call->causeloc);
 		ie->data[1] = 0x80 | (call->cause);
@@ -1443,7 +1525,7 @@ static FUNC_RECV(receive_line_information)
 
 static FUNC_SEND(transmit_line_information)
 {
-#if 0	/* XXX Is this IE possible for 4ESS? XXX */
+#if 0	/* XXX Is this IE possible for 4ESS only? XXX */
 	if(pri->switchtype == PRI_SWITCH_ATT4ESS) {
 		ie->data[0] = 0;
 		return 3;
@@ -1604,6 +1686,9 @@ static FUNC_RECV(receive_generic_digits)
 static FUNC_SEND(transmit_generic_digits)
 {
 #if 0	/* XXX Is this IE possible for other switches? XXX */
+	if (order > 1)
+		return 0;
+
 	if(pri->switchtype == PRI_SWITCH_NI1) {
 		ie->data[0] = 0x04;	/* BCD even, Info Digits */
 		ie->data[1] = 0x00;	/* POTS */
@@ -1614,64 +1699,104 @@ static FUNC_SEND(transmit_generic_digits)
 }
 
 
+static char *signal2str(int signal)
+{
+	/* From Q.931 4.5.8 Table 4-24 */
+	static struct msgtype mtsignal[] = {
+		{  0, "Dial tone" },
+		{  1, "Ring back tone" },
+		{  2, "Intercept tone" },
+		{  3, "Network congestion tone" },
+		{  4, "Busy tone" },
+		{  5, "Confirm tone" },
+		{  6, "Answer tone" },
+		{  7, "Call waiting tone" },
+		{  8, "Off-hook warning tone" },
+		{  9, "Pre-emption tone" },
+		{ 63, "Tones off" },
+		{ 64, "Alerting on - pattern 0" },
+		{ 65, "Alerting on - pattern 1" },
+		{ 66, "Alerting on - pattern 2" },
+		{ 67, "Alerting on - pattern 3" },
+		{ 68, "Alerting on - pattern 4" },
+		{ 69, "Alerting on - pattern 5" },
+		{ 70, "Alerting on - pattern 6" },
+		{ 71, "Alerting on - pattern 7" },
+		{ 79, "Alerting off" },
+	};
+	return code2str(signal, mtsignal, sizeof(mtsignal) / sizeof(mtsignal[0]));
+}
+
+
+static FUNC_DUMP(dump_signal)
+{
+	pri_message("%c Signal (len=%02d): ", prefix, len);
+	if (len < 3) {
+		pri_message("Invalid length\n");
+		return;
+	}
+	pri_message("Signal %s (%d)\n", signal2str(ie->data[0]), ie->data[0]);
+}
+
+
 struct ie ies[] = {
 	/* Codeset 0 - Common */
-	{ NATIONAL_CHANGE_STATUS, "Change Status" },
-	{ Q931_LOCKING_SHIFT, "Locking Shift", dump_shift },
-	{ Q931_BEARER_CAPABILITY, "Bearer Capability", dump_bearer_capability, receive_bearer_capability, transmit_bearer_capability },
-	{ Q931_CAUSE, "Cause", dump_cause, receive_cause, transmit_cause },
-	{ Q931_CALL_STATE, "Call State", dump_call_state, receive_call_state, transmit_call_state },
-	{ Q931_CHANNEL_IDENT, "Channel Identification", dump_channel_id, receive_channel_id, transmit_channel_id },
-	{ Q931_PROGRESS_INDICATOR, "Progress Indicator", dump_progress_indicator, receive_progress_indicator, transmit_progress_indicator },
-	{ Q931_NETWORK_SPEC_FAC, "Network-Specific Facilities", dump_network_spec_fac, receive_network_spec_fac, transmit_network_spec_fac },
-	{ Q931_INFORMATION_RATE, "Information Rate" },
-	{ Q931_TRANSIT_DELAY, "End-to-End Transit Delay" },
-	{ Q931_TRANS_DELAY_SELECT, "Transmit Delay Selection and Indication" },
-	{ Q931_BINARY_PARAMETERS, "Packet-layer Binary Parameters" },
-	{ Q931_WINDOW_SIZE, "Packet-layer Window Size" },
-	{ Q931_CLOSED_USER_GROUP, "Closed User Group" },
-	{ Q931_REVERSE_CHARGE_INDIC, "Reverse Charging Indication" },
-	{ Q931_CALLING_PARTY_NUMBER, "Calling Party Number", dump_calling_party_number, receive_calling_party_number, transmit_calling_party_number },
-	{ Q931_CALLING_PARTY_SUBADDR, "Calling Party Subaddress", dump_calling_party_subaddr, receive_calling_party_subaddr },
-	{ Q931_CALLED_PARTY_NUMBER, "Called Party Number", dump_called_party_number, receive_called_party_number, transmit_called_party_number },
-	{ Q931_CALLED_PARTY_SUBADDR, "Called Party Subaddress", dump_called_party_subaddr },
-	{ Q931_REDIRECTING_NUMBER, "Redirecting Number", dump_redirecting_number, receive_redirecting_number, transmit_redirecting_number },
-	{ Q931_REDIRECTING_SUBADDR, "Redirecting Subaddress", dump_redirecting_subaddr },
-	{ Q931_TRANSIT_NET_SELECT, "Transit Network Selection" },
-	{ Q931_RESTART_INDICATOR, "Restart Indicator", dump_restart_indicator, receive_restart_indicator, transmit_restart_indicator },
-	{ Q931_LOW_LAYER_COMPAT, "Low-layer Compatibility" },
-	{ Q931_HIGH_LAYER_COMPAT, "High-layer Compatibility" },
-	{ Q931_PACKET_SIZE, "Packet Size" },
-	{ Q931_IE_FACILITY, "Facility" , dump_facility, receive_facility, transmit_facility },
-	{ Q931_IE_REDIRECTION_NUMBER, "Redirection Number" },
-	{ Q931_IE_REDIRECTION_SUBADDR, "Redirection Subaddress" },
-	{ Q931_IE_FEATURE_ACTIVATE, "Feature Activation" },
-	{ Q931_IE_INFO_REQUEST, "Feature Request" },
-	{ Q931_IE_FEATURE_IND, "Feature Indication" },
-	{ Q931_IE_SEGMENTED_MSG, "Segmented Message" },
-	{ Q931_IE_CALL_IDENTITY, "Call Identity", dump_call_identity },
-	{ Q931_IE_ENDPOINT_ID, "Endpoint Identification" },
-	{ Q931_IE_NOTIFY_IND, "Notification Indicator", dump_notify, receive_notify, transmit_notify },
-	{ Q931_DISPLAY, "Display", dump_display, receive_display, transmit_display },
-	{ Q931_IE_TIME_DATE, "Date/Time", dump_time_date },
-	{ Q931_IE_KEYPAD_FACILITY, "Keypad Facility" },
-	{ Q931_IE_SIGNAL, "Signal" },
-	{ Q931_IE_SWITCHHOOK, "Switch-hook" },
-	{ Q931_IE_USER_USER, "User-User", dump_user_user, receive_user_user },
-	{ Q931_IE_ESCAPE_FOR_EXT, "Escape for Extension" },
-	{ Q931_IE_CALL_STATUS, "Call Status" },
-	{ Q931_IE_CHANGE_STATUS, "Change Status" },
-	{ Q931_IE_CONNECTED_ADDR, "Connected Number", dump_connected_number },
-	{ Q931_IE_CONNECTED_NUM, "Connected Number", dump_connected_number },
-	{ Q931_IE_ORIGINAL_CALLED_NUMBER, "Original Called Number", dump_redirecting_number, receive_redirecting_number, transmit_redirecting_number },
-	{ Q931_IE_USER_USER_FACILITY, "User-User Facility" },
-	{ Q931_IE_UPDATE, "Update" },
-	{ Q931_SENDING_COMPLETE, "Sending Complete", dump_sending_complete, receive_sending_complete, transmit_sending_complete },
+	{ 1, NATIONAL_CHANGE_STATUS, "Change Status" },
+	{ 0, Q931_LOCKING_SHIFT, "Locking Shift", dump_shift },
+	{ 0, Q931_BEARER_CAPABILITY, "Bearer Capability", dump_bearer_capability, receive_bearer_capability, transmit_bearer_capability },
+	{ 0, Q931_CAUSE, "Cause", dump_cause, receive_cause, transmit_cause },
+	{ 1, Q931_CALL_STATE, "Call State", dump_call_state, receive_call_state, transmit_call_state },
+	{ 0, Q931_CHANNEL_IDENT, "Channel Identification", dump_channel_id, receive_channel_id, transmit_channel_id },
+	{ 0, Q931_PROGRESS_INDICATOR, "Progress Indicator", dump_progress_indicator, receive_progress_indicator, transmit_progress_indicator },
+	{ 0, Q931_NETWORK_SPEC_FAC, "Network-Specific Facilities", dump_network_spec_fac, receive_network_spec_fac, transmit_network_spec_fac },
+	{ 1, Q931_INFORMATION_RATE, "Information Rate" },
+	{ 1, Q931_TRANSIT_DELAY, "End-to-End Transit Delay" },
+	{ 1, Q931_TRANS_DELAY_SELECT, "Transmit Delay Selection and Indication" },
+	{ 1, Q931_BINARY_PARAMETERS, "Packet-layer Binary Parameters" },
+	{ 1, Q931_WINDOW_SIZE, "Packet-layer Window Size" },
+	{ 1, Q931_CLOSED_USER_GROUP, "Closed User Group" },
+	{ 1, Q931_REVERSE_CHARGE_INDIC, "Reverse Charging Indication" },
+	{ 1, Q931_CALLING_PARTY_NUMBER, "Calling Party Number", dump_calling_party_number, receive_calling_party_number, transmit_calling_party_number },
+	{ 1, Q931_CALLING_PARTY_SUBADDR, "Calling Party Subaddress", dump_calling_party_subaddr, receive_calling_party_subaddr },
+	{ 1, Q931_CALLED_PARTY_NUMBER, "Called Party Number", dump_called_party_number, receive_called_party_number, transmit_called_party_number },
+	{ 1, Q931_CALLED_PARTY_SUBADDR, "Called Party Subaddress", dump_called_party_subaddr },
+	{ 0, Q931_REDIRECTING_NUMBER, "Redirecting Number", dump_redirecting_number, receive_redirecting_number, transmit_redirecting_number },
+	{ 1, Q931_REDIRECTING_SUBADDR, "Redirecting Subaddress", dump_redirecting_subaddr },
+	{ 0, Q931_TRANSIT_NET_SELECT, "Transit Network Selection" },
+	{ 1, Q931_RESTART_INDICATOR, "Restart Indicator", dump_restart_indicator, receive_restart_indicator, transmit_restart_indicator },
+	{ 0, Q931_LOW_LAYER_COMPAT, "Low-layer Compatibility" },
+	{ 0, Q931_HIGH_LAYER_COMPAT, "High-layer Compatibility" },
+	{ 1, Q931_PACKET_SIZE, "Packet Size" },
+	{ 1, Q931_IE_FACILITY, "Facility" , dump_facility, receive_facility, transmit_facility },
+	{ 1, Q931_IE_REDIRECTION_NUMBER, "Redirection Number" },
+	{ 1, Q931_IE_REDIRECTION_SUBADDR, "Redirection Subaddress" },
+	{ 1, Q931_IE_FEATURE_ACTIVATE, "Feature Activation" },
+	{ 1, Q931_IE_INFO_REQUEST, "Feature Request" },
+	{ 1, Q931_IE_FEATURE_IND, "Feature Indication" },
+	{ 1, Q931_IE_SEGMENTED_MSG, "Segmented Message" },
+	{ 1, Q931_IE_CALL_IDENTITY, "Call Identity", dump_call_identity },
+	{ 1, Q931_IE_ENDPOINT_ID, "Endpoint Identification" },
+	{ 1, Q931_IE_NOTIFY_IND, "Notification Indicator", dump_notify, receive_notify, transmit_notify },
+	{ 1, Q931_DISPLAY, "Display", dump_display, receive_display, transmit_display },
+	{ 1, Q931_IE_TIME_DATE, "Date/Time", dump_time_date },
+	{ 1, Q931_IE_KEYPAD_FACILITY, "Keypad Facility" },
+	{ 0, Q931_IE_SIGNAL, "Signal", dump_signal },
+	{ 1, Q931_IE_SWITCHHOOK, "Switch-hook" },
+	{ 1, Q931_IE_USER_USER, "User-User", dump_user_user, receive_user_user },
+	{ 1, Q931_IE_ESCAPE_FOR_EXT, "Escape for Extension" },
+	{ 1, Q931_IE_CALL_STATUS, "Call Status" },
+	{ 1, Q931_IE_CHANGE_STATUS, "Change Status" },
+	{ 1, Q931_IE_CONNECTED_ADDR, "Connected Number", dump_connected_number },
+	{ 1, Q931_IE_CONNECTED_NUM, "Connected Number", dump_connected_number },
+	{ 1, Q931_IE_ORIGINAL_CALLED_NUMBER, "Original Called Number", dump_redirecting_number, receive_redirecting_number, transmit_redirecting_number },
+	{ 1, Q931_IE_USER_USER_FACILITY, "User-User Facility" },
+	{ 1, Q931_IE_UPDATE, "Update" },
+	{ 1, Q931_SENDING_COMPLETE, "Sending Complete", dump_sending_complete, receive_sending_complete, transmit_sending_complete },
 	/* Codeset 6 - Network specific */
-	{ Q931_IE_ORIGINATING_LINE_INFO, "Originating Line Information", dump_line_information, receive_line_information, transmit_line_information },
-	{ Q931_IE_FACILITY | Q931_CODESET(6), "Facility", dump_facility, receive_facility, transmit_facility },
-	{ Q931_DISPLAY | Q931_CODESET(6), "Display (CS6)", dump_display, receive_display, transmit_display },
-	{ Q931_IE_GENERIC_DIGITS, "Generic Digits", dump_generic_digits, receive_generic_digits, transmit_generic_digits },
+	{ 1, Q931_IE_ORIGINATING_LINE_INFO, "Originating Line Information", dump_line_information, receive_line_information, transmit_line_information },
+	{ 1, Q931_IE_FACILITY | Q931_CODESET(6), "Facility", dump_facility, receive_facility, transmit_facility },
+	{ 1, Q931_DISPLAY | Q931_CODESET(6), "Display (CS6)", dump_display, receive_display, transmit_display },
+	{ 0, Q931_IE_GENERIC_DIGITS, "Generic Digits", dump_generic_digits, receive_generic_digits, transmit_generic_digits },
 	/* Codeset 7 */
 };
 
@@ -1891,8 +2016,9 @@ void __q931_destroycall(struct pri *pri, q931_call *c)
 static int add_ie(struct pri *pri, q931_call *call, int msgtype, int ie, q931_ie *iet, int maxlen, int *codeset)
 {
 	unsigned int x;
-	int res;
+	int res, total_res;
 	int have_shift;
+	int ies_count, order;
 	for (x=0;x<sizeof(ies) / sizeof(ies[0]);x++) {
 		if (ies[x].ie == ie) {
 			/* This is our baby */
@@ -1907,19 +2033,32 @@ static int add_ie(struct pri *pri, q931_call *call, int msgtype, int ie, q931_ie
 				}
 				else
 					have_shift = 0;
-				iet->ie = ie;
-				res = ies[x].transmit(ie, pri, call, msgtype, iet, maxlen);
-				/* Error if res < 0 or ignored if res == 0 */
-				if (res <= 0)
-					return res;
-				if ((iet->ie & 0x80) == 0) /* Multibyte IE */
-					iet->len = res - 2;
-				if (have_shift) {
+				ies_count = ies[x].max_count;
+				if (ies_count == 0)
+					ies_count = INT_MAX;
+				order = 0;
+				total_res = 0;
+				do {
+					iet->ie = ie;
+					res = ies[x].transmit(ie, pri, call, msgtype, iet, maxlen, ++order);
+					/* Error if res < 0 or ignored if res == 0 */
+					if (res < 0)
+						return res;
+					if (res > 0) {
+						if ((iet->ie & 0x80) == 0) /* Multibyte IE */
+							iet->len = res - 2;
+						total_res += res;
+						maxlen -= res;
+						iet = (q931_ie *)((char *)iet + res);
+					}
+				}
+				while (res > 0 && order < ies_count);
+				if (have_shift && total_res) {
 					if (Q931_IE_CODESET(ies[x].ie))
 						*codeset = Q931_IE_CODESET(ies[x].ie);
-					return res + 1; /* Shift is single-byte IE */
+					return total_res + 1; /* Shift is single-byte IE */
 				}
-				return res;
+				return total_res;
 			} else {
 				pri_error("!! Don't know how to add an IE %s (%d)\n", ie2str(ie), ie);
 				return -1;
@@ -2146,9 +2285,12 @@ int q931_call_progress(struct pri *pri, q931_call *c, int channel, int info)
 	if (info) {
 		c->progloc = LOC_PRIV_NET_LOCAL_USER;
 		c->progcode = CODE_CCITT;
-		c->progress = Q931_PROG_INBAND_AVAILABLE;
-	} else
-		c->progress = -1;
+		c->progressmask = PRI_PROG_INBAND_AVAILABLE;
+	} else {
+		/* PI is mandatory IE for PROGRESS message - Q.931 3.1.8 */
+		pri_error("XXX Progress message requested but no information is provided\n");
+		c->progressmask = 0;
+	}
 	c->alive = 1;
 	return send_message(pri, c, Q931_PROGRESS, call_progress_ies);
 }
@@ -2173,9 +2315,9 @@ int q931_call_proceeding(struct pri *pri, q931_call *c, int channel, int info)
 	if (info) {
 		c->progloc = LOC_PRIV_NET_LOCAL_USER;
 		c->progcode = CODE_CCITT;
-		c->progress = Q931_PROG_INBAND_AVAILABLE;
+		c->progressmask = PRI_PROG_INBAND_AVAILABLE;
 	} else
-		c->progress = -1;
+		c->progressmask = 0;
 	c->proc = 1;
 	c->alive = 1;
 	return send_message(pri, c, Q931_CALL_PROCEEDING, call_proceeding_ies);
@@ -2193,9 +2335,9 @@ int q931_alerting(struct pri *pri, q931_call *c, int channel, int info)
 	if (info) {
 		c->progloc = LOC_PRIV_NET_LOCAL_USER;
 		c->progcode = CODE_CCITT;
-		c->progress = Q931_PROG_INBAND_AVAILABLE;
+		c->progressmask = PRI_PROG_INBAND_AVAILABLE;
 	} else
-		c->progress = -1;
+		c->progressmask = 0;
 	c->ourcallstate = Q931_CALL_STATE_CALL_RECEIVED;
 	c->peercallstate = Q931_CALL_STATE_CALL_DELIVERED;
 	c->alive = 1;
@@ -2216,9 +2358,9 @@ int q931_setup_ack(struct pri *pri, q931_call *c, int channel, int nonisdn)
 	if (nonisdn && (pri->switchtype != PRI_SWITCH_DMS100)) {
 		c->progloc  = LOC_PRIV_NET_LOCAL_USER;
 		c->progcode = CODE_CCITT;
-		c->progress = Q931_PROG_CALLED_NOT_ISDN;
+		c->progressmask = PRI_PROG_CALLED_NOT_ISDN;
 	} else
-		c->progress = -1;
+		c->progressmask = 0;
 	c->ourcallstate = Q931_CALL_STATE_OVERLAP_RECEIVING;
 	c->peercallstate = Q931_CALL_STATE_OVERLAP_SENDING;
 	c->alive = 1;
@@ -2287,9 +2429,9 @@ int q931_connect(struct pri *pri, q931_call *c, int channel, int nonisdn)
 	if (nonisdn && (pri->switchtype != PRI_SWITCH_DMS100)) {
 		c->progloc  = LOC_PRIV_NET_LOCAL_USER;
 		c->progcode = CODE_CCITT;
-		c->progress = Q931_PROG_CALLED_NOT_ISDN;
+		c->progressmask = PRI_PROG_CALLED_NOT_ISDN;
 	} else
-		c->progress = -1;
+		c->progressmask = 0;
 	c->ourcallstate = Q931_CALL_STATE_CONNECT_REQUEST;
 	c->peercallstate = Q931_CALL_STATE_ACTIVE;
 	c->alive = 1;
@@ -2444,9 +2586,9 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 		return -1;
 
 	if (req->nonisdn && (pri->switchtype == PRI_SWITCH_NI2))
-		c->progress = Q931_PROG_CALLER_NOT_ISDN;
+		c->progressmask = PRI_PROG_CALLER_NOT_ISDN;
 	else
-		c->progress = -1;
+		c->progressmask = 0;
 	if (pri->subchannel)
 		res = send_message(pri, c, Q931_SETUP, gr303_setup_ies);
 	else
@@ -2664,19 +2806,19 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
                 c->useruserprotocoldisc = -1; 
 		strcpy(c->useruserinfo, "");
 		c->complete = 0;
-		break;
+		c->nonisdn = 0;
+		/* Fall through */
 	case Q931_CONNECT:
 	case Q931_ALERTING:
 	case Q931_PROGRESS:
+	case Q931_CALL_PROCEEDING:
 		c->progress = -1;
+		c->progressmask = 0;
 		break;
 	case Q931_CONNECT_ACKNOWLEDGE:
 		if (c->retranstimer)
 			pri_schedule_del(pri, c->retranstimer);
 		c->retranstimer = 0;
-		/* Fall through */
-	case Q931_CALL_PROCEEDING:
-		/* Do nothing */
 		break;
 	case Q931_RELEASE:
 	case Q931_DISCONNECT:
@@ -2843,11 +2985,17 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		if (!c->newcall) {
 			break;
 		}
+		if (c->progressmask & PRI_PROG_CALLER_NOT_ISDN)
+			c->nonisdn = 1;
 		c->newcall = 0;
 		c->ourcallstate = Q931_CALL_STATE_CALL_PRESENT;
 		c->peercallstate = Q931_CALL_STATE_CALL_INITIATED;
 		/* it's not yet a call since higher level can respond with RELEASE or RELEASE_COMPLETE */
 		c->alive = 0;
+		if (c->transmoderate != TRANS_MODE_64_CIRCUIT) {
+			q931_release_complete(pri, c, PRI_CAUSE_BEARERCAPABILITY_NOTIMPL);
+			break;
+		}
 		pri->ev.e = PRI_EVENT_RING;
 		pri->ev.ring.channel = c->channelno | (c->ds1no << 8);
 		pri->ev.ring.callingpres = c->callerpres;
@@ -2867,10 +3015,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.complete = c->complete; 
 		pri->ev.ring.ctype = c->transcapability;
 		pri->ev.ring.redirectingreason = c->redirectingreason;
-		if (c->transmoderate != TRANS_MODE_64_CIRCUIT) {
-			q931_release_complete(pri, c, PRI_CAUSE_BEARERCAPABILITY_NOTIMPL);
-			break;
-		}
+		pri->ev.ring.progress = c->progress;
+		pri->ev.ring.progressmask = c->progressmask;
 		return Q931_RES_HAVEEVENT;
 	case Q931_ALERTING:
 		if (c->newcall) {
@@ -2884,6 +3030,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ringing.cref = c->cr;
 		pri->ev.ringing.call = c;
 		pri->ev.ringing.progress = c->progress;
+		pri->ev.ringing.progressmask = c->progressmask;
 		return Q931_RES_HAVEEVENT;
 	case Q931_CONNECT:
 		if (c->newcall) {
@@ -2901,6 +3048,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.answer.cref = c->cr;
 		pri->ev.answer.call = c;
 		pri->ev.answer.progress = c->progress;
+		pri->ev.answer.progressmask = c->progressmask;
 		q931_connect_acknowledge(pri, c);
 		return Q931_RES_HAVEEVENT;
 	case Q931_FACILITY:
@@ -2945,6 +3093,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			c->peercallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
 		}
 		pri->ev.proceeding.progress = c->progress;
+		pri->ev.proceeding.progressmask = c->progressmask;
 		pri->ev.proceeding.cref = c->cr;
 		pri->ev.proceeding.call = c;
 		return Q931_RES_HAVEEVENT;

@@ -49,34 +49,47 @@
 #define PRI_SWITCH_EUROISDN_E1	5	/* Standard EuroISDN (CTR4, ETSI 300-102) */
 #define PRI_SWITCH_EUROISDN_T1	6	/* T1 EuroISDN variant (ETSI 300-102) */
 #define PRI_SWITCH_NI1			7	/* National ISDN 1 */
-#define PRI_SWITCH_GR303_EOC		8	/* GR-303 Embedded Operations Channel */
-#define PRI_SWITCH_GR303_TMC		9	/* GR-303 Timeslot Management Channel */
+#define PRI_SWITCH_GR303_EOC	8	/* GR-303 Embedded Operations Channel */
+#define PRI_SWITCH_GR303_TMC	9	/* GR-303 Timeslot Management Channel */
 #define PRI_SWITCH_QSIG			10	/* QSIG Switch */
 /* Switchtypes 10 - 20 are reserved for internal use */
 
 
 /* PRI D-Channel Events */
-#define PRI_EVENT_DCHAN_UP	 	1	/* D-channel is up */
-#define PRI_EVENT_DCHAN_DOWN 	2	/* D-channel is down */
-#define PRI_EVENT_RESTART	 	3	/* B-channel is restarted */
-#define PRI_EVENT_CONFIG_ERR 	4	/* Configuration Error Detected */
-#define PRI_EVENT_RING		 	5	/* Incoming call */
-#define PRI_EVENT_HANGUP	 	6	/* Call got hung up */
-#define PRI_EVENT_RINGING	 	7	/* Call is ringing (alerting) */
-#define PRI_EVENT_ANSWER	 	8	/* Call has been answered */
-#define PRI_EVENT_HANGUP_ACK	9	/* Call hangup has been acknowledged */
+#define PRI_EVENT_DCHAN_UP		 1	/* D-channel is up */
+#define PRI_EVENT_DCHAN_DOWN 	 2	/* D-channel is down */
+#define PRI_EVENT_RESTART		 3	/* B-channel is restarted */
+#define PRI_EVENT_CONFIG_ERR 	 4	/* Configuration Error Detected */
+#define PRI_EVENT_RING			 5	/* Incoming call */
+#define PRI_EVENT_HANGUP		 6	/* Call got hung up */
+#define PRI_EVENT_RINGING		 7	/* Call is ringing (alerting) */
+#define PRI_EVENT_ANSWER		 8	/* Call has been answered */
+#define PRI_EVENT_HANGUP_ACK	 9	/* Call hangup has been acknowledged */
 #define PRI_EVENT_RESTART_ACK	10	/* Restart complete on a given channel */
-#define PRI_EVENT_FACNAME	11	/* Caller*ID Name received on Facility */
+#define PRI_EVENT_FACNAME		11	/* Caller*ID Name received on Facility */
 #define PRI_EVENT_INFO_RECEIVED 12	/* Additional info (keypad) received */
 #define PRI_EVENT_PROCEEDING	13	/* When we get CALL_PROCEEDING or PROGRESS */
-#define PRI_EVENT_SETUP_ACK	14	/* When we get SETUP_ACKNOWLEDGE */
+#define PRI_EVENT_SETUP_ACK		14	/* When we get SETUP_ACKNOWLEDGE */
 #define PRI_EVENT_HANGUP_REQ	15	/* Requesting the higher layer to hangup */
-#define PRI_EVENT_NOTIFY	16	/* Notification received */
-#define PRI_EVENT_PROGRESS	17	/* When we get CALL_PROCEEDING or PROGRESS */
+#define PRI_EVENT_NOTIFY		16	/* Notification received */
+#define PRI_EVENT_PROGRESS		17	/* When we get CALL_PROCEEDING or PROGRESS */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
 #define PRI_STATE_UP		1
+
+#define PRI_PROGRESS_MASK
+
+/* Progress indicator values */
+#define PRI_PROG_CALL_NOT_E2E_ISDN						(1 << 0)
+#define PRI_PROG_CALLED_NOT_ISDN						(1 << 1)
+#define PRI_PROG_CALLER_NOT_ISDN						(1 << 2)
+#define PRI_PROG_INBAND_AVAILABLE						(1 << 3)
+#define PRI_PROG_DELAY_AT_INTERF						(1 << 4)
+#define PRI_PROG_INTERWORKING_WITH_PUBLIC				(1 << 5)
+#define PRI_PROG_INTERWORKING_NO_RELEASE				(1 << 6)
+#define PRI_PROG_INTERWORKING_NO_RELEASE_PRE_ANSWER		(1 << 7)
+#define PRI_PROG_INTERWORKING_NO_RELEASE_POST_ANSWER	(1 << 8)
 
 /* Numbering plan identifier */
 #define PRI_NPI_UNKNOWN					0x0
@@ -254,6 +267,7 @@ typedef struct pri_event_ringing {
 	int channel;
 	int cref;
 	int progress;
+	int progressmask;
 	q931_call *call;
 } pri_event_ringing;
 
@@ -262,6 +276,7 @@ typedef struct pri_event_answer {
 	int channel;
 	int cref;
 	int progress;
+	int progressmask;
 	q931_call *call;
 } pri_event_answer;
 
@@ -294,6 +309,8 @@ typedef struct pri_event_ring {
 	int complete;				/* Have we seen "Complete" i.e. no more number? */
 	q931_call *call;			/* Opaque call pointer */
 	char callingsubaddr[256];		/* Calling parties subaddress */
+	int progress;
+	int progressmask;
 } pri_event_ring;
 
 typedef struct pri_event_hangup {
@@ -314,6 +331,7 @@ typedef struct pri_event_proceeding {
 	int channel;
 	int cref;
 	int progress;
+	int progressmask;
 	q931_call *call;
 } pri_event_proceeding;
  

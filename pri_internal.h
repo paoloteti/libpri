@@ -132,7 +132,7 @@ struct pri_sr {
 
 struct q931_call {
 	struct pri *pri;	/* PRI */
-	int cr;		/* Call Reference */
+	int cr;				/* Call Reference */
 	int forceinvert;	/* Force inversion of call number even if 0 */
 	q931_call *next;
 	/* Slotmap specified (bitmap of channels 31/24-1) (Channel Identifier IE) (-1 means not specified) */
@@ -146,10 +146,10 @@ struct q931_call {
 	
 	int alive;			/* Whether or not the call is alive */
 	int acked;			/* Whether setup has been acked or not */
-	int sendhangupack;		/* Whether or not to send a hangup ack */
+	int sendhangupack;	/* Whether or not to send a hangup ack */
 	int proc;			/* Whether we've sent a call proceeding / alerting */
 	
-	int ri;			/* Restart Indicator (Restart Indicator IE) */
+	int ri;				/* Restart Indicator (Restart Indicator IE) */
 
 	/* Bearer Capability */
 	int transcapability;
@@ -165,14 +165,15 @@ struct q931_call {
 	int progcode;			/* Progress coding */
 	int progloc;			/* Progress Location */	
 	int progress;			/* Progress indicator */
+	int progressmask;		/* Progress Indicator bitmask */
 	
-	int notify;			/* Notification */
+	int notify;				/* Notification */
 	
 	int causecode;			/* Cause Coding */
 	int causeloc;			/* Cause Location */
 	int cause;				/* Cause of clearing */
 	
-	int peercallstate;			/* Call state of peer as reported */
+	int peercallstate;		/* Call state of peer as reported */
 	int ourcallstate;		/* Our call state */
 	int sugcallstate;		/* Status call state */
 	
@@ -187,7 +188,7 @@ struct q931_call {
 	int nonisdn;
 	char callednum[256];	/* Called Number */
 	int complete;			/* no more digits coming */
-	int newcall;		/* if the received message has a new call reference value */
+	int newcall;			/* if the received message has a new call reference value */
 
 	int retranstimer;		/* Timer for retransmitting DISC */
 	int t308_timedout;		/* Whether t308 timed out once */
