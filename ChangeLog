@@ -1,6 +1,6 @@
 libpri 1.0.6
  -- Dependencies from .depend were valid from static libary only, not dynamic. 'mkdep'
-    has been fixed to support the dynamic library version. (PCadach)
+    has been fixed to support the dynamic library version.
 libpri 1.0.4
  -- Makefile fix for SELinux
 libpri 1.0.3
