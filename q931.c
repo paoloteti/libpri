@@ -1740,7 +1740,7 @@ int q931_hangup(struct pri *pri, q931_call *c, int cause)
 		pri_message("NEW_HANGUP DEBUG: Calling q931_hangup, ourstate %s, peerstate %s\n",callstate2str(c->ourcallstate),callstate2str(c->peercallstate));
 	if (!pri || !c)
 		return -1;
-	if (cause == 34 || cause == 44 || cause == 82) {
+	if (cause == 34 || cause == 44 || cause == 82 || cause == 1) {
 		disconnect = 0;
 		release_compl = 1;
 	}
