@@ -63,6 +63,7 @@
 #define PRI_EVENT_FACNAME	11	/* Caller*ID Name received on Facility */
 #define PRI_EVENT_INFO_RECEIVED 12	/* Additional info (keypad) received */
 #define PRI_EVENT_PROCEEDING	13	/* When we get CALL_PROCEEDING or PROGRESS */
+#define PRI_EVENT_SETUP_ACK	14	/* When we get SETUP_ACKNOWLEDGE */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
@@ -253,6 +254,10 @@ typedef struct pri_event_proceeding {
 	int channel;
 } pri_event_proceeding;
  
+typedef struct pri_event_setup_ack {
+	int e;
+	int channel;
+} pri_event_setup_ack;
 
 typedef union {
 	int e;
@@ -266,6 +271,7 @@ typedef union {
 	pri_event_ringing answer;	/* Answer */
 	pri_event_restart_ack restartack;	/* Restart Acknowledge */
 	pri_event_proceeding  proceeding;	/* Call proceeding & Progress */
+	pri_event_setup_ack   setup_ack;	/* SETUP_ACKNOWLEDGE structure */
 } pri_event;
 
 struct pri;

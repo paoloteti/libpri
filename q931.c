@@ -1991,7 +1991,9 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		break;
 	case Q931_SETUP_ACKNOWLEDGE:
 		c->ourcallstate = Q931_CALL_STATE_OVERLAP_SENDING;
-		break;
+		pri->ev.e = PRI_EVENT_SETUP_ACK;
+		pri->ev.setup_ack.channel = c->channelno;
+		return Q931_RES_HAVEEVENT;
 	case Q931_USER_INFORMATION:
 	case Q931_SEGMENT:
 	case Q931_CONGESTION_CONTROL:
