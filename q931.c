@@ -1662,7 +1662,7 @@ struct ie ies[] = {
 	{ Q931_IE_CHANGE_STATUS, "Change Status" },
 	{ Q931_IE_CONNECTED_ADDR, "Connected Number", dump_connected_number },
 	{ Q931_IE_CONNECTED_NUM, "Connected Number", dump_connected_number },
-	{ Q931_IE_ORIGINAL_CALLED_NUMBER, "Original Called Number" },
+	{ Q931_IE_ORIGINAL_CALLED_NUMBER, "Original Called Number", dump_redirecting_number, receive_redirecting_number, transmit_redirecting_number },
 	{ Q931_IE_USER_USER_FACILITY, "User-User Facility" },
 	{ Q931_IE_UPDATE, "Update" },
 	{ Q931_SENDING_COMPLETE, "Sending Complete", dump_sending_complete, receive_sending_complete, transmit_sending_complete },
