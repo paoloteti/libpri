@@ -481,7 +481,47 @@ extern void pri_enslave(struct pri *master, struct pri *slave);
 #define PRI_ENSLAVE_SUPPORT
 #define PRI_SETUP_CALL
 #define PRI_RECEIVE_SUBADDR
-#endif
 
 /* Send notification */
 extern int pri_notify(struct pri *pri, q931_call *c, int channel, int info);
+
+/* Get/Set PRI Timers  */
+#define PRI_GETSET_TIMERS
+extern int pri_set_timer(struct pri *pri, int timer, int value);
+extern int pri_get_timer(struct pri *pri, int timer);
+extern int pri_timer2idx(char *timer);
+
+#define PRI_MAX_TIMERS 32
+
+#define PRI_TIMER_N200	0	/* Maximum numer of q921 retransmissions */
+#define PRI_TIMER_N201	1	/* Maximum numer of octets in an information field */
+#define PRI_TIMER_N202	2	/* Maximum numer of transmissions of the TEI identity request message */
+#define PRI_TIMER_K	3	/* Maximum number of outstanding I-frames */
+
+#define PRI_TIMER_T200	4	/* time between SABME's */
+#define PRI_TIMER_T201	5	/* minimum time between retransmissions of the TEI Identity check messages */
+#define PRI_TIMER_T202	6	/* minimum time between transmission of TEI Identity request messages */
+#define PRI_TIMER_T203	7	/* maxiumum time without exchanging packets */
+
+#define PRI_TIMER_T300	8	
+#define PRI_TIMER_T301	9	/* maximum time to respond to an ALERT */
+#define PRI_TIMER_T302	10
+#define PRI_TIMER_T303	11	/* maximum time to wait after sending a SETUP without a response */
+#define PRI_TIMER_T304	12
+#define PRI_TIMER_T305	13
+#define PRI_TIMER_T306	14
+#define PRI_TIMER_T307	15
+#define PRI_TIMER_T308	16
+#define PRI_TIMER_T309	17
+#define PRI_TIMER_T310	18	/* maximum time between receiving a CALLPROCEEDING and receiving a ALERT/CONNECT/DISCONNECT/PROGRESS */
+#define PRI_TIMER_T313	19
+#define PRI_TIMER_T314	20
+#define PRI_TIMER_T316	21	/* maximum time between transmitting a RESTART and receiving a RESTART ACK */
+#define PRI_TIMER_T317	22
+#define PRI_TIMER_T318	23
+#define PRI_TIMER_T319	24
+#define PRI_TIMER_T320	25
+#define PRI_TIMER_T321	26
+#define PRI_TIMER_T322	27
+
+#endif

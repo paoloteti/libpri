@@ -40,6 +40,8 @@ enum q931_mode;
 /* No more than 128 scheduled events */
 #define MAX_SCHED 128
 
+#define MAX_TIMERS 32
+
 struct pri {
 	int fd;				/* File descriptor for D-Channel */
 	struct pri *subchannel;	/* Sub-channel if appropriate */
@@ -76,7 +78,9 @@ struct pri {
 	int sabme_timer;	/* SABME retransmit */
 	int t203_timer;		/* Max idle time */
 	int t200_timer;		/* T-200 retransmission timer */
-	
+	/* All ISDN Timer values */
+	int timers[MAX_TIMERS];
+
 	/* Used by scheduler */
 	struct timeval tv;
 	int schedev;

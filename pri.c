@@ -23,6 +23,7 @@
 #include "pri_internal.h"
 #include "pri_q921.h"
 #include "pri_q931.h"
+#include "pri_timers.h"
 
 char *pri_node2str(int node)
 {
@@ -62,6 +63,92 @@ char *pri_switch2str(int sw)
 	}
 }
 
+static void pri_default_timers(struct pri *pri, int switchtype)
+{
+	int defaulttimers[20][PRI_MAX_TIMERS] = PRI_TIMERS_ALL;
+	int x;
+
+	for (x = 0; x<PRI_MAX_TIMERS; x++) {
+		pri->timers[x] = defaulttimers[switchtype][x];
+	}
+}
+
+int pri_set_timer(struct pri *pri, int timer, int value)
+{
+	if (timer < 0 || timer > PRI_MAX_TIMERS || value < 0)
+		return -1;
+
+	pri->timers[timer] = value;
+	return 0;
+}
+
+int pri_get_timer(struct pri *pri, int timer)
+{
+	if (timer < 0 || timer > PRI_MAX_TIMERS)
+		return -1;
+	return pri->timers[timer];
+}
+
+int pri_timer2idx(char *timer)
+{
+	if (!strcasecmp(timer, "N200"))
+		return PRI_TIMER_N200;
+	else if (!strcasecmp(timer, "N201"))
+		return PRI_TIMER_N201;
+	else if (!strcasecmp(timer, "N202"))
+		return PRI_TIMER_N202;
+	else if (!strcasecmp(timer, "K"))
+		return PRI_TIMER_K;
+	else if (!strcasecmp(timer, "T200"))
+		return PRI_TIMER_T200;
+	else if (!strcasecmp(timer, "T202"))
+		return PRI_TIMER_T202;
+	else if (!strcasecmp(timer, "T203"))
+		return PRI_TIMER_T203;
+	else if (!strcasecmp(timer, "T300"))
+		return PRI_TIMER_T300;
+	else if (!strcasecmp(timer, "T301"))
+		return PRI_TIMER_T301;
+	else if (!strcasecmp(timer, "T302"))
+		return PRI_TIMER_T302;
+	else if (!strcasecmp(timer, "T303"))
+		return PRI_TIMER_T303;
+	else if (!strcasecmp(timer, "T304"))
+		return PRI_TIMER_T304;
+	else if (!strcasecmp(timer, "T305"))
+		return PRI_TIMER_T305;
+	else if (!strcasecmp(timer, "T306"))
+		return PRI_TIMER_T306;
+	else if (!strcasecmp(timer, "T307"))
+		return PRI_TIMER_T307;
+	else if (!strcasecmp(timer, "T308"))
+		return PRI_TIMER_T308;
+	else if (!strcasecmp(timer, "T309"))
+		return PRI_TIMER_T309;
+	else if (!strcasecmp(timer, "T310"))
+		return PRI_TIMER_T310;
+	else if (!strcasecmp(timer, "T313"))
+		return PRI_TIMER_T313;
+	else if (!strcasecmp(timer, "T314"))
+		return PRI_TIMER_T314;
+	else if (!strcasecmp(timer, "T316"))
+		return PRI_TIMER_T316;
+	else if (!strcasecmp(timer, "T317"))
+		return PRI_TIMER_T317;
+	else if (!strcasecmp(timer, "T318"))
+		return PRI_TIMER_T318;
+	else if (!strcasecmp(timer, "T319"))
+		return PRI_TIMER_T319;
+	else if (!strcasecmp(timer, "T320"))
+		return PRI_TIMER_T320;
+	else if (!strcasecmp(timer, "T321"))
+		return PRI_TIMER_T321;
+	else if (!strcasecmp(timer, "T322"))
+		return PRI_TIMER_T322;
+	else
+		return -1;
+}
+
 static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *master)
 {
 	struct pri *p;
@@ -78,6 +165,7 @@ static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *maste
 		p->protodisc = Q931_PROTOCOL_DISCRIMINATOR;
 		p->master = master;
 		p->callpool = &p->localpool;
+		pri_default_timers(p, switchtype);
 #ifdef LIBPRI_COUNTERS
 		p->q921_rxcount = 0;
 		p->q921_txcount = 0;
@@ -474,6 +562,12 @@ void pri_dump_info(struct pri *pri)
 	pri_message("Retrans: %d\n", pri->retrans);
 	pri_message("Busy: %d\n", pri->busy);
 	pri_message("Overlap Dial: %d\n", pri->overlapdial);
+	pri_message("T200 Timer: %d\n", pri->timers[PRI_TIMER_T200]);
+	pri_message("T203 Timer: %d\n", pri->timers[PRI_TIMER_T203]);
+	pri_message("T305 Timer: %d\n", pri->timers[PRI_TIMER_T305]);
+	pri_message("T308 Timer: %d\n", pri->timers[PRI_TIMER_T308]);
+	pri_message("T313 Timer: %d\n", pri->timers[PRI_TIMER_T313]);
+	pri_message("N200 Counter: %d\n", pri->timers[PRI_TIMER_N200]);
 }
 
 int pri_get_crv(struct pri *pri, q931_call *call, int *callmode)
@@ -537,3 +631,4 @@ int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int cal
 	sr->callerpres = callerpres;
 	return 0;
 }
+

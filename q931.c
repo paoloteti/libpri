@@ -201,10 +201,6 @@ struct msgtype facilities[] = {
 #define LOC_INTERNATIONAL_NETWORK	0x7
 #define LOC_NETWORK_BEYOND_INTERWORKING	0xa
 
-#define T_308			4000
-#define T_305			30000
-#define T_313			4000
-
 struct q931_call {
 	struct pri *pri;	/* PRI */
 	int cr;		/* Call Reference */
@@ -2114,7 +2110,7 @@ int q931_connect(struct pri *pri, q931_call *c, int channel, int nonisdn)
 		pri_schedule_del(pri, c->retranstimer);
 	c->retranstimer = 0;
 	if ((pri->localtype == PRI_CPE) && (!pri->subchannel))
-		c->retranstimer = pri_schedule_event(pri, T_313, pri_connect_timeout, c);
+		c->retranstimer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T313], pri_connect_timeout, c);
 	return send_message(pri, c, Q931_CONNECT, connect_ies);
 }
 
@@ -2133,9 +2129,9 @@ int q931_release(struct pri *pri, q931_call *c, int cause)
 			if (c->retranstimer)
 				pri_schedule_del(pri, c->retranstimer);
 			if (!c->t308_timedout) {
-				c->retranstimer = pri_schedule_event(pri, T_308, pri_release_timeout, c);
+				c->retranstimer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T308], pri_release_timeout, c);
 			} else {
-				c->retranstimer = pri_schedule_event(pri, T_308, pri_release_finaltimeout, c);
+				c->retranstimer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T308], pri_release_finaltimeout, c);
 			}
 			return send_message(pri, c, Q931_RELEASE, release_ies);
 		} else
@@ -2179,7 +2175,7 @@ int q931_disconnect(struct pri *pri, q931_call *c, int cause)
 		c->sendhangupack = 1;
 		if (c->retranstimer)
 			pri_schedule_del(pri, c->retranstimer);
-		c->retranstimer = pri_schedule_event(pri, T_305, pri_disconnect_timeout, c);
+		c->retranstimer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T305], pri_disconnect_timeout, c);
 		return send_message(pri, c, Q931_DISCONNECT, disconnect_ies);
 	} else
 		return 0;

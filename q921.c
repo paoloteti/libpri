@@ -123,7 +123,7 @@ static void q921_send_sabme(void *vpri, int now)
 	q921_h h;
 	pri_schedule_del(pri, pri->sabme_timer);
 	pri->sabme_timer = 0;
-	pri->sabme_timer = pri_schedule_event(pri, T_200, q921_send_sabme_now, pri);
+	pri->sabme_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], q921_send_sabme_now, pri);
 	if (!now)
 		return;
 	Q921_INIT(pri, h);
@@ -208,7 +208,7 @@ static void reschedule_t203(struct pri *pri)
 		if (pri->debug &  PRI_DEBUG_Q921_STATE)
 			pri_message("-- Restarting T203 counter\n");
 		/* Nothing to transmit, start the T203 counter instead */
-		pri->t203_timer = pri_schedule_event(pri, T_203, t203_expire, pri);
+		pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
 	}
 }
 
@@ -250,12 +250,12 @@ static pri_event *q921_ack_rx(struct pri *pri, int ack)
 		if (pri->debug &  PRI_DEBUG_Q921_STATE)
 			pri_message("-- Something left to transmit (%d), restarting T200 counter\n", pri->txqueue->h.n_s);
 		if (!pri->t200_timer)
-			pri->t200_timer = pri_schedule_event(pri, T_200, t200_expire, pri);
+			pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
 	} else {
 		if (pri->debug &  PRI_DEBUG_Q921_STATE)
 			pri_message("-- Nothing left, starting T203 counter\n");
 		/* Nothing to transmit, start the T203 counter instead */
-		pri->t203_timer = pri_schedule_event(pri, T_203, t203_expire, pri);
+		pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
 	}
 	return NULL;
 }
@@ -332,7 +332,7 @@ static void t200_expire(void *vpri)
 		pri->solicitfbit = 1;
 		pri->retrans++;
       /* Up to three retransmissions */
-      if (pri->retrans < N_200) {
+      if (pri->retrans < pri->timers[PRI_TIMER_N200]) {
          /* Reschedule t200_timer */
          if (pri->debug & PRI_DEBUG_Q921_STATE)
             pri_message("-- Retransmitting %d bytes\n", pri->txqueue->len);
@@ -345,7 +345,7 @@ static void t200_expire(void *vpri)
 		}
          if (pri->debug & PRI_DEBUG_Q921_STATE) 
                pri_message("-- Rescheduling retransmission (%d)\n", pri->retrans);
-         pri->t200_timer = pri_schedule_event(pri, T_200, t200_expire, pri);
+         pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
       } else {
          if (pri->debug & PRI_DEBUG_Q921_STATE) 
                pri_message("-- Timeout occured, restarting PRI\n");
@@ -359,10 +359,10 @@ static void t200_expire(void *vpri)
          if (pri->debug & PRI_DEBUG_Q921_STATE)
             pri_message("-- Retrying poll with f-bit\n");
 		pri->retrans++;
-		if (pri->retrans < N_200) {
+		if (pri->retrans < pri->timers[PRI_TIMER_N200]) {
 			pri->solicitfbit = 1;
 			q921_rr(pri, 1, 1);
-			pri->t200_timer = pri_schedule_event(pri, T_200, t200_expire, pri);
+			pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
 		} else {
 			if (pri->debug & PRI_DEBUG_Q921_STATE) 
 				pri_message("-- Timeout occured, restarting PRI\n");
@@ -436,7 +436,7 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 		if (!pri->t200_timer) {
 			if (pri->debug & PRI_DEBUG_Q921_STATE)
 				pri_message("Starting T_200 timer\n");
-			pri->t200_timer = pri_schedule_event(pri, T_200, t200_expire, pri);
+			pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
 		} else
 			if (pri->debug & PRI_DEBUG_Q921_STATE)
 				pri_message("T_200 timer already going (%d)\n", pri->t200_timer);
@@ -459,7 +459,7 @@ static void t203_expire(void *vpri)
 		pri->retrans = 0;
 		q921_rr(pri, 1, 1);
 		/* Start timer T200 to resend our RR if we don't get it */
-		pri->t203_timer = pri_schedule_event(pri, T_200, t200_expire, pri);
+		pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
 	} else {
 		if (pri->debug &  PRI_DEBUG_Q921_STATE)
 			pri_message("T203 counter expired in weird state %d\n", pri->q921_state);
@@ -656,7 +656,7 @@ static pri_event *q921_dchannel_up(struct pri *pri)
 	pri->q921_state = Q921_LINK_CONNECTION_ESTABLISHED;
 
 	/* Start the T203 timer */
-	pri->t203_timer = pri_schedule_event(pri, T_203, t203_expire, pri);
+	pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
 	
 	/* Report event that D-Channel is now up */
 	pri->ev.gen.e = PRI_EVENT_DCHAN_UP;
@@ -680,7 +680,7 @@ void q921_reset(struct pri *pri)
 	pri->v_a = 0;
 	pri->v_r = 0;
 	pri->v_na = 0;
-	pri->window = 7;
+	pri->window = pri->timers[PRI_TIMER_K];
 	pri->windowlen = 0;
 	pri_schedule_del(pri, pri->sabme_timer);
 	pri_schedule_del(pri, pri->t203_timer);
@@ -797,7 +797,7 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
                      /* Reset and restart t203 timer */
                      if (pri->t203_timer)
                            pri_schedule_del(pri, pri->t203_timer);
-                     pri->t203_timer = pri_schedule_event(pri, T_203, t203_expire, pri);
+                     pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
                }
          }
          break;
