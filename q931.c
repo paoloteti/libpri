@@ -1965,8 +1965,10 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.hangup.cref = c->cr;
 		pri->ev.hangup.cause = c->cause;
 		pri->ev.hangup.call = c;
+#if 0		/* Require the user app to call release */
 		/* Send a release with no cause */
 		q931_release(pri, c, -1);
+#endif
 		return Q931_RES_HAVEEVENT;
 	case Q931_RESTART_ACKNOWLEDGE:
 		c->ourcallstate = Q931_CALL_STATE_NULL;
