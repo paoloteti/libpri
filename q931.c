@@ -843,7 +843,11 @@ static int transmit_calling_party_number(struct pri *pri, q931_call *call, int m
 
 static void dump_user_user(q931_ie *ie, int len, char prefix)
 {
-
+	int x;
+	pri_message("%c User-User Information (len=%2d) [ ", prefix, ie->len);
+	for (x=0;x<ie->len;x++)
+		pri_message("%c", ie->data[x] & 0x7f);
+	pri_message(" ]\n");
 }
 
 
