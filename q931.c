@@ -1882,8 +1882,6 @@ int q931_call_progress(struct pri *pri, q931_call *c, int channel, int info)
 		channel &= 0xff;
 		c->channelno = channel;		
 	}
-	c->ourcallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
-	c->peercallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
 	if (info) {
 		c->progloc = LOC_PRIV_NET_LOCAL_USER;
 		c->progcode = CODE_CCITT;
