@@ -124,6 +124,79 @@ struct pri_sr {
 #define PRI_SWITCH_GR303_EOC_PATH	10
 #define PRI_SWITCH_GR303_TMC_SWITCHING	11
 
+/* q931_call datastructure */
+
+struct q931_call {
+	struct pri *pri;	/* PRI */
+	int cr;		/* Call Reference */
+	int forceinvert;	/* Force inversion of call number even if 0 */
+	q931_call *next;
+	/* Slotmap specified (bitmap of channels 31/24-1) (Channel Identifier IE) (-1 means not specified) */
+	int slotmap;
+	/* An explicit channel (Channel Identifier IE) (-1 means not specified) */
+	int channelno;
+	/* An explicit DS1 (-1 means not specified) */
+	int ds1no;
+	/* Channel flags (0 means none retrieved) */
+	int chanflags;
+	
+	int alive;			/* Whether or not the call is alive */
+	int acked;			/* Whether setup has been acked or not */
+	int sendhangupack;		/* Whether or not to send a hangup ack */
+	int proc;			/* Whether we've sent a call proceeding / alerting */
+	
+	int ri;			/* Restart Indicator (Restart Indicator IE) */
+
+	/* Bearer Capability */
+	int transcapability;
+	int transmoderate;
+	int transmultiple;
+	int userl1;
+	int userl2;
+	int userl3;
+	int rateadaption;
+	
+	int sentchannel;
+
+	int progcode;			/* Progress coding */
+	int progloc;			/* Progress Location */	
+	int progress;			/* Progress indicator */
+	
+	int notify;			/* Notification */
+	
+	int causecode;			/* Cause Coding */
+	int causeloc;			/* Cause Location */
+	int cause;				/* Cause of clearing */
+	
+	int peercallstate;			/* Call state of peer as reported */
+	int ourcallstate;		/* Our call state */
+	int sugcallstate;		/* Status call state */
+	
+	int callerplan;
+	int callerpres;			/* Caller presentation */
+	char callernum[256];	/* Caller */
+	char callername[256];
+
+	int ani2;               /* ANI II */
+	
+	int  calledplan;
+	int nonisdn;
+	char callednum[256];	/* Called Number */
+	int complete;			/* no more digits coming */
+	int newcall;		/* if the received message has a new call reference value */
+
+	int retranstimer;		/* Timer for retransmitting DISC */
+	int t308_timedout;		/* Whether t308 timed out once */
+	int redirectingplan;
+	int redirectingpres;
+	int redirectingreason;	      
+	char redirectingnum[256];
+
+        int useruserprotocoldisc;
+	char useruserinfo[256];
+	char callingsubaddr[256];	/* Calling parties sub address */
+};
+
 extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);
 
 extern pri_event *pri_schedule_run(struct pri *pri);

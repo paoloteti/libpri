@@ -34,8 +34,8 @@ TOBJS=testpri.o
 T2OBJS=testprilib.o
 STATIC_LIBRARY=libpri.a
 DYNAMIC_LIBRARY=libpri.so.1.0
-STATIC_OBJS=pri.o q921.o prisched.o q931.o
-DYNAMIC_OBJS=pri.lo q921.lo prisched.lo q931.lo
+STATIC_OBJS=pri.o q921.o prisched.o q931.o pri_facility.o
+DYNAMIC_OBJS=pri.lo q921.lo prisched.lo q931.lo pri_facility.lo
 CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g $(ALERTING) $(LIBPRI_COUNTERS)
 INSTALL_PREFIX=
 ifeq (${OSARCH},Linux)

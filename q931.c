@@ -26,6 +26,7 @@
 #include "pri_internal.h"
 #include "pri_q921.h"
 #include "pri_q931.h"
+#include "pri_facility.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -201,76 +202,6 @@ struct msgtype facilities[] = {
 #define LOC_INTERNATIONAL_NETWORK	0x7
 #define LOC_NETWORK_BEYOND_INTERWORKING	0xa
 
-struct q931_call {
-	struct pri *pri;	/* PRI */
-	int cr;		/* Call Reference */
-	int forceinvert;	/* Force inversion of call number even if 0 */
-	q931_call *next;
-	/* Slotmap specified (bitmap of channels 31/24-1) (Channel Identifier IE) (-1 means not specified) */
-	int slotmap;
-	/* An explicit channel (Channel Identifier IE) (-1 means not specified) */
-	int channelno;
-	/* An explicit DS1 (-1 means not specified) */
-	int ds1no;
-	/* Channel flags (0 means none retrieved) */
-	int chanflags;
-	
-	int alive;			/* Whether or not the call is alive */
-	int acked;			/* Whether setup has been acked or not */
-	int sendhangupack;		/* Whether or not to send a hangup ack */
-	int proc;			/* Whether we've sent a call proceeding / alerting */
-	
-	int ri;			/* Restart Indicator (Restart Indicator IE) */
-
-	/* Bearer Capability */
-	int transcapability;
-	int transmoderate;
-	int transmultiple;
-	int userl1;
-	int userl2;
-	int userl3;
-	int rateadaption;
-	
-	int sentchannel;
-
-	int progcode;			/* Progress coding */
-	int progloc;			/* Progress Location */	
-	int progress;			/* Progress indicator */
-	
-	int notify;			/* Notification */
-	
-	int causecode;			/* Cause Coding */
-	int causeloc;			/* Cause Location */
-	int cause;				/* Cause of clearing */
-	
-	int peercallstate;			/* Call state of peer as reported */
-	int ourcallstate;		/* Our call state */
-	int sugcallstate;		/* Status call state */
-	
-	int callerplan;
-	int callerpres;			/* Caller presentation */
-	char callernum[256];	/* Caller */
-	char callername[256];
-
-	int ani2;               /* ANI II */
-	
-	int  calledplan;
-	int nonisdn;
-	char callednum[256];	/* Called Number */
-	int complete;			/* no more digits coming */
-	int newcall;		/* if the received message has a new call reference value */
-
-	int retranstimer;		/* Timer for retransmitting DISC */
-	int t308_timedout;		/* Whether t308 timed out once */
-	int redirectingplan;
-	int redirectingpres;
-	int redirectingreason;	      
-	char redirectingnum[256];
-
-        int useruserprotocoldisc;
-	char useruserinfo[256];
-	char callingsubaddr[256];	/* Calling parties sub address */
-};
 
 #define FUNC_DUMP(name) void ((name))(int full_ie, q931_ie *ie, int len, char prefix)
 #define FUNC_RECV(name) int ((name))(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
@@ -1053,15 +984,94 @@ static FUNC_RECV(receive_progress_indicator)
 	return 0;
 }
 
+static FUNC_SEND(transmit_facility)
+{
+	int i = 0;
+	struct rose_component *comp;
+	unsigned char namelen = strlen(call->callername);
+
+	if ((pri->switchtype == PRI_SWITCH_QSIG)
+		|| (pri->switchtype == PRI_SWITCH_ATT4ESS)
+		|| (pri->switchtype == PRI_SWITCH_NI2)) {
+		ie->data[i] = ROSE_NETWORK_EXTENSION;
+		i++;
+		/* Interpretation component */
+		comp = (struct rose_component*)&ie->data[i];
+		comp->type = COMP_TYPE_INTERPRETATION;
+		comp->len = 0x01;
+		comp->data[0] = 0x00; /* Discard unrecognized invokes */
+
+		i += 3;
+		comp = (struct rose_component*)&ie->data[i];
+		/* Invoke ID */
+		comp->type = COMP_TYPE_INVOKE;
+		comp->len = 3 /* sizeof Invoke ID */
+			+ 3 /* sizeof Operation tag */
+			+ 2 /* first two bytes of the Arguement section */
+			+ namelen;
+
+		i += 2;
+		comp = (struct rose_component*)&ie->data[i];
+		/* Invoke component contents */
+		/*	Invoke ID */
+		comp->type = ASN1_INTEGER;
+		comp->len = 0x01;
+		comp->data[0] = 0x01; /* Invoke ID value */
+		i += 3;
+		comp = (struct rose_component*)&ie->data[i];
+		/*	Operation Tag */
+		comp->type = ASN1_INTEGER;
+		comp->len = 0x01;
+		comp->data[0] = 0x00; /* Calling name */
+		i += 3;
+		comp = (struct rose_component*)&ie->data[i];
+		/* Arugement Tag */
+		comp->type = ROSE_NAME_PRESENTATION_ALLOWED_SIMPLE;
+		comp->len = namelen;
+		i += 2;
+		memcpy(comp->data, call->callername, namelen);
+		i += namelen;
+		return i+2 /* 2 = length of IE header */;
+	}
+
+	return 0;
+}
+
 static FUNC_RECV(receive_facility)
 {
-	if (ie->len < 14) {
-		pri_error("!! Facility message shorter than 14 bytes\n");
-		return 0;
+	int i = 0;
+	struct rose_component *comp = NULL;
+
+	if (ie->len < 1)
+		return -1;
+
+	if(ie->data[i] != 0x9F) {
+		if (pri->debug) pri_message("!! Don't know how to handle Service Discriminator of type 0x%X\n", ie->data[i]);
+		return -1;
 	}
-	if (ie->data[13] + 14 == ie->len) {
-		q931_get_number(call->callername, sizeof(call->callername) - 1, ie->data + 14, ie->len - 14);
-	} 
+	i++;
+
+	if (ie->len < 3)
+		return -1;
+	
+	while ((i+1 < ie->len) && (&ie->data[i])) {
+		comp = (struct rose_component*)&ie->data[i];
+		if (comp->type) {
+			switch (comp->type) {
+				case COMP_TYPE_INTERPRETATION:
+					if (pri->debug) pri_message("Handle ROSE interpretation component\n");
+					break;
+				case COMP_TYPE_INVOKE:
+					rose_invoke_decode(call, comp->data, comp->len);
+					break;
+				default:
+					if (pri->debug) pri_message("Don't know how to handle ROSE component of type 0x%X\n", comp->type);
+					break;
+			}
+		}
+		i += (comp->len + 2);
+	}
+
 	return 0;
 }
 
@@ -1457,7 +1467,7 @@ struct ie ies[] = {
 	{ Q931_LOW_LAYER_COMPAT, "Low-layer Compatibility" },
 	{ Q931_HIGH_LAYER_COMPAT, "High-layer Compatibility" },
 	{ Q931_PACKET_SIZE, "Packet Size" },
-	{ Q931_IE_FACILITY, "Facility" , dump_facility, receive_facility },
+	{ Q931_IE_FACILITY, "Facility" , dump_facility, receive_facility, transmit_facility },
 	{ Q931_IE_REDIRECTION_NUMBER, "Redirection Number" },
 	{ Q931_IE_REDIRECTION_SUBADDR, "Redirection Subaddress" },
 	{ Q931_IE_FEATURE_ACTIVATE, "Feature Activation" },
@@ -1483,7 +1493,7 @@ struct ie ies[] = {
 	{ Q931_IE_UPDATE, "Update" },
 	{ Q931_SENDING_COMPLETE, "Sending Complete", dump_sending_complete, receive_sending_complete, transmit_sending_complete },
 	/* Codeset 6 - Network specific */
-	{ Q931_IE_FACILITY | Q931_CODESET(6), "Facility", dump_facility, receive_facility },
+	{ Q931_IE_FACILITY | Q931_CODESET(6), "Facility", dump_facility, receive_facility, transmit_facility },
 	{ Q931_IE_ORIGINATING_LINE_INFO, "Originating Line Information", dump_line_information, receive_line_information, transmit_line_information },
 	/* Codeset 7 */
 };
@@ -2182,7 +2192,7 @@ int q931_disconnect(struct pri *pri, q931_call *c, int cause)
 		return 0;
 }
 
-static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR, Q931_NETWORK_SPEC_FAC, Q931_DISPLAY,
+static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_IE_FACILITY, Q931_PROGRESS_INDICATOR, Q931_NETWORK_SPEC_FAC, Q931_DISPLAY,
 	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_SENDING_COMPLETE, Q931_IE_ORIGINATING_LINE_INFO, -1 };
 
 static int gr303_setup_ies[] =  { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, -1 };

@@ -58,6 +58,8 @@ char *pri_switch2str(int sw)
 		return "GR303 EOC";
 	case PRI_SWITCH_GR303_TMC:
 		return "GR303 TMC";
+	case PRI_SWITCH_QSIG:
+		return "Q.SIG switch";
 	default:
 		return "Unknown switchtype";
 	}
