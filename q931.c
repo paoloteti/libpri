@@ -754,6 +754,7 @@ char *pri_pres2str(int pres)
 		{ PRES_PROHIB_USER_NUMBER_PASSED_SCREEN, "Presentation prohibited, user number passed network screening" },
 		{ PRES_PROHIB_USER_NUMBER_FAILED_SCREEN, "Presentation prohibited, user number failed network screening" },
 		{ PRES_PROHIB_NETWORK_NUMBER, "Presentation prohibited of network provided number" },
+		{ PRES_NUMBER_NOT_AVAILABLE, "Number not available" },
 	};
 	return code2str(pres, press, sizeof(press) / sizeof(press[0]));
 }
