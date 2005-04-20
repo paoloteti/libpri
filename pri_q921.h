@@ -78,7 +78,7 @@ typedef struct q921_header {
 	u_int8_t	tei:7;		/* Terminal Endpoint Identifier (0) */
 #endif
 	u_int8_t	data[0];	/* Further data */
-} q921_header;
+} __attribute__ ((packed)) q921_header;
 
 /* A Supervisory Format frame */
 typedef struct q921_s {
@@ -98,7 +98,7 @@ typedef struct q921_s {
 #endif
 	u_int8_t data[0];		/* Any further data */
 	u_int8_t fcs[2];		/* At least an FCS */
-} q921_s;
+} __attribute__ ((packed)) q921_s;
 
 /* An Unnumbered Format frame */
 typedef struct q921_u {
@@ -116,7 +116,7 @@ typedef struct q921_u {
 #endif
 	u_int8_t data[0];		/* Any further data */
 	u_int8_t fcs[2];		/* At least an FCS */
-} q921_u;
+} __attribute__ ((packed)) q921_u;
 
 /* An Information frame */
 typedef struct q921_i {

@@ -81,7 +81,7 @@ typedef struct q931_h {
 #endif
 	u_int8_t contents[0];
 	u_int8_t crv[3];
-} q931_h;
+} __attribute__ ((packed)) q931_h;
 
 
 /* Message type header */
@@ -94,14 +94,14 @@ typedef struct q931_mh {
 	u_int8_t f:1;
 #endif
 	u_int8_t data[0];
-} q931_mh;
+} __attribute__ ((packed)) q931_mh;
 
 /* Information element format */
 typedef struct q931_ie {
 	u_int8_t ie;
 	u_int8_t len;
 	u_int8_t data[0];
-} q931_ie;
+} __attribute__ ((packed)) q931_ie;
 
 #define Q931_RES_HAVEEVENT (1 << 0)
 #define Q931_RES_INERRROR  (1 << 1)
