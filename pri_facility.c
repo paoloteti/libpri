@@ -641,6 +641,7 @@ static int add_callername_facility_ies(struct pri *pri, q931_call *c, int cpe)
 	unsigned char namelen = 0;
 	struct rose_component *comp = NULL, *compstk[10];
 	int compsp = 0;
+	int mymessage = 0;
 	static unsigned char op_tag[] = { 
 		0x2a, /* informationFollowing 42 */
 		0x86,
@@ -722,7 +723,12 @@ static int add_callername_facility_ies(struct pri *pri, q931_call *c, int cpe)
 	i += res;
 	ASN1_FIXUP(compstk, compsp, buffer, i);
 
-	if (pri_call_apdu_queue(c, Q931_FACILITY, buffer, i, NULL, NULL))
+	if (cpe) 
+		mymessage = Q931_SETUP;
+	else
+		mymessage = Q931_FACILITY;
+
+	if (pri_call_apdu_queue(c, mymessage, buffer, i, NULL, NULL))
 		return -1;
 	
 	return 0;
