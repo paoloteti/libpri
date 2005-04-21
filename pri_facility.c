@@ -633,7 +633,7 @@ static int rose_diverting_leg_information2_encode(struct pri *pri, q931_call *ca
 }
 
 /* Sending callername information functions */
-static int add_callername_facility_ies(struct pri *pri, q931_call *c)
+static int add_callername_facility_ies(struct pri *pri, q931_call *c, int cpe)
 {
 	int res = 0;
 	int i = 0;
@@ -680,8 +680,10 @@ static int add_callername_facility_ies(struct pri *pri, q931_call *c)
 	ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, buffer, i, 0);
 	ASN1_FIXUP(compstk, compsp, buffer, i);
 
-	if (pri_call_apdu_queue(c, Q931_SETUP, buffer, i, NULL, NULL))
-		return -1;
+	if (!cpe) {
+		if (pri_call_apdu_queue(c, Q931_SETUP, buffer, i, NULL, NULL))
+			return -1;
+	}
 
 
 	/* Now the ADPu that contains the information that needs sent.
@@ -716,7 +718,7 @@ static int add_callername_facility_ies(struct pri *pri, q931_call *c)
 
 	res = asn1_string_encode((ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0), &buffer[i], sizeof(buffer)-i,  50, c->callername, namelen);
 	if (res < 0)
-	  return -1;
+		return -1;
 	i += res;
 	ASN1_FIXUP(compstk, compsp, buffer, i);
 
@@ -1236,12 +1238,21 @@ extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call)
 	if (pri->localtype == PRI_NETWORK) {
 		switch (pri->switchtype) {
 			case PRI_SWITCH_NI2:
-				add_callername_facility_ies(pri, call);
+				add_callername_facility_ies(pri, call, 0);
+				break;
+			default:
+				break;
+		}
+	} else if (pri->localtype == PRI_CPE) {
+		switch (pri->switchtype) {
+			case PRI_SWITCH_NI2:
+				add_callername_facility_ies(pri, call, 1);
 				break;
 			default:
 				break;
 		}
 	}
+
 	return 0;
 }
 
