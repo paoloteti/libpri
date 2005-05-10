@@ -391,6 +391,15 @@ void pri_set_debug(struct pri *pri, int debug)
 		pri_set_debug(pri->subchannel, debug);
 }
 
+int pri_get_debug(struct pri *pri)
+{
+	if (!pri)
+		return -1;
+	if (pri->subchannel)
+		return pri_get_debug(pri->subchannel);
+	return pri->debug;
+}
+
 int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info)
 {
 	if (!pri || !call)

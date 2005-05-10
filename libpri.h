@@ -408,6 +408,9 @@ extern void pri_set_nsf(struct pri *pri, int nsf);
 /* Set debug parameters on PRI -- see above debug definitions */
 extern void pri_set_debug(struct pri *pri, int debug);
 
+/* Get debug parameters on PRI -- see above debug definitions */
+extern int pri_get_debug(struct pri *pri);
+
 /* Run PRI on the given D-channel, taking care of any events that
    need to be handled.  If block is set, it will block until an event
    occurs which needs to be handled */
