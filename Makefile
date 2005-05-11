@@ -90,7 +90,9 @@ testprilib: testprilib.o
 pridump: pridump.o
 	$(CC) -o pridump pridump.o -L. -lpri -lzap $(CFLAGS)
 
+ifneq ($(wildcard .depend),)
 include .depend
+endif
 
 %.lo : %.c
 	$(CC) -fPIC $(CFLAGS) -o $@ -c $<
