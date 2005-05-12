@@ -400,6 +400,16 @@ int pri_get_debug(struct pri *pri)
 	return pri->debug;
 }
 
+void pri_facility_enable(struct pri *pri)
+{
+	if (!pri)
+		return;
+	pri->sendfacility = 1;
+	if (pri->subchannel)
+		pri_facility_enable(pri->subchannel);
+	return;
+}
+
 int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info)
 {
 	if (!pri || !call)

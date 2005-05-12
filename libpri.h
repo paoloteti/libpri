@@ -411,6 +411,10 @@ extern void pri_set_debug(struct pri *pri, int debug);
 /* Get debug parameters on PRI -- see above debug definitions */
 extern int pri_get_debug(struct pri *pri);
 
+#define PRI_FACILITY_ENABLE
+/* Enable transmission support of Facility IEs on the pri */
+extern void pri_facility_enable(struct pri *pri);
+
 /* Run PRI on the given D-channel, taking care of any events that
    need to be handled.  If block is set, it will block until an event
    occurs which needs to be handled */

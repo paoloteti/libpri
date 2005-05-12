@@ -108,6 +108,7 @@ struct pri {
 #endif
 
 	unsigned char last_invoke;	/* Last ROSE invoke ID */
+	unsigned char sendfacility;
 };
 
 struct pri_sr {
