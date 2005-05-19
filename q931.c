@@ -297,8 +297,11 @@ static FUNC_RECV(receive_channel_id)
 	if (ie->data[0] & 0x40) {
 		/* DS1 specified -- stop here */
 		call->ds1no = ie->data[1] & 0x7f;
+		call->ds1explicit = 1;
 		pos++;
-	} 
+	} else
+		call->ds1explicit = 0;
+
 	if (pos+2 < len) {
 		/* More coming */
 		if ((ie->data[pos] & 0x0f) != 3) {
@@ -3331,7 +3334,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		restart_ack(pri, c);
 		/* Notify user of restart event */
 		pri->ev.e = PRI_EVENT_RESTART;
-		pri->ev.restart.channel = c->channelno | (c->ds1no << 8);
+		pri->ev.restart.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		return Q931_RES_HAVEEVENT;
 	case Q931_SETUP:
 		if (missingmand) {
@@ -3354,7 +3357,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			break;
 		}
 		pri->ev.e = PRI_EVENT_RING;
-		pri->ev.ring.channel = c->channelno | (c->ds1no << 8);
+		pri->ev.ring.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.ring.callingpres = c->callerpres;
 		pri->ev.ring.callingplan = c->callerplan;
 		pri->ev.ring.ani2 = c->ani2;
@@ -3388,7 +3391,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->ourcallstate = Q931_CALL_STATE_CALL_DELIVERED;
 		c->peercallstate = Q931_CALL_STATE_CALL_RECEIVED;
 		pri->ev.e = PRI_EVENT_RINGING;
-		pri->ev.ringing.channel = c->channelno | (c->ds1no << 8);
+		pri->ev.ringing.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.ringing.cref = c->cr;
 		pri->ev.ringing.call = c;
 		pri->ev.ringing.progress = c->progress;
@@ -3406,7 +3409,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->ourcallstate = Q931_CALL_STATE_ACTIVE;
 		c->peercallstate = Q931_CALL_STATE_CONNECT_REQUEST;
 		pri->ev.e = PRI_EVENT_ANSWER;
-		pri->ev.answer.channel = c->channelno | (c->ds1no << 8);
+		pri->ev.answer.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.answer.cref = c->cr;
 		pri->ev.answer.call = c;
 		pri->ev.answer.progress = c->progress;
@@ -3425,7 +3428,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.e = PRI_EVENT_FACNAME;
 		strncpy(pri->ev.facname.callingname, c->callername, sizeof(pri->ev.facname.callingname) - 1);
 		strncpy(pri->ev.facname.callingnum, c->callernum, sizeof(pri->ev.facname.callingname) - 1);
-		pri->ev.facname.channel = c->channelno | (c->ds1no << 8);
+		pri->ev.facname.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.facname.cref = c->cr;
 		pri->ev.facname.call = c;
 #if 0
@@ -3452,7 +3455,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_status(pri,c,PRI_CAUSE_WRONG_MESSAGE);
 			break;
 		}
-		pri->ev.proceeding.channel = c->channelno | (c->ds1no << 8);
+		pri->ev.proceeding.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		if (mh->msg == Q931_CALL_PROCEEDING) {
 			pri->ev.e = PRI_EVENT_PROCEEDING;
 			c->ourcallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
@@ -3493,7 +3496,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			pri_error("Received unsolicited status: %s\n", pri_cause2str(c->cause));
 		/* Workaround for S-12 ver 7.3 - it responds for invalid/non-implemented IEs at SETUP with null call state */
 		if (!c->sugcallstate && (c->ourcallstate != Q931_CALL_STATE_CALL_INITIATED)) {
-			pri->ev.hangup.channel = c->channelno | (c->ds1no << 8);
+			pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 			pri->ev.hangup.cref = c->cr;          		
 			pri->ev.hangup.cause = c->cause;      		
 			pri->ev.hangup.call = c;              		
@@ -3519,7 +3522,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	case Q931_RELEASE_COMPLETE:
 		c->ourcallstate = Q931_CALL_STATE_NULL;
 		c->peercallstate = Q931_CALL_STATE_NULL;
-		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8);
+		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.hangup.cref = c->cr;          		
 		pri->ev.hangup.cause = c->cause;      		
 		pri->ev.hangup.call = c;              		
@@ -3551,7 +3554,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		}
 		c->ourcallstate = Q931_CALL_STATE_NULL;
 		pri->ev.e = PRI_EVENT_HANGUP;
-		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8);
+		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.hangup.cref = c->cr;
 		pri->ev.hangup.cause = c->cause;
 		pri->ev.hangup.call = c;
@@ -3577,7 +3580,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->sendhangupack = 1;
 		/* Return such an event */
 		pri->ev.e = PRI_EVENT_HANGUP_REQ;
-		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8);
+		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.hangup.cref = c->cr;
 		pri->ev.hangup.cause = c->cause;
 		pri->ev.hangup.call = c;
@@ -3591,7 +3594,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->ourcallstate = Q931_CALL_STATE_NULL;
 		c->peercallstate = Q931_CALL_STATE_NULL;
 		pri->ev.e = PRI_EVENT_RESTART_ACK;
-		pri->ev.restartack.channel = c->channelno | (c->ds1no << 8);
+		pri->ev.restartack.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		return Q931_RES_HAVEEVENT;
 	case Q931_INFORMATION:
 		/* XXX We're handling only INFORMATION messages that contain
@@ -3611,7 +3614,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		}
 		pri->ev.e = PRI_EVENT_INFO_RECEIVED;
 		pri->ev.ring.call = c;
-		pri->ev.ring.channel = c->channelno | (c->ds1no << 8);
+		pri->ev.ring.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum) - 1);
 		strncpy(pri->ev.ring.callingsubaddr, c->callingsubaddr, sizeof(pri->ev.ring.callingsubaddr) - 1);
 		pri->ev.ring.complete = c->complete; 	/* this covers IE 33 (Sending Complete) */
@@ -3630,7 +3633,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->ourcallstate = Q931_CALL_STATE_OVERLAP_SENDING;
 		c->peercallstate = Q931_CALL_STATE_OVERLAP_RECEIVING;
 		pri->ev.e = PRI_EVENT_SETUP_ACK;
-		pri->ev.setup_ack.channel = c->channelno;
+		pri->ev.setup_ack.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 
 		cur = c->apdus;
 		while (cur) {

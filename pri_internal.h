@@ -158,6 +158,9 @@ struct q931_call {
 	int channelno;
 	/* An explicit DS1 (-1 means not specified) */
 	int ds1no;
+	/* Whether or not the ds1 is explicitly identified or implicit.  If implicit
+	   the bchan is on the same span as the current active dchan (NFAS) */
+	int ds1explicit;
 	/* Channel flags (0 means none retrieved) */
 	int chanflags;
 	
