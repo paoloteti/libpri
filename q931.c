@@ -1558,7 +1558,7 @@ static FUNC_DUMP(dump_display)
 	}
 }
 
-static void dump_ie_data(struct pri *pri, unsigned char *c, int len)
+static void dump_ie_data(unsigned char *c, int len)
 {
 	char tmp[1024] = "";
 	int x=0;
@@ -1593,14 +1593,14 @@ static void dump_ie_data(struct pri *pri, unsigned char *c, int len)
 	}
 	if (lastascii)
 		tmp[x++] = '\'';
-	pri_message(pri, tmp);
+	pri_message(NULL, tmp);
 }
 
 static FUNC_DUMP(dump_facility)
 {
 	pri_message(pri, "%c Facility (len=%2d, codeset=%d) [ ", prefix, len, Q931_IE_CODESET(full_ie));
-	dump_ie_data(pri, ie->data, ie->len);
-	pri_message(pri, " ]\n");
+	dump_ie_data(ie->data, ie->len);
+	pri_message(NULL, " ]\n");
 }
 
 static FUNC_DUMP(dump_network_spec_fac)
@@ -1610,7 +1610,7 @@ static FUNC_DUMP(dump_network_spec_fac)
 		pri_message(pri, code2str(ie->data[1], facilities, sizeof(facilities) / sizeof(facilities[0])));
 	}
 	else
-		dump_ie_data(pri, ie->data, ie->len);
+		dump_ie_data(ie->data, ie->len);
 	pri_message(pri, " ]\n");
 }
 
@@ -2216,14 +2216,14 @@ static inline void q931_dumpie(struct pri *pri, int codeset, q931_ie *ie, char p
 	int full_ie = Q931_FULL_IE(codeset, ie->ie);
 	int base_ie;
 
-	pri_message(pri, "%c [", prefix);
-	pri_message(pri, "%02x", ie->ie);
+	pri_message(NULL, "%c [", prefix);
+	pri_message(NULL, "%02x", ie->ie);
 	if (!(ie->ie & 0x80)) {
-		pri_message(pri, " %02x", ielen(ie)-2);
+		pri_message(NULL, " %02x", ielen(ie)-2);
 		for (x = 0; x + 2 < ielen(ie); ++x)
-			pri_message(pri, " %02x", ie->data[x]);
+			pri_message(NULL, " %02x", ie->data[x]);
 	}
-	pri_message(pri, "]\n");
+	pri_message(NULL, "]\n");
 
 	/* Special treatment for shifts */
 	if((full_ie & 0xf0) == Q931_LOCKING_SHIFT)
@@ -2406,7 +2406,7 @@ void q931_dump(struct pri *pri, q931_h *h, int len, int txrx)
 	pri_message(pri, "%c Call Ref: len=%2d (reference %d/0x%X) (%s)\n", c, h->crlen, q931_cr(h) & 0x7FFF, q931_cr(h) & 0x7FFF, (h->crv[0] & 0x80) ? "Terminator" : "Originator");
 	/* Message header begins at the end of the call reference number */
 	mh = (q931_mh *)(h->contents + h->crlen);
-	pri_message(NULL, "%c Message type: %s (%d)\n", c, msg2str(mh->msg), mh->msg);
+	pri_message(pri, "%c Message type: %s (%d)\n", c, msg2str(mh->msg), mh->msg);
 	/* Drop length of header, including call reference */
 	len -= (h->crlen + 3);
 	codeset = cur_codeset = 0;
