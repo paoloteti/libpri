@@ -526,6 +526,7 @@ extern int pri_mwi_deactivate(struct pri *pri, q931_call *c, char *caller, int c
 int pri_channel_bridge(q931_call *call1, q931_call *call2);
 
 /* Override message and error stuff */
+#define PRI_NEW_SET_API
 extern void pri_set_message(void (*__pri_error)(struct pri *pri, char *));
 extern void pri_set_error(void (*__pri_error)(struct pri *pri, char *));
 
