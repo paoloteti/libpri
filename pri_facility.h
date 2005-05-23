@@ -147,7 +147,7 @@ struct rose_component {
 	(component) = (struct rose_component*)&((ptr)[idx]); \
 	if ((idx)+(component)->len+2 > (length)) { \
 		if ((component)->len != 128) \
-			pri_message("Length (%d) of 0x%X component is too long\n", (component)->len, (component)->type); \
+			pri_message(pri, "Length (%d) of 0x%X component is too long\n", (component)->len, (component)->type); \
 	}
 /*
 	pri_message("XX Got component %d (0x%02X), length %d\n", (component)->type, (component)->type, (component)->len); \
@@ -168,7 +168,7 @@ struct rose_component {
 
 #define CHECK_COMPONENT(component, comptype, message) \
 	if ((component)->type && ((component)->type & ASN1_TYPE_MASK) != (comptype)) { \
-		pri_message((message), (component)->type); \
+		pri_message(pri, (message), (component)->type); \
 		break; \
 	}
 	

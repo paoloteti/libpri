@@ -38,7 +38,7 @@ int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), vo
 		if (!pri->pri_sched[x].callback)
 			break;
 	if (x == MAX_SCHED) {
-		pri_error("No more room in scheduler\n");
+		pri_error(pri, "No more room in scheduler\n");
 		return -1;
 	}
 	if (x > maxsched)
@@ -113,6 +113,6 @@ pri_event *pri_schedule_run(struct pri *pri)
 void pri_schedule_del(struct pri *pri,int id)
 {
 	if ((id >= MAX_SCHED) || (id < 0)) 
-		pri_error("Asked to delete sched id %d???\n", id);
+		pri_error(pri, "Asked to delete sched id %d???\n", id);
 	pri->pri_sched[id].callback = NULL;
 }

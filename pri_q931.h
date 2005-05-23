@@ -276,7 +276,7 @@ extern int q931_call_setcrv(struct pri *pri, q931_call *call, int crv, int callm
 extern q931_call *q931_new_call(struct pri *pri);
 
 extern int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req);
-extern void q931_dump(q931_h *h, int len, int txrx);
+extern void q931_dump(struct pri *pri, q931_h *h, int len, int txrx);
 
 extern void __q931_destroycall(struct pri *pri, q931_call *c);
 	

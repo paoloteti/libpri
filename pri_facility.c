@@ -33,7 +33,7 @@ struct addressingdataelements_presentednumberunscreened {
 	int  pres;
 };
 
-static void dump_apdu(unsigned char *c, int len) 
+static void dump_apdu(struct pri *pri, unsigned char *c, int len) 
 {
 	#define MAX_APDU_LENGTH	255
 	int i;
@@ -53,7 +53,7 @@ static void dump_apdu(unsigned char *c, int len)
 			snprintf((char *)(message+strlen(message)), sizeof(message)-strlen(message)-1, "%c", c[i]);
 	}
 	snprintf((char *)(message+strlen(message)), sizeof(message)-strlen(message)-1, "]\n");
-	pri_message(message);
+	pri_message(pri, message);
 }
 
 int redirectingreason_from_q931(struct pri *pri, int redirectingreason)
@@ -72,7 +72,7 @@ int redirectingreason_from_q931(struct pri *pri, int redirectingreason)
 				case PRI_REDIR_DEFLECTION:
 				case PRI_REDIR_DTE_OUT_OF_ORDER:
 				case PRI_REDIR_FORWARDED_BY_DTE:
-					pri_message("!! Don't know how to convert Q.931 redirection reason %d to Q.SIG\n", redirectingreason);
+					pri_message(pri, "!! Don't know how to convert Q.931 redirection reason %d to Q.SIG\n", redirectingreason);
 					/* Fall through */
 				default:
 					return QSIG_DIVERT_REASON_UNKNOWN;
@@ -91,7 +91,7 @@ int redirectingreason_from_q931(struct pri *pri, int redirectingreason)
 					return Q952_DIVERT_REASON_CFU;
 				case PRI_REDIR_DTE_OUT_OF_ORDER:
 				case PRI_REDIR_FORWARDED_BY_DTE:
-					pri_message("!! Don't know how to convert Q.931 redirection reason %d to Q.952\n", redirectingreason);
+					pri_message(pri, "!! Don't know how to convert Q.931 redirection reason %d to Q.952\n", redirectingreason);
 					/* Fall through */
 				default:
 					return Q952_DIVERT_REASON_UNKNOWN;
@@ -113,7 +113,7 @@ static int redirectingreason_for_q931(struct pri *pri, int redirectingreason)
 				case QSIG_DIVERT_REASON_CFNR:
 					return PRI_REDIR_FORWARD_ON_NO_REPLY;
 				default:
-					pri_message("!! Unknown Q.SIG diversion reason %d\n", redirectingreason);
+					pri_message(pri, "!! Unknown Q.SIG diversion reason %d\n", redirectingreason);
 					return PRI_REDIR_UNKNOWN;
 			}
 		default:
@@ -129,10 +129,10 @@ static int redirectingreason_for_q931(struct pri *pri, int redirectingreason)
 				case Q952_DIVERT_REASON_CD:
 					return PRI_REDIR_DEFLECTION;
 				case Q952_DIVERT_REASON_IMMEDIATE:
-					pri_message("!! Dont' know how to convert Q.952 diversion reason IMMEDIATE to PRI analog\n");
+					pri_message(pri, "!! Dont' know how to convert Q.952 diversion reason IMMEDIATE to PRI analog\n");
 					return PRI_REDIR_UNKNOWN;	/* ??? */
 				default:
-					pri_message("!! Unknown Q.952 diversion reason %d\n", redirectingreason);
+					pri_message(pri, "!! Unknown Q.952 diversion reason %d\n", redirectingreason);
 					return PRI_REDIR_UNKNOWN;
 			}
 	}
@@ -153,7 +153,7 @@ int typeofnumber_from_q931(struct pri *pri, int ton)
 			return Q932_TON_ABBREVIATED;
 		case PRI_TON_RESERVED:
 		default:
-			pri_message("!! Unsupported Q.931 TypeOfNumber value (%d)\n", ton);
+			pri_message(pri, "!! Unsupported Q.931 TypeOfNumber value (%d)\n", ton);
 			/* fall through */
 		case PRI_TON_UNKNOWN:
 			return Q932_TON_UNKNOWN;
@@ -176,7 +176,7 @@ static int typeofnumber_for_q931(struct pri *pri, int ton)
 		case Q932_TON_ABBREVIATED:
 			return PRI_TON_ABBREVIATED;
 		default:
-			pri_message("!! Invalid Q.932 TypeOfNumber %d\n", ton);
+			pri_message(pri, "!! Invalid Q.932 TypeOfNumber %d\n", ton);
 			return PRI_TON_UNKNOWN;
 	}
 }
@@ -230,7 +230,7 @@ static int rose_number_digits_decode(struct pri *pri, q931_call *call, unsigned 
 		GET_COMPONENT(comp, i, vdata, len);
 		CHECK_COMPONENT(comp, ASN1_NUMERICSTRING, "Don't know what to do with PublicPartyNumber ROSE component type 0x%x\n");
 		if(comp->len > 20 && comp->len != ASN1_LEN_INDEF) {
-			pri_message("!! Oversized NumberDigits component (%d)\n", comp->len);
+			pri_message(pri, "!! Oversized NumberDigits component (%d)\n", comp->len);
 			return -1;
 		}
 		if (comp->len == ASN1_LEN_INDEF) {
@@ -303,14 +303,14 @@ static int rose_address_decode(struct pri *pri, q931_call *call, unsigned char *
 			value->npi = PRI_NPI_E163_E164;
 			break;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_2):	/* [2] nsapEncodedNumber */
-			pri_message("!! NsapEncodedNumber isn't handled\n");
+			pri_message(pri, "!! NsapEncodedNumber isn't handled\n");
 			return -1;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_3):	/* [3] dataPartyNumber */
 			if(rose_number_digits_decode(pri, call, comp->data, comp->len, value))
 				return -1;
 			value->npi = PRI_NPI_X121 /* ??? */;
 			value->ton = PRI_TON_UNKNOWN /* ??? */;
-			pri_message("!! dataPartyNumber isn't handled\n");
+			pri_message(pri, "!! dataPartyNumber isn't handled\n");
 			return -1;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_4):	/* [4] telexPartyNumber */
 			res = rose_number_digits_decode(pri, call, comp->data, comp->len, value);
@@ -318,10 +318,10 @@ static int rose_address_decode(struct pri *pri, q931_call *call, unsigned char *
 				return -1;
 			value->npi = PRI_NPI_F69 /* ??? */;
 			value->ton = PRI_TON_UNKNOWN /* ??? */;
-			pri_message("!! telexPartyNumber isn't handled\n");
+			pri_message(pri, "!! telexPartyNumber isn't handled\n");
 			return -1;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_5):	/* [5] priavePartyNumber */
-			pri_message("!! privatePartyNumber isn't handled\n");
+			pri_message(pri, "!! privatePartyNumber isn't handled\n");
 			value->npi = PRI_NPI_PRIVATE;
 			return -1;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_8):	/* [8] nationalStandardPartyNumber */
@@ -332,12 +332,12 @@ static int rose_address_decode(struct pri *pri, q931_call *call, unsigned char *
 			value->ton = PRI_TON_NATIONAL;
 			break;
 		default:
-			pri_message("!! Unknown Party number component received 0x%X\n", comp->type);
+			pri_message(pri, "!! Unknown Party number component received 0x%X\n", comp->type);
 			return -1;
 		}
 		NEXT_COMPONENT(comp, i);
 		if(i < len)
-			pri_message("!! not all information is handled from Address component\n");
+			pri_message(pri, "!! not all information is handled from Address component\n");
 		return res;
 	}
 	while (0);
@@ -365,14 +365,14 @@ static int rose_presented_number_unscreened_decode(struct pri *pri, q931_call *c
 			return rose_address_decode(pri, call, comp->data, comp->len, value) + 2;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_1):		/* [1] IMPLICIT presentationRestricted */
 			if (comp->len != 0) { /* must be NULL */
-				pri_error("!! Invalid PresentationRestricted component received (len != 0)\n");
+				pri_error(pri, "!! Invalid PresentationRestricted component received (len != 0)\n");
 				return -1;
 			}
 			value->pres = PRES_PROHIB_USER_NUMBER_NOT_SCREENED;
 			return 2;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2):		/* [2] IMPLICIT numberNotAvailableDueToInterworking */
 			if (comp->len != 0) { /* must be NULL */
-				pri_error("!! Invalid NumberNotAvailableDueToInterworking component received (len != 0)\n");
+				pri_error(pri, "!! Invalid NumberNotAvailableDueToInterworking component received (len != 0)\n");
 				return -1;
 			}
 			value->pres = PRES_NUMBER_NOT_AVAILABLE;
@@ -381,7 +381,7 @@ static int rose_presented_number_unscreened_decode(struct pri *pri, q931_call *c
 			value->pres = PRES_PROHIB_USER_NUMBER_NOT_SCREENED;
 			return rose_address_decode(pri, call, comp->data, comp->len, value) + 2;
 		default:
-			pri_message("Invalid PresentedNumberUnscreened component 0x%X\n", comp->type);
+			pri_message(pri, "Invalid PresentedNumberUnscreened component 0x%X\n", comp->type);
 		}
 		return -1;
 	}
@@ -418,7 +418,7 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 		diversion_reason = redirectingreason_for_q931(pri, diversion_reason);
 	
 		if(pri->debug & PRI_DEBUG_APDU)
-			pri_message("    Redirection reason: %d, total diversions: %d\n", diversion_reason, diversion_counter);
+			pri_message(pri, "    Redirection reason: %d, total diversions: %d\n", diversion_reason, diversion_counter);
 
 		for(; i < len; NEXT_COMPONENT(comp, i)) {
 			GET_COMPONENT(comp, i, vdata, len);
@@ -426,7 +426,7 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 			case ASN1_TAG_0:
 				call->origredirectingreason = redirectingreason_for_q931(pri, comp->data[0]);
 				if (pri->debug & PRI_DEBUG_APDU)
-					pri_message("    Received reason for original redirection %d\n", call->origredirectingreason);
+					pri_message(pri, "    Received reason for original redirection %d\n", call->origredirectingreason);
 				break;
 			case ASN1_TAG_1:		/* divertingnr: presentednumberunscreened */
 				res = rose_presented_number_unscreened_decode(pri, call, comp->data, comp->len, &divertingnr);
@@ -435,8 +435,8 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 				if (res < 0)
 					return -1;
 				if (pri->debug & PRI_DEBUG_APDU) {
-					pri_message("    Received divertingNr '%s'\n", divertingnr.partyaddress);
-					pri_message("      ton = %d, pres = %d, npi = %d\n", divertingnr.ton, divertingnr.pres, divertingnr.npi);
+					pri_message(pri, "    Received divertingNr '%s'\n", divertingnr.partyaddress);
+					pri_message(pri, "      ton = %d, pres = %d, npi = %d\n", divertingnr.ton, divertingnr.pres, divertingnr.npi);
 				}
 				break;
 			case ASN1_TAG_2:		/* originalCalledNr: PresentedNumberUnscreened */
@@ -445,22 +445,22 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 					return -1;
 				comp->len = res;
 				if (pri->debug & PRI_DEBUG_APDU) {
-					pri_message("    Received originalcallednr '%s'\n", originalcallednr.partyaddress);
-					pri_message("      ton = %d, pres = %d, npi = %d\n", originalcallednr.ton, originalcallednr.pres, originalcallednr.npi);
+					pri_message(pri, "    Received originalcallednr '%s'\n", originalcallednr.partyaddress);
+					pri_message(pri, "      ton = %d, pres = %d, npi = %d\n", originalcallednr.ton, originalcallednr.pres, originalcallednr.npi);
 				}
 				break;
 			case ASN1_TAG_3:
 				comp->len = asn1_name_decode(comp->data, comp->len, redirectingname, sizeof(redirectingname));
 				if (pri->debug & PRI_DEBUG_APDU)
-					pri_message("    Received RedirectingName '%s'\n", redirectingname);
+					pri_message(pri, "    Received RedirectingName '%s'\n", redirectingname);
 				break;
 			case ASN1_TAG_4:
 				comp->len = asn1_name_decode(comp->data, comp->len, origcalledname, sizeof(origcalledname));
 				if (pri->debug & PRI_DEBUG_APDU)
-					pri_message("    Received Originally Called Name '%s'\n", origcalledname);
+					pri_message(pri, "    Received Originally Called Name '%s'\n", origcalledname);
 				break;
 			default:
-				pri_message("!! Invalid DivertingLegInformation2 component received 0x%X\n", comp->type);
+				pri_message(pri, "!! Invalid DivertingLegInformation2 component received 0x%X\n", comp->type);
 				return -1;
 			}
 		}
@@ -570,7 +570,7 @@ static int rose_diverting_leg_information2_encode(struct pri *pri, q931_call *ca
 			ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_1), buffer, i);
 			break;
 		default:
-			pri_message("!! Undefined presentation value for redirecting number: %d\n", call->redirectingpres);
+			pri_message(pri, "!! Undefined presentation value for redirecting number: %d\n", call->redirectingpres);
 		case PRES_NUMBER_NOT_AVAILABLE:
 			ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2), buffer, i);
 			break;
@@ -614,7 +614,7 @@ static int rose_diverting_leg_information2_encode(struct pri *pri, q931_call *ca
 			ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_1), buffer, i);
 			break;
 		default:
-			pri_message("!! Undefined presentation value for redirecting number: %d\n", call->redirectingpres);
+			pri_message(pri, "!! Undefined presentation value for redirecting number: %d\n", call->redirectingpres);
 		case PRES_NUMBER_NOT_AVAILABLE:
 			ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2), buffer, i);
 			break;
@@ -841,7 +841,7 @@ extern int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
 
 	res = pri_call_apdu_queue(c1, Q931_FACILITY, buffer, i, NULL, NULL);
 	if (res) {
-		pri_message("Could not queue ADPU in facility message\n");
+		pri_message(pri, "Could not queue ADPU in facility message\n");
 		return -1;
 	}
 
@@ -850,7 +850,7 @@ extern int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
 
 	res = q931_facility(c1->pri, c1);
 	if (res) {
-		pri_message("Could not schedule facility message for call %d\n", c1->cr);
+		pri_message(pri, "Could not schedule facility message for call %d\n", c1->cr);
 		return -1;
 	}
 
@@ -867,7 +867,7 @@ static int aoc_aoce_charging_request_decode(struct pri *pri, q931_call *call, un
 	int pos1 = 0;
 
 	if (pri->debug & PRI_DEBUG_AOC)
-		dump_apdu (data, len);
+		dump_apdu (pri, data, len);
 
 	do {
 		GET_COMPONENT(comp, pos1, vdata, len);
@@ -875,17 +875,17 @@ static int aoc_aoce_charging_request_decode(struct pri *pri, q931_call *call, un
 		ASN1_GET_INTEGER(comp, chargingcase);				
 		if (chargingcase >= 0 && chargingcase <= 2) {
 			if (pri->debug & PRI_DEBUG_APDU)
-				pri_message("Channel %d/%d, Call %d  - received AOC charging request - charging case: %i\n", 
+				pri_message(pri, "Channel %d/%d, Call %d  - received AOC charging request - charging case: %i\n", 
 					call->ds1no, call->channelno, call->cr, chargingcase);
 		} else {
-			pri_message("!! unkown AOC ChargingCase: 0x%02X", chargingcase);
+			pri_message(pri, "!! unkown AOC ChargingCase: 0x%02X", chargingcase);
 			chargingcase = -1;
 		}
 		NEXT_COMPONENT(comp, pos1);
 	} while (pos1 < len);
 	if (pos1 < len) {
-		pri_message("!! Only reached position %i in %i bytes long AOC-E structure:", pos1, len );
-		dump_apdu (data, len);
+		pri_message(pri, "!! Only reached position %i in %i bytes long AOC-E structure:", pos1, len );
+		dump_apdu (pri, data, len);
 		return -1;	/* Aborted before */
 	}
 	return 0;
@@ -901,7 +901,7 @@ static int aoc_aoce_charging_unit_decode(struct pri *pri, q931_call *call, unsig
 	struct addressingdataelements_presentednumberunscreened chargednr;
 
 	if (pri->debug & PRI_DEBUG_AOC)
-		dump_apdu (data, len);
+		dump_apdu (pri, data, len);
 
 	do {
 		GET_COMPONENT(comp1, pos1, vdata, len);	/* AOCEChargingUnitInfo */
@@ -934,34 +934,34 @@ static int aoc_aoce_charging_unit_decode(struct pri *pri, q931_call *call, unsig
 									case ASN1_NULL:		/* notAvailable */
 										break;
 									default:
-										pri_message("!! Don't know how to handle 0x%02X in AOC-E RecordedUnits\n", comp3->type);
+										pri_message(pri, "!! Don't know how to handle 0x%02X in AOC-E RecordedUnits\n", comp3->type);
 								}
 								NEXT_COMPONENT(comp3, pos3);
 							} while (pos3 < sublen3);
 							if (pri->debug & PRI_DEBUG_AOC)
-								pri_message("Channel %d/%d, Call %d - received AOC-E charging: %i unit%s\n", 
+								pri_message(pri, "Channel %d/%d, Call %d - received AOC-E charging: %i unit%s\n", 
 									call->ds1no, call->channelno, call->cr, chargingunits, (chargingunits == 1) ? "" : "s");
 							break;
 						case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_2):	/* AOCEBillingID (0xA2) */
 							SUB_COMPONENT(comp2, pos2);
 							GET_COMPONENT(comp2, pos2, vdata, len);
 							ASN1_GET_INTEGER(comp2, chargetype);
-							pri_message("!! not handled: Channel %d/%d, Call %d - received AOC-E billing ID: %i\n", 
+							pri_message(pri, "!! not handled: Channel %d/%d, Call %d - received AOC-E billing ID: %i\n", 
 								call->ds1no, call->channelno, call->cr, chargetype);
 							break;
 						default:
-							pri_message("!! Don't know how to handle 0x%02X in AOC-E RecordedUnitsList\n", comp2->type);
+							pri_message(pri, "!! Don't know how to handle 0x%02X in AOC-E RecordedUnitsList\n", comp2->type);
 					}
 					NEXT_COMPONENT(comp2, pos2);
 				} while (pos2 < sublen2);
 				break;
 			case (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_1): /* freeOfCharge (0x81) */
 				if (pri->debug & PRI_DEBUG_AOC)
-					pri_message("Channel %d/%d, Call %d - received AOC-E free of charge\n", call->ds1no, call->channelno, call->cr);
+					pri_message(pri, "Channel %d/%d, Call %d - received AOC-E free of charge\n", call->ds1no, call->channelno, call->cr);
 				chargingunits = 0;
 				break;
 			default:
-				pri_message("!! Invalid AOC-E specificChargingUnits. Expected Sequence (0x30) or Object Identifier (0x81/0x01) but received 0x%02X\n", comp1->type);
+				pri_message(pri, "!! Invalid AOC-E specificChargingUnits. Expected Sequence (0x30) or Object Identifier (0x81/0x01) but received 0x%02X\n", comp1->type);
 		}
 		NEXT_COMPONENT(comp1, pos1);
 		GET_COMPONENT(comp1, pos1, vdata, len); /* get optional chargingAssociation. will 'break' when reached end of structure */
@@ -970,21 +970,21 @@ static int aoc_aoce_charging_unit_decode(struct pri *pri, q931_call *call, unsig
 			case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_0): /* chargedNumber (0xA0) */
 				if(rose_presented_number_unscreened_decode(pri, call, comp1->data, comp1->len, &chargednr) != 0)
 					return -1;
-				pri_message("!! not handled: Received ChargedNr '%s' \n", chargednr.partyaddress);
-				pri_message("  ton = %d, pres = %d, npi = %d\n", chargednr.ton, chargednr.pres, chargednr.npi);
+				pri_message(pri, "!! not handled: Received ChargedNr '%s' \n", chargednr.partyaddress);
+				pri_message(pri, "  ton = %d, pres = %d, npi = %d\n", chargednr.ton, chargednr.pres, chargednr.npi);
 				break;
 			case ASN1_INTEGER:
 				ASN1_GET_INTEGER(comp1, chargeIdentifier);
 				break;
 			default:
-				pri_message("!! Invalid AOC-E chargingAssociation. Expected Object Identifier (0xA0) or Integer (0x02) but received 0x%02X\n", comp1->type);
+				pri_message(pri, "!! Invalid AOC-E chargingAssociation. Expected Object Identifier (0xA0) or Integer (0x02) but received 0x%02X\n", comp1->type);
 		}
 		NEXT_COMPONENT(comp1, pos1);
 	} while (pos1 < len);
 
 	if (pos1 < len) {
-		pri_message("!! Only reached position %i in %i bytes long AOC-E structure:", pos1, len );
-		dump_apdu (data, len);
+		pri_message(pri, "!! Only reached position %i in %i bytes long AOC-E structure:", pos1, len );
+		dump_apdu (pri, data, len);
 		return -1;	/* oops - aborted before */
 	}
 	call->aoc_units = chargingunits;
@@ -1043,12 +1043,12 @@ static int aoc_aoce_charging_unit_encode(struct pri *pri, q931_call *c, long cha
 	ASN1_FIXUP(compstk, compsp, buffer, i); 
 	
 	if (pri->debug & PRI_DEBUG_AOC)
-		dump_apdu (buffer, i);
+		dump_apdu (pri, buffer, i);
 		
 	/* code below is untested */
 	res = pri_call_apdu_queue(c, Q931_FACILITY, buffer, i, NULL, NULL);
 	if (res) {
-		pri_message("Could not queue ADPU in facility message\n");
+		pri_message(pri, "Could not queue ADPU in facility message\n");
 		return -1;
 	}
 
@@ -1056,7 +1056,7 @@ static int aoc_aoce_charging_unit_encode(struct pri *pri, q931_call *c, long cha
 	 * have to explicitly send the facility message ourselves */
 	res = q931_facility(c->pri, c);
 	if (res) {
-		pri_message("Could not schedule facility message for call %d\n", c->cr);
+		pri_message(pri, "Could not schedule facility message for call %d\n", c->cr);
 		return -1;
 	}
 
@@ -1095,68 +1095,68 @@ extern int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *d
 			return -1;
 
 		if (pri->debug & PRI_DEBUG_APDU)
-			pri_message("  [ Handling operation %d ]\n", operation_tag);
+			pri_message(pri, "  [ Handling operation %d ]\n", operation_tag);
 		switch (operation_tag) {
 		case SS_CNID_CALLINGNAME:
 			if (pri->debug & PRI_DEBUG_APDU)
-				pri_message("  Handle Name display operation\n");
+				pri_message(pri, "  Handle Name display operation\n");
 			switch (comp->type) {
 				case ROSE_NAME_PRESENTATION_ALLOWED_SIMPLE:
 					memcpy(call->callername, comp->data, comp->len);
 					call->callername[comp->len] = 0;
 					if (pri->debug & PRI_DEBUG_APDU)
-						pri_message("    Received caller name '%s'\n", call->callername);
+						pri_message(pri, "    Received caller name '%s'\n", call->callername);
 					return 0;
 				default:
 					if (pri->debug & PRI_DEBUG_APDU)
-						pri_message("Do not handle argument of type 0x%X\n", comp->type);
+						pri_message(pri, "Do not handle argument of type 0x%X\n", comp->type);
 					return -1;
 			}
 			break;
 		case ROSE_DIVERTING_LEG_INFORMATION2:
 			if (pri->debug & PRI_DEBUG_APDU)
-				pri_message("  Handle DivertingLegInformation2\n");
+				pri_message(pri, "  Handle DivertingLegInformation2\n");
 			if (comp->type != (ASN1_CONSTRUCTOR | ASN1_SEQUENCE)) { /* Constructed Sequence */
-				pri_message("Invalid DivertingLegInformation2Type argument\n");
+				pri_message(pri, "Invalid DivertingLegInformation2Type argument\n");
 				return -1;
 			}
 			return rose_diverting_leg_information2_decode(pri, call, comp->data, comp->len);
 		case ROSE_AOC_NO_CHARGING_INFO_AVAILABLE:
 			if (pri->debug & PRI_DEBUG_APDU) {
-				pri_message("ROSE %i: AOC No Charging Info Available - not handled!", operation_tag);
-				dump_apdu (comp->data, comp->len);
+				pri_message(pri, "ROSE %i: AOC No Charging Info Available - not handled!", operation_tag);
+				dump_apdu (pri, comp->data, comp->len);
 			}
 			return -1;
 		case ROSE_AOC_CHARGING_REQUEST:
 			return aoc_aoce_charging_request_decode(pri, call, (u_int8_t *)comp, comp->len + 2);
 		case ROSE_AOC_AOCS_CURRENCY:
 			if (pri->debug & PRI_DEBUG_APDU) {
-				pri_message("ROSE %i: AOC-S Currency - not handled!", operation_tag);
-				dump_apdu ((u_int8_t *)comp, comp->len + 2);
+				pri_message(pri, "ROSE %i: AOC-S Currency - not handled!", operation_tag);
+				dump_apdu (pri, (u_int8_t *)comp, comp->len + 2);
 			}
 			return -1;
 		case ROSE_AOC_AOCS_SPECIAL_ARR:
 			if (pri->debug & PRI_DEBUG_APDU) {
-				pri_message("ROSE %i: AOC-S Special Array - not handled!", operation_tag);
-				dump_apdu ((u_int8_t *)comp, comp->len + 2);
+				pri_message(pri, "ROSE %i: AOC-S Special Array - not handled!", operation_tag);
+				dump_apdu (pri, (u_int8_t *)comp, comp->len + 2);
 			}
 			return -1;
 		case ROSE_AOC_AOCD_CURRENCY:
 			if (pri->debug & PRI_DEBUG_APDU) {
-				pri_message("ROSE %i: AOC-D Currency - not handled!", operation_tag);
-				dump_apdu ((u_int8_t *)comp, comp->len + 2);
+				pri_message(pri, "ROSE %i: AOC-D Currency - not handled!", operation_tag);
+				dump_apdu (pri, (u_int8_t *)comp, comp->len + 2);
 			}
 			return -1;
 		case ROSE_AOC_AOCD_CHARGING_UNIT:
 			if (pri->debug & PRI_DEBUG_APDU) {
-				pri_message("ROSE %i: AOC-D Charging Unit - not handled!", operation_tag);
-				dump_apdu ((u_int8_t *)comp, comp->len + 2);
+				pri_message(pri, "ROSE %i: AOC-D Charging Unit - not handled!", operation_tag);
+				dump_apdu (pri, (u_int8_t *)comp, comp->len + 2);
 			}
 			return -1;
 		case ROSE_AOC_AOCE_CURRENCY:
 			if (pri->debug & PRI_DEBUG_APDU) {
-				pri_message("ROSE %i: AOC-E Currency - not handled!", operation_tag);
-				dump_apdu ((u_int8_t *)comp, comp->len + 2);
+				pri_message(pri, "ROSE %i: AOC-E Currency - not handled!", operation_tag);
+				dump_apdu (pri, (u_int8_t *)comp, comp->len + 2);
 			}
 			return -1;
 		case ROSE_AOC_AOCE_CHARGING_UNIT:
@@ -1167,14 +1167,14 @@ extern int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *d
 			}
 		case ROSE_AOC_IDENTIFICATION_OF_CHARGE:
 			if (pri->debug & PRI_DEBUG_APDU) {
-				pri_message("ROSE %i: AOC Identification Of Charge - not handled!", operation_tag);
-				dump_apdu ((u_int8_t *)comp, comp->len + 2);
+				pri_message(pri, "ROSE %i: AOC Identification Of Charge - not handled!", operation_tag);
+				dump_apdu (pri, (u_int8_t *)comp, comp->len + 2);
 			}
 			return -1;
 		default:
 			if (pri->debug & PRI_DEBUG_APDU) {
-				pri_message("!! Unable to handle ROSE operation %d", operation_tag);
-				dump_apdu ((u_int8_t *)comp, comp->len + 2);
+				pri_message(pri, "!! Unable to handle ROSE operation %d", operation_tag);
+				dump_apdu (pri, (u_int8_t *)comp, comp->len + 2);
 			}
 			return -1;
 		}
@@ -1201,7 +1201,7 @@ extern int pri_call_apdu_queue(q931_call *call, int messagetype, void *apdu, int
 		memcpy(new_event->apdu, apdu, apdu_len);
 		new_event->apdu_len = apdu_len;
 	} else {
-		pri_error("!! Malloc failed!\n");
+		pri_error(call->pri, "!! Malloc failed!\n");
 		return -1;
 	}
 	

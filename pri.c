@@ -158,7 +158,7 @@ static int __pri_read(struct pri *pri, void *buf, int buflen)
 	int res = read(pri->fd, buf, buflen);
 	if (res < 0) {
 		if (errno != EAGAIN)
-			pri_error("Read on %d failed: %s\n", pri->fd, strerror(errno));
+			pri_error(pri, "Read on %d failed: %s\n", pri->fd, strerror(errno));
 		return 0;
 	}
 	return res;
@@ -169,7 +169,7 @@ static int __pri_write(struct pri *pri, void *buf, int buflen)
 	int res = write(pri->fd, buf, buflen);
 	if (res < 0) {
 		if (errno != EAGAIN)
-			pri_error("Write to %d failed: %s\n", pri->fd, strerror(errno));
+			pri_error(pri, "Write to %d failed: %s\n", pri->fd, strerror(errno));
 		return 0;
 	}
 	return res;
@@ -536,26 +536,26 @@ void pri_dump_event(struct pri *pri, pri_event *e)
 {
 	if (!pri || !e)
 		return;
-	pri_message("Event type: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
+	pri_message(pri, "Event type: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
 	switch(e->gen.e) {
 	case PRI_EVENT_DCHAN_UP:
 	case PRI_EVENT_DCHAN_DOWN:
 		break;
 	case PRI_EVENT_CONFIG_ERR:
-		pri_message("Error: %s", e->err.err);
+		pri_message(pri, "Error: %s", e->err.err);
 		break;
 	case PRI_EVENT_RESTART:
-		pri_message("Restart on channel %d\n", e->restart.channel);
+		pri_message(pri, "Restart on channel %d\n", e->restart.channel);
 	case PRI_EVENT_RING:
-		pri_message("Calling number: %s (%s, %s)\n", e->ring.callingnum, pri_plan2str(e->ring.callingplan), pri_pres2str(e->ring.callingpres));
-		pri_message("Called number: %s (%s)\n", e->ring.callednum, pri_plan2str(e->ring.calledplan));
-		pri_message("Channel: %d (%s) Reference number: %d\n", e->ring.channel, e->ring.flexible ? "Flexible" : "Not Flexible", e->ring.cref);
+		pri_message(pri, "Calling number: %s (%s, %s)\n", e->ring.callingnum, pri_plan2str(e->ring.callingplan), pri_pres2str(e->ring.callingpres));
+		pri_message(pri, "Called number: %s (%s)\n", e->ring.callednum, pri_plan2str(e->ring.calledplan));
+		pri_message(pri, "Channel: %d (%s) Reference number: %d\n", e->ring.channel, e->ring.flexible ? "Flexible" : "Not Flexible", e->ring.cref);
 		break;
 	case PRI_EVENT_HANGUP:
-		pri_message("Hangup, reference number: %d, reason: %s\n", e->hangup.cref, pri_cause2str(e->hangup.cause));
+		pri_message(pri, "Hangup, reference number: %d, reason: %s\n", e->hangup.cref, pri_cause2str(e->hangup.cause));
 		break;
 	default:
-		pri_message("Don't know how to dump events of type %d\n", e->gen.e);
+		pri_message(pri, "Don't know how to dump events of type %d\n", e->gen.e);
 	}
 }
 
@@ -593,7 +593,7 @@ int pri_mwi_activate(struct pri *pri, q931_call *c, char *caller, int callerplan
 	req.calledplan = calledplan;
 
 	if (mwi_message_send(pri, c, &req, 1) < 0) {
-		pri_message("Unable to send MWI activate message\n");
+		pri_message(pri, "Unable to send MWI activate message\n");
 		return -1;
 	}
 	/* Do more stuff when we figure out that the CISC stuff works */
@@ -618,7 +618,7 @@ int pri_mwi_deactivate(struct pri *pri, q931_call *c, char *caller, int callerpl
 	req.calledplan = calledplan;
 
 	if(mwi_message_send(pri, c, &req, 0) < 0) {
-		pri_message("Unable to send MWI deactivate message\n");
+		pri_message(pri, "Unable to send MWI deactivate message\n");
 		return -1;
 	}
 
@@ -655,20 +655,20 @@ int pri_call(struct pri *pri, q931_call *c, int transmode, int channel, int excl
 	return q931_setup(pri, c, &req);
 }	
 
-static void (*__pri_error)(char *stuff);
-static void (*__pri_message)(char *stuff);
+static void (*__pri_error)(struct pri *pri, char *stuff);
+static void (*__pri_message)(struct pri *pri, char *stuff);
 
-void pri_set_message(void (*func)(char *stuff))
+void pri_set_message(void (*func)(struct pri *pri, char *stuff))
 {
 	__pri_message = func;
 }
 
-void pri_set_error(void (*func)(char *stuff))
+void pri_set_error(void (*func)(struct pri *pri, char *stuff))
 {
 	__pri_error = func;
 }
 
-void pri_message(char *fmt, ...)
+void pri_message(struct pri *pri, char *fmt, ...)
 {
 	char tmp[1024];
 	va_list ap;
@@ -676,12 +676,12 @@ void pri_message(char *fmt, ...)
 	vsnprintf(tmp, sizeof(tmp), fmt, ap);
 	va_end(ap);
 	if (__pri_message)
-		__pri_message(tmp);
+		__pri_message(pri, tmp);
 	else
 		fputs(tmp, stdout);
 }
 
-void pri_error(char *fmt, ...)
+void pri_error(struct pri *pri, char *fmt, ...)
 {
 	char tmp[1024];
 	va_list ap;
@@ -689,7 +689,7 @@ void pri_error(char *fmt, ...)
 	vsnprintf(tmp, sizeof(tmp), fmt, ap);
 	va_end(ap);
 	if (__pri_error)
-		__pri_error(tmp);
+		__pri_error(pri, tmp);
 	else
 		fputs(tmp, stderr);
 }
