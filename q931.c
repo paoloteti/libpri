@@ -248,6 +248,7 @@ static void call_init(struct q931_call *c)
 	c->slotmap = -1;
 	c->channelno = -1;
 	c->ds1no = 0;
+	c->ds1explicit = 0;
 	c->chanflags = 0;
 	c->next = NULL;
 	c->sentchannel = 0;
@@ -360,7 +361,7 @@ static FUNC_SEND(transmit_channel_id)
 		return 0;
 	}
 
-	if (call->ds1no > 0) {
+	if ((call->ds1no > 0) || call->ds1explicit) {
 		/* Note that we are specifying the identifier */
 		ie->data[pos++] |= 0x40;
 		/* We need to use the Channel Identifier Present thingy.  Just specify it and we're done */
@@ -2621,6 +2622,7 @@ int q931_call_progress(struct pri *pri, q931_call *c, int channel, int info)
 {
 	if (channel) { 
 		c->ds1no = (channel & 0xff00) >> 8;
+		c->ds1explicit = (channel & 0x10000) >> 16;
 		channel &= 0xff;
 		c->channelno = channel;		
 	}
@@ -2647,6 +2649,7 @@ int q931_call_proceeding(struct pri *pri, q931_call *c, int channel, int info)
 {
 	if (channel) { 
 		c->ds1no = (channel & 0xff00) >> 8;
+		c->ds1explicit = (channel & 0x10000) >> 16;
 		channel &= 0xff;
 		c->channelno = channel;		
 	}
@@ -2692,6 +2695,7 @@ int q931_setup_ack(struct pri *pri, q931_call *c, int channel, int nonisdn)
 {
 	if (channel) { 
 		c->ds1no = (channel & 0xff00) >> 8;
+		c->ds1explicit = (channel & 0x10000) >> 16;
 		channel &= 0xff;
 		c->channelno = channel;		
 	}
@@ -2763,6 +2767,7 @@ int q931_connect(struct pri *pri, q931_call *c, int channel, int nonisdn)
 {
 	if (channel) { 
 		c->ds1no = (channel & 0xff00) >> 8;
+		c->ds1explicit = (channel & 0x10000) >> 16;
 		channel &= 0xff;
 		c->channelno = channel;		
 	}
@@ -2824,6 +2829,7 @@ int q931_restart(struct pri *pri, int channel)
 		return -1;
 	c->ri = 0;
 	c->ds1no = (channel & 0xff00) >> 8;
+	c->ds1explicit = (channel & 0x10000) >> 16;
 	channel &= 0xff;
 	c->channelno = channel;		
 	c->chanflags &= ~FLAG_PREFERRED;
@@ -2871,6 +2877,7 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 		req->userl1 = PRI_LAYER_1_ULAW;
 	c->userl1 = req->userl1;
 	c->ds1no = (req->channel & 0xff00) >> 8;
+	c->ds1explicit = (req->channel & 0x10000) >> 16;
 	req->channel &= 0xff;
 	if ((pri->localtype == PRI_CPE) && pri->subchannel) {
 		req->channel = 0;
