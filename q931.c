@@ -2378,7 +2378,7 @@ int q931_hangup(struct pri *pri, q931_call *c, int cause)
 		pri_error("q931_hangup shouldn't be called in this state, ourstate %s, peerstate %s\n",callstate2str(c->ourcallstate),callstate2str(c->peercallstate));
 		break;
 	default:
-		pri_error("We're not yet handling hanging up when our state is %d, contact support@digium.com, ourstate %s, peerstate %s\n",callstate2str(c->ourcallstate),callstate2str(c->peercallstate));
+		pri_error("We're not yet handling hanging up when our state is %d, contact support@digium.com, ourstate %s, peerstate %s\n",c->ourcallstate,callstate2str(c->ourcallstate),callstate2str(c->peercallstate));
 		return -1;
 	}
 	/* we did handle hangup properly at this point */
