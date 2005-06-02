@@ -272,7 +272,7 @@ static int rose_public_party_number_decode(struct pri *pri, q931_call *call, uns
 			return -1;
 		value->ton = ton;
 
-		return res + 2;
+		return res + 3;
 
 	} while(0);
 	return -1;
@@ -335,6 +335,7 @@ static int rose_address_decode(struct pri *pri, q931_call *call, unsigned char *
 			pri_message(pri, "!! Unknown Party number component received 0x%X\n", comp->type);
 			return -1;
 		}
+		ASN1_FIXUP_LEN(comp, res);
 		NEXT_COMPONENT(comp, i);
 		if(i < len)
 			pri_message(pri, "!! not all information is handled from Address component\n");
@@ -348,6 +349,7 @@ static int rose_address_decode(struct pri *pri, q931_call *call, unsigned char *
 static int rose_presented_number_unscreened_decode(struct pri *pri, q931_call *call, unsigned char *data, int len, struct addressingdataelements_presentednumberunscreened *value)
 {
 	int i = 0;
+	int size = 0;
 	struct rose_component *comp = NULL;
 	unsigned char *vdata = data;
 
@@ -362,7 +364,9 @@ static int rose_presented_number_unscreened_decode(struct pri *pri, q931_call *c
 		switch(comp->type) {
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_0):		/* [0] presentationAllowedNumber */
 			value->pres = PRES_ALLOWED_USER_NUMBER_NOT_SCREENED;
-			return rose_address_decode(pri, call, comp->data, comp->len, value) + 2;
+			size = rose_address_decode(pri, call, comp->data, comp->len, value);
+			ASN1_FIXUP_LEN(comp, size);
+			return size + 2;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_1):		/* [1] IMPLICIT presentationRestricted */
 			if (comp->len != 0) { /* must be NULL */
 				pri_error(pri, "!! Invalid PresentationRestricted component received (len != 0)\n");
@@ -379,7 +383,9 @@ static int rose_presented_number_unscreened_decode(struct pri *pri, q931_call *c
 			return 2;
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_3):		/* [3] presentationRestrictedNumber */
 			value->pres = PRES_PROHIB_USER_NUMBER_NOT_SCREENED;
-			return rose_address_decode(pri, call, comp->data, comp->len, value) + 2;
+			size = rose_address_decode(pri, call, comp->data, comp->len, value) + 2;
+			ASN1_FIXUP_LEN(comp, size);
+			return size + 2;
 		default:
 			pri_message(pri, "Invalid PresentedNumberUnscreened component 0x%X\n", comp->type);
 		}
@@ -431,6 +437,7 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 			case ASN1_TAG_1:		/* divertingnr: presentednumberunscreened */
 				res = rose_presented_number_unscreened_decode(pri, call, comp->data, comp->len, &divertingnr);
 				/* TODO: Fix indefinite length form hacks */
+				ASN1_FIXUP_LEN(comp, res);
 				comp->len = res;
 				if (res < 0)
 					return -1;
@@ -443,6 +450,7 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 				res = rose_presented_number_unscreened_decode(pri, call, comp->data, comp->len, &originalcallednr);
 				if (res < 0)
 					return -1;
+				ASN1_FIXUP_LEN(comp, res);
 				comp->len = res;
 				if (pri->debug & PRI_DEBUG_APDU) {
 					pri_message(pri, "    Received originalcallednr '%s'\n", originalcallednr.partyaddress);
@@ -450,12 +458,20 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 				}
 				break;
 			case ASN1_TAG_3:
-				comp->len = asn1_name_decode(comp->data, comp->len, redirectingname, sizeof(redirectingname));
+				res = asn1_name_decode(comp->data, comp->len, redirectingname, sizeof(redirectingname));
+				if (res < 0)
+					return -1;
+				ASN1_FIXUP_LEN(comp, res);
+				comp->len = res;
 				if (pri->debug & PRI_DEBUG_APDU)
 					pri_message(pri, "    Received RedirectingName '%s'\n", redirectingname);
 				break;
 			case ASN1_TAG_4:
-				comp->len = asn1_name_decode(comp->data, comp->len, origcalledname, sizeof(origcalledname));
+				res = asn1_name_decode(comp->data, comp->len, origcalledname, sizeof(origcalledname));
+				if (res < 0)
+					return -1;
+				ASN1_FIXUP_LEN(comp, res);
+				comp->len = res;
 				if (pri->debug & PRI_DEBUG_APDU)
 					pri_message(pri, "    Received Originally Called Name '%s'\n", origcalledname);
 				break;
@@ -494,7 +510,7 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 
 	return -1;
 }
-
+				
 static int rose_diverting_leg_information2_encode(struct pri *pri, q931_call *call)
 {
 	int i = 0, j, compsp = 0;

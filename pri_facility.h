@@ -180,6 +180,12 @@ struct rose_component {
 			(variable) = ((variable) << 8) | (component)->data[comp_idx]; \
 	} while (0)
 
+#define ASN1_FIXUP_LEN(component, size) \
+	do { \
+		if ((component)->len == ASN1_LEN_INDEF) \
+			size += 2; \
+	} while (0)
+
 #define ASN1_ADD_SIMPLE(component, comptype, ptr, idx) \
 	do { \
 		(component) = (struct rose_component *)&((ptr)[(idx)]); \
