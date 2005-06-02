@@ -339,7 +339,7 @@ static int rose_address_decode(struct pri *pri, q931_call *call, unsigned char *
 		NEXT_COMPONENT(comp, i);
 		if(i < len)
 			pri_message(pri, "!! not all information is handled from Address component\n");
-		return res;
+		return res + 2;
 	}
 	while (0);
 
