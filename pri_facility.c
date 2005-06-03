@@ -195,9 +195,9 @@ int asn1_name_decode(void * data, int len, char *namebuf, int buflen)
 	if (datalen > buflen) {
 		/* Truncate */
 		datalen = buflen;
-		memcpy(namebuf, comp->data, datalen);
 	}
-	return res;
+	memcpy(namebuf, comp->data, datalen);
+	return res + 2;
 }
 
 int asn1_string_encode(unsigned char asn1_type, void *data, int len, int max_len, void *src, int src_len)
@@ -396,7 +396,7 @@ static int rose_presented_number_unscreened_decode(struct pri *pri, q931_call *c
 	return -1;
 }
 
-static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *call, struct rose_component *sequence, int len)
 {
 	int i = 0;
 	int diversion_counter;
@@ -405,8 +405,20 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 	struct addressingdataelements_presentednumberunscreened divertingnr;
  	struct addressingdataelements_presentednumberunscreened originalcallednr;
 	struct rose_component *comp = NULL;
-	unsigned char *vdata = data;
+	unsigned char *vdata = sequence->data;
 	int res = 0;
+
+	/* Data checks */
+	if (sequence->type != (ASN1_CONSTRUCTOR | ASN1_SEQUENCE)) { /* Constructed Sequence */
+		pri_message(pri, "Invalid DivertingLegInformation2Type argument\n");
+		return -1;
+	}
+
+	if (sequence->len == ASN1_LEN_INDEF) {
+		len -= 4; /* For the 2 extra characters at the end
+                           * and two characters of header */
+	} else
+		len -= 2;
 
 	do {
 		/* diversionCounter stuff */
@@ -425,16 +437,17 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 	
 		if(pri->debug & PRI_DEBUG_APDU)
 			pri_message(pri, "    Redirection reason: %d, total diversions: %d\n", diversion_reason, diversion_counter);
+		pri_message(NULL, "Length of message is %d\n", len);
 
 		for(; i < len; NEXT_COMPONENT(comp, i)) {
 			GET_COMPONENT(comp, i, vdata, len);
-			switch(comp->type & ASN1_TYPE_MASK) {
-			case ASN1_TAG_0:
+			switch(comp->type) {
+			case (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0):
 				call->origredirectingreason = redirectingreason_for_q931(pri, comp->data[0]);
 				if (pri->debug & PRI_DEBUG_APDU)
 					pri_message(pri, "    Received reason for original redirection %d\n", call->origredirectingreason);
 				break;
-			case ASN1_TAG_1:		/* divertingnr: presentednumberunscreened */
+			case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_1):
 				res = rose_presented_number_unscreened_decode(pri, call, comp->data, comp->len, &divertingnr);
 				/* TODO: Fix indefinite length form hacks */
 				ASN1_FIXUP_LEN(comp, res);
@@ -446,7 +459,7 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 					pri_message(pri, "      ton = %d, pres = %d, npi = %d\n", divertingnr.ton, divertingnr.pres, divertingnr.npi);
 				}
 				break;
-			case ASN1_TAG_2:		/* originalCalledNr: PresentedNumberUnscreened */
+			case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_2):
 				res = rose_presented_number_unscreened_decode(pri, call, comp->data, comp->len, &originalcallednr);
 				if (res < 0)
 					return -1;
@@ -457,7 +470,7 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 					pri_message(pri, "      ton = %d, pres = %d, npi = %d\n", originalcallednr.ton, originalcallednr.pres, originalcallednr.npi);
 				}
 				break;
-			case ASN1_TAG_3:
+			case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_3):
 				res = asn1_name_decode(comp->data, comp->len, redirectingname, sizeof(redirectingname));
 				if (res < 0)
 					return -1;
@@ -466,7 +479,7 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 				if (pri->debug & PRI_DEBUG_APDU)
 					pri_message(pri, "    Received RedirectingName '%s'\n", redirectingname);
 				break;
-			case ASN1_TAG_4:
+			case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_4):
 				res = asn1_name_decode(comp->data, comp->len, origcalledname, sizeof(origcalledname));
 				if (res < 0)
 					return -1;
@@ -476,12 +489,13 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 					pri_message(pri, "    Received Originally Called Name '%s'\n", origcalledname);
 				break;
 			default:
+				if (comp->type == 0 && comp->len == 0) {
+					break; /* Found termination characters */
+				}
 				pri_message(pri, "!! Invalid DivertingLegInformation2 component received 0x%X\n", comp->type);
 				return -1;
 			}
 		}
-		if (i < len)
-			return -1;	/* Aborted before */
 
 		if (divertingnr.pres >= 0) {
 			call->redirectingplan = divertingnr.npi;
@@ -1132,11 +1146,7 @@ extern int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *d
 		case ROSE_DIVERTING_LEG_INFORMATION2:
 			if (pri->debug & PRI_DEBUG_APDU)
 				pri_message(pri, "  Handle DivertingLegInformation2\n");
-			if (comp->type != (ASN1_CONSTRUCTOR | ASN1_SEQUENCE)) { /* Constructed Sequence */
-				pri_message(pri, "Invalid DivertingLegInformation2Type argument\n");
-				return -1;
-			}
-			return rose_diverting_leg_information2_decode(pri, call, comp->data, comp->len);
+			return rose_diverting_leg_information2_decode(pri, call, comp, len-i);
 		case ROSE_AOC_NO_CHARGING_INFO_AVAILABLE:
 			if (pri->debug & PRI_DEBUG_APDU) {
 				pri_message(pri, "ROSE %i: AOC No Charging Info Available - not handled!", operation_tag);
