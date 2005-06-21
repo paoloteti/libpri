@@ -187,7 +187,7 @@ int asn1_name_decode(void * data, int len, char *namebuf, int buflen)
 	int datalen = 0, res = 0;
 
 	if (comp->len == ASN1_LEN_INDEF) {
-		datalen = strlen(comp->data);
+		datalen = strlen((char *)comp->data);
 		res = datalen + 2;
 	} else
 		datalen = res = comp->len;
@@ -234,7 +234,7 @@ static int rose_number_digits_decode(struct pri *pri, q931_call *call, unsigned 
 			return -1;
 		}
 		if (comp->len == ASN1_LEN_INDEF) {
-			datalen = strlen(comp->data);
+			datalen = strlen((char *)comp->data);
 			res = datalen + 2;
 		} else
 			res = datalen = comp->len;

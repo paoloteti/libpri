@@ -299,6 +299,7 @@ typedef struct pri_event_ring {
 	int channel;				/* Channel requested */
 	int callingpres;			/* Presentation of Calling CallerID */
 	int callingplan;			/* Dialing plan of Calling entity */
+	char callingani[256];		/* Calling ANI */
 	char callingnum[256];		/* Calling number */
 	char callingname[256];		/* Calling name (if provided) */
 	int calledplan;				/* Dialing plan of Called number */
@@ -558,6 +559,7 @@ extern void pri_enslave(struct pri *master, struct pri *slave);
 #define PRI_RECEIVE_SUBADDR
 #define PRI_REDIRECTING_REASON
 #define PRI_AOC_UNITS
+#define PRI_ANI
 
 /* Send notification */
 extern int pri_notify(struct pri *pri, q931_call *c, int channel, int info);

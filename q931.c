@@ -866,7 +866,7 @@ static FUNC_SEND(transmit_redirecting_number)
 {
 	if (order > 1)
 		return 0;
-	if (call->redirectingnum && strlen(call->redirectingnum)) {
+	if (call->redirectingnum && *call->redirectingnum) {
 		ie->data[0] = call->redirectingplan;
 		ie->data[1] = call->redirectingpres;
 		ie->data[2] = (call->redirectingreason & 0x0f) | 0x80;
@@ -904,32 +904,45 @@ static FUNC_RECV(receive_called_party_number)
 static FUNC_SEND(transmit_called_party_number)
 {
 	ie->data[0] = 0x80 | call->calledplan;
-	if (strlen(call->callednum)) 
+	if (*call->callednum)
 		memcpy(ie->data + 1, call->callednum, strlen(call->callednum));
 	return strlen(call->callednum) + 3;
 }
 
 static FUNC_RECV(receive_calling_party_number)
 {
-        int extbit;
+	u_int8_t *data;
+	size_t length;
+	int extbit;
         
-        call->callerplan = ie->data[0] & 0x7f;
-        extbit = (ie->data[0] >> 7) & 0x01;
+	call->callerplan = ie->data[0] & 0x7f;
+	extbit = (ie->data[0] >> 7) & 0x01;
 
-	/* Somebody's broken PRI stack sent a calling
-	 party number IE twice.  One with the callernam
-	 and one without. */
-	if (strlen(call->callernum))
-		return 0;
+	if (extbit) {
+		data = ie->data + 1;
+		length = len - 3;
+		call->callerpres = 0; /* PI presentation allowed
+								 SI user-provided, not screened */        
+	}
+	else {
+		data = ie->data + 2;
+		length = len - 4;
+		call->callerpres = ie->data[1] & 0x7f;
+	}
 
-        if (extbit) {
-	  q931_get_number((unsigned char *) call->callernum, sizeof(call->callernum), ie->data + 1, len - 3);
-	  call->callerpres = 0; /* PI presentation allowed
-				   SI user-provided, not screened */        
-        } else {
-	  q931_get_number((unsigned char *) call->callernum, sizeof(call->callernum), ie->data + 2, len - 4);
-	  call->callerpres = ie->data[1] & 0x7f;
-        }
+	if (call->callerpres == PRES_ALLOWED_NETWORK_NUMBER ||
+		call->callerpres == PRES_PROHIB_NETWORK_NUMBER) {
+		q931_get_number((u_int8_t *)call->callerani, sizeof(call->callerani), data, length);
+
+		/*
+		 * Copy ANI to Caller*ID if Caller*ID is not already set
+		 */
+		if (!*call->callernum)
+			strncpy(call->callernum, call->callerani, sizeof(call->callernum) - 1);
+	}
+	else
+		q931_get_number((u_int8_t *)call->callernum, sizeof(call->callernum), data, length);
+
 	return 0;
 }
 
@@ -937,7 +950,7 @@ static FUNC_SEND(transmit_calling_party_number)
 {
 	ie->data[0] = call->callerplan;
 	ie->data[1] = 0x80 | call->callerpres;
-	if (strlen(call->callernum)) 
+	if (*call->callernum) 
 		memcpy(ie->data + 2, call->callernum, strlen(call->callernum));
 	return strlen(call->callernum) + 4;
 }
@@ -1027,7 +1040,7 @@ static FUNC_RECV(receive_display)
 static FUNC_SEND(transmit_display)
 {
 	int i;
-	if ((pri->switchtype != PRI_SWITCH_NI1) && strlen(call->callername)) {
+	if ((pri->switchtype != PRI_SWITCH_NI1) && *call->callername) {
 		i = 0;
 		if(pri->switchtype != PRI_SWITCH_EUROISDN_E1) {
 			ie->data[0] = 0xb1;
@@ -1150,7 +1163,7 @@ static FUNC_SEND(transmit_facility)
 			}
 		} while (0);
 	}
-	if (/*(pri->switchtype == PRI_SWITCH_EUROISDN_E1) &&*/ call->redirectingnum && strlen(call->redirectingnum)) {
+	if (/*(pri->switchtype == PRI_SWITCH_EUROISDN_E1) &&*/ call->redirectingnum && *call->redirectingnum) {
 		if (!(first_i = i)) {
 			/* Add protocol information header */
 			ie->data[i++] = 0x80 | Q932_PROTOCOL_ROSE;
@@ -1185,7 +1198,7 @@ static FUNC_SEND(transmit_facility)
 		switch(call->redirectingpres) {
 		case PRES_ALLOWED_USER_NUMBER_NOT_SCREENED:
 		case PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN:
-			if (call->redirectingnum && strlen(call->redirectingnum)) {
+			if (call->redirectingnum && *call->redirectingnum) {
 				ASN1_ADD_SIMPLE(comp, 0xA0, ie->data, i);
 				ASN1_PUSH(compstk, compsp, comp);
 
@@ -1234,7 +1247,7 @@ static FUNC_SEND(transmit_facility)
 		switch(call->redirectingpres) {
 		case PRES_ALLOWED_USER_NUMBER_NOT_SCREENED:
 		case PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN:
-			if (call->redirectingnum && strlen(call->redirectingnum)) {
+			if (call->redirectingnum && *call->redirectingnum) {
 				ASN1_ADD_SIMPLE(comp, 0xA0, ie->data, i);
 				ASN1_PUSH(compstk, compsp, comp);
 
@@ -1569,7 +1582,7 @@ static void dump_ie_data(unsigned char *c, int len)
 		    ((*c >= 'a') && (*c <= 'z')) ||
 		    ((*c >= '0') && (*c <= '9'))) {
 			if (!lastascii) {
-				if (strlen(tmp)) { 
+				if (*tmp) { 
 					tmp[x++] = ',';
 					tmp[x++] = ' ';
 				}
@@ -1581,7 +1594,7 @@ static void dump_ie_data(unsigned char *c, int len)
 			if (lastascii) {
 				tmp[x++] = '\'';
 			}
-			if (strlen(tmp)) { 
+			if (*tmp) { 
 				tmp[x++] = ',';
 				tmp[x++] = ' ';
 			}
@@ -3368,6 +3381,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.callingpres = c->callerpres;
 		pri->ev.ring.callingplan = c->callerplan;
 		pri->ev.ring.ani2 = c->ani2;
+		strncpy(pri->ev.ring.callingani, c->callerani, sizeof(pri->ev.ring.callingani) - 1);
 		strncpy(pri->ev.ring.callingnum, c->callernum, sizeof(pri->ev.ring.callingnum) - 1);
 		strncpy(pri->ev.ring.callingname, c->callername, sizeof(pri->ev.ring.callingname) - 1);
 		pri->ev.ring.calledplan = c->calledplan;
@@ -3434,7 +3448,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		}
 		pri->ev.e = PRI_EVENT_FACNAME;
 		strncpy(pri->ev.facname.callingname, c->callername, sizeof(pri->ev.facname.callingname) - 1);
-		strncpy(pri->ev.facname.callingnum, c->callernum, sizeof(pri->ev.facname.callingname) - 1);
+		strncpy(pri->ev.facname.callingnum, c->callernum, sizeof(pri->ev.facname.callingnum) - 1);
 		pri->ev.facname.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.facname.cref = c->cr;
 		pri->ev.facname.call = c;

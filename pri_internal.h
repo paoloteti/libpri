@@ -200,7 +200,8 @@ struct q931_call {
 	
 	int callerplan;
 	int callerpres;			/* Caller presentation */
-	char callernum[256];	/* Caller */
+	char callerani[256];	/* Caller */
+	char callernum[256];
 	char callername[256];
 
 	char digitbuf[64];	/* Buffer for digits that come in KEYPAD_FACILITY */
