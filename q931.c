@@ -1,9 +1,9 @@
 /*
  * libpri: An implementation of Primary Rate ISDN
  *
- * Written by Mark Spencer <markster@linux-support.net>
+ * Written by Mark Spencer <markster@digium.com>
  *
- * Copyright (C) 2001, Linux Support Services, Inc.
+ * Copyright (C) 2001-2005, Digium
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -21,7 +21,7 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. 
  *
  */
- 
+
 #include "compat.h"
 #include "libpri.h"
 #include "pri_internal.h"
@@ -938,7 +938,7 @@ static FUNC_RECV(receive_calling_party_number)
 		 * Copy ANI to Caller*ID if Caller*ID is not already set
 		 */
 		if (!*call->callernum)
-			strncpy(call->callernum, call->callerani, sizeof(call->callernum) - 1);
+			libpri_copy_string(call->callernum, call->callerani, sizeof(call->callernum));
 	}
 	else
 		q931_get_number((u_int8_t *)call->callernum, sizeof(call->callernum), data, length);
@@ -1524,31 +1524,28 @@ static FUNC_DUMP(dump_time_date)
 
 static FUNC_DUMP(dump_keypad_facility)
 {
-	char tmp[64] = "";
+	char tmp[64];
 	
 	if (ie->len == 0 || ie->len > sizeof(tmp))
 		return;
 	
-	strncpy(tmp, (char *) ie->data, sizeof(tmp));
+	libpri_copy_string(tmp, (char *) ie->data, sizeof(tmp));
 	pri_message(pri, "%c Keypad Facility (len=%2d) [ %s ]\n", prefix, ie->len, tmp );
 }
 
 static FUNC_RECV(receive_keypad_facility)
 {
-	int mylen = 0;
+	int mylen;
 
 	if (ie->len == 0)
 		return -1;
 
 	if (ie->len > sizeof(call->digitbuf))
-		mylen = sizeof(call->digitbuf) - 1;
+		mylen = sizeof(call->digitbuf);
 	else
 		mylen = ie->len;
 
-	strncpy(call->digitbuf, (char *) ie->data, mylen);
-
-	/* I must be really neurotic */
-	call->digitbuf[sizeof(call->digitbuf)-1] = '\0';
+	libpri_copy_string(call->digitbuf, (char *) ie->data, mylen);
 
 	return 0;
 }
@@ -1557,7 +1554,7 @@ static FUNC_DUMP(dump_display)
 {
 	int x, y;
 	char *buf = malloc(len + 1);
-	char tmp[80]="";
+	char tmp[80];
 	if (buf) {
 		x=y=0;
 		if ((x < ie->len) && (ie->data[x] & 0x80)) {
@@ -2908,12 +2905,12 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 	else if (c->channelno)
 		c->chanflags = FLAG_PREFERRED;
 	if (req->caller) {
-		strncpy(c->callernum, req->caller, sizeof(c->callernum) - 1);
+		libpri_copy_string(c->callernum, req->caller, sizeof(c->callernum));
 		c->callerplan = req->callerplan;
 		if (req->callername)
-			strncpy(c->callername, req->callername, sizeof(c->callername) - 1);
+			libpri_copy_string(c->callername, req->callername, sizeof(c->callername));
 		else
-			strcpy(c->callername, "");
+			c->callername[0] = '\0';
 		if ((pri->switchtype == PRI_SWITCH_DMS100) ||
 		    (pri->switchtype == PRI_SWITCH_ATT4ESS)) {
 			/* Doesn't like certain presentation types */
@@ -2922,13 +2919,13 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 		}
 		c->callerpres = req->callerpres;
 	} else {
-		strcpy(c->callernum, "");
-		strcpy(c->callername, "");
+		c->callernum[0] = '\0';
+		c->callername[0] = '\0';
 		c->callerplan = PRI_UNKNOWN;
 		c->callerpres = PRES_NUMBER_NOT_AVAILABLE;
 	}
 	if (req->redirectingnum) {
-		strncpy(c->redirectingnum, req->redirectingnum, sizeof(c->redirectingnum) - 1);
+		libpri_copy_string(c->redirectingnum, req->redirectingnum, sizeof(c->redirectingnum));
 		c->redirectingplan = req->redirectingplan;
 		if ((pri->switchtype == PRI_SWITCH_DMS100) ||
 		    (pri->switchtype == PRI_SWITCH_ATT4ESS)) {
@@ -2939,13 +2936,13 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 		c->redirectingpres = req->redirectingpres;
 		c->redirectingreason = req->redirectingreason;
 	} else {
-		strcpy(c->redirectingnum, "");
+		c->redirectingnum[0] = '\0';
 		c->redirectingplan = PRI_UNKNOWN;
 		c->redirectingpres = PRES_NUMBER_NOT_AVAILABLE;
 		c->redirectingreason = PRI_REDIR_UNKNOWN;
 	}
 	if (req->called) {
-		strncpy(c->callednum, req->called, sizeof(c->callednum) - 1);
+		libpri_copy_string(c->callednum, req->called, sizeof(c->callednum));
 		c->calledplan = req->calledplan;
 	} else
 		return -1;
@@ -3148,7 +3145,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->ri = -1;
 		break;
 	case Q931_FACILITY:
-		strcpy(c->callername, "");
+		c->callername[0] = '\0';
 		break;
 	case Q931_SETUP:
 		if (pri->debug & PRI_DEBUG_Q931_STATE)
@@ -3168,21 +3165,21 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->calledplan = -1;
 		c->callerplan = -1;
 		c->callerpres = -1;
-		strcpy(c->callernum, "");
-		strcpy(c->callednum, "");
-		strcpy(c->callername, "");
+		c->callernum[0] = '\0';
+		c->callednum[0] = '\0';
+		c->callername[0] = '\0';
                 c->redirectingplan = -1;
                 c->redirectingpres = -1;
                 c->redirectingreason = -1;
                 c->origcalledplan = -1;
                 c->origcalledpres = -1;
                 c->origredirectingreason = -1;
-		strcpy(c->redirectingnum, "");
-		strcpy(c->origcallednum, "");
-		strcpy(c->redirectingname, "");
-		strcpy(c->origcalledname, "");
+		c->redirectingnum[0] = '\0';
+		c->origcallednum[0] = '\0';
+		c->redirectingname[0] = '\0';
+		c->origcalledname[0] = '\0';
                 c->useruserprotocoldisc = -1; 
-		strcpy(c->useruserinfo, "");
+		c->useruserinfo[0] = '\0';
 		c->complete = 0;
 		c->nonisdn = 0;
 		/* Fall through */
@@ -3381,17 +3378,17 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.callingpres = c->callerpres;
 		pri->ev.ring.callingplan = c->callerplan;
 		pri->ev.ring.ani2 = c->ani2;
-		strncpy(pri->ev.ring.callingani, c->callerani, sizeof(pri->ev.ring.callingani) - 1);
-		strncpy(pri->ev.ring.callingnum, c->callernum, sizeof(pri->ev.ring.callingnum) - 1);
-		strncpy(pri->ev.ring.callingname, c->callername, sizeof(pri->ev.ring.callingname) - 1);
+		libpri_copy_string(pri->ev.ring.callingani, c->callerani, sizeof(pri->ev.ring.callingani));
+		libpri_copy_string(pri->ev.ring.callingnum, c->callernum, sizeof(pri->ev.ring.callingnum));
+		libpri_copy_string(pri->ev.ring.callingname, c->callername, sizeof(pri->ev.ring.callingname));
 		pri->ev.ring.calledplan = c->calledplan;
-		strncpy(pri->ev.ring.callingsubaddr, c->callingsubaddr, sizeof(pri->ev.ring.callingsubaddr) - 1);
-		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum) - 1);
-		strncpy(pri->ev.ring.origcalledname, c->origcalledname, sizeof(pri->ev.ring.origcalledname) - 1);
-		strncpy(pri->ev.ring.origcallednum, c->origcallednum, sizeof(pri->ev.ring.origcallednum) - 1);
-                strncpy(pri->ev.ring.redirectingnum, c->redirectingnum, sizeof(pri->ev.ring.redirectingnum) - 1);
-                strncpy(pri->ev.ring.redirectingname, c->redirectingname, sizeof(pri->ev.ring.redirectingname) - 1);
-                strncpy(pri->ev.ring.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo) - 1);
+		libpri_copy_string(pri->ev.ring.callingsubaddr, c->callingsubaddr, sizeof(pri->ev.ring.callingsubaddr));
+		libpri_copy_string(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum));
+		libpri_copy_string(pri->ev.ring.origcalledname, c->origcalledname, sizeof(pri->ev.ring.origcalledname));
+		libpri_copy_string(pri->ev.ring.origcallednum, c->origcallednum, sizeof(pri->ev.ring.origcallednum));
+                libpri_copy_string(pri->ev.ring.redirectingnum, c->redirectingnum, sizeof(pri->ev.ring.redirectingnum));
+                libpri_copy_string(pri->ev.ring.redirectingname, c->redirectingname, sizeof(pri->ev.ring.redirectingname));
+                libpri_copy_string(pri->ev.ring.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo));
 		pri->ev.ring.redirectingreason = c->redirectingreason;
 		pri->ev.ring.origredirectingreason = c->origredirectingreason;
 		pri->ev.ring.flexible = ! (c->chanflags & FLAG_EXCLUSIVE);
@@ -3447,8 +3444,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			break;
 		}
 		pri->ev.e = PRI_EVENT_FACNAME;
-		strncpy(pri->ev.facname.callingname, c->callername, sizeof(pri->ev.facname.callingname) - 1);
-		strncpy(pri->ev.facname.callingnum, c->callernum, sizeof(pri->ev.facname.callingnum) - 1);
+		libpri_copy_string(pri->ev.facname.callingname, c->callername, sizeof(pri->ev.facname.callingname));
+		libpri_copy_string(pri->ev.facname.callingnum, c->callernum, sizeof(pri->ev.facname.callingnum));
 		pri->ev.facname.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.facname.cref = c->cr;
 		pri->ev.facname.call = c;
@@ -3630,14 +3627,14 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			pri->ev.e = PRI_EVENT_KEYPAD_DIGIT;
 			pri->ev.digit.call = c;
 			pri->ev.digit.channel = c->channelno | (c->ds1no << 8);
-			strncpy(pri->ev.digit.digits, c->digitbuf, sizeof(pri->ev.digit.digits));
+			libpri_copy_string(pri->ev.digit.digits, c->digitbuf, sizeof(pri->ev.digit.digits));
 			return Q931_RES_HAVEEVENT;
 		}
 		pri->ev.e = PRI_EVENT_INFO_RECEIVED;
 		pri->ev.ring.call = c;
 		pri->ev.ring.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
-		strncpy(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum) - 1);
-		strncpy(pri->ev.ring.callingsubaddr, c->callingsubaddr, sizeof(pri->ev.ring.callingsubaddr) - 1);
+		libpri_copy_string(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum));
+		libpri_copy_string(pri->ev.ring.callingsubaddr, c->callingsubaddr, sizeof(pri->ev.ring.callingsubaddr));
 		pri->ev.ring.complete = c->complete; 	/* this covers IE 33 (Sending Complete) */
 		return Q931_RES_HAVEEVENT;
 	case Q931_STATUS_ENQUIRY:

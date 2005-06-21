@@ -1,13 +1,26 @@
-/* 
-   This file and it's contents are licensed under the terms and conditions
-   of the GNU Public License.  See http://www.gnu.org for details.
-   
-   Routines for dealing with facility messages and their respective
-   components (ROSE)
-
-   by Matthew Fredrickson <creslin@digium.com>
-   Copyright (C) 2004-2005 Digium, Inc
-*/
+/*
+ * libpri: An implementation of Primary Rate ISDN
+ *
+ * Written by Matthew Fredrickson <creslin@digium.com>
+ *
+ * Copyright (C) 2004-2005, Digium
+ * All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. 
+ *
+ */
 
 #include "compat.h"
 #include "libpri.h"
@@ -501,23 +514,15 @@ static int rose_diverting_leg_information2_decode(struct pri *pri, q931_call *ca
 			call->redirectingplan = divertingnr.npi;
 			call->redirectingpres = divertingnr.pres;
 			call->redirectingreason = diversion_reason;
-			strncpy(call->redirectingnum, divertingnr.partyaddress, sizeof(call->redirectingnum)-1);
-			call->redirectingnum[sizeof(call->redirectingnum)-1] = '\0';
+			libpri_copy_string(call->redirectingnum, divertingnr.partyaddress, sizeof(call->redirectingnum));
 		}
 		if (originalcallednr.pres >= 0) {
 			call->origcalledplan = originalcallednr.npi;
 			call->origcalledpres = originalcallednr.pres;
-			strncpy(call->origcallednum, originalcallednr.partyaddress, sizeof(call->origcallednum)-1);
-			call->origcallednum[sizeof(call->origcallednum)-1] = '\0';
+			libpri_copy_string(call->origcallednum, originalcallednr.partyaddress, sizeof(call->origcallednum));
 		}
-		if (strlen(redirectingname) > 0) {
-			strncpy(call->redirectingname, redirectingname, sizeof(call->redirectingname));
-			call->redirectingname[sizeof(call->redirectingname)-1] = '\0';
-		}
-		if (strlen(origcalledname) > 0) {
-			strncpy(call->origcalledname, origcalledname, sizeof(call->origcalledname));
-			call->origcalledname[sizeof(call->origcalledname)-1] = '\0';
-		}
+		libpri_copy_string(call->redirectingname, redirectingname, sizeof(call->redirectingname));
+		libpri_copy_string(call->origcalledname, origcalledname, sizeof(call->origcalledname));
 		return 0;
 	}
 	while (0);

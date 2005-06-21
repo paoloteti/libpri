@@ -251,4 +251,6 @@ extern void pri_message(struct pri *pri, char *fmt, ...);
 
 extern void pri_error(struct pri *pri, char *fmt, ...);
 
+void libpri_copy_string(char *dst, const char *src, size_t size);
+
 #endif
