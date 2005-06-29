@@ -337,6 +337,7 @@ typedef struct pri_event_restart_ack {
 	int channel;
 } pri_event_restart_ack;
 
+#define PRI_PROGRESS_CAUSE
 typedef struct pri_event_proceeding {
 	int e;
 	int channel;
