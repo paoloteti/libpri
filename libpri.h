@@ -343,6 +343,7 @@ typedef struct pri_event_proceeding {
 	int cref;
 	int progress;
 	int progressmask;
+	int cause;
 	q931_call *call;
 } pri_event_proceeding;
  

@@ -3189,6 +3189,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	case Q931_CONNECT:
 	case Q931_ALERTING:
 	case Q931_PROGRESS:
+		c->cause = -1;
 	case Q931_CALL_PROCEEDING:
 		c->progress = -1;
 		c->progressmask = 0;
@@ -3463,6 +3464,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			break;
 		}
 		pri->ev.e = PRI_EVENT_PROGRESS;
+		pri->ev.proceeding.cause = c->cause;
 		/* Fall through */
 	case Q931_CALL_PROCEEDING:
 		if (c->newcall) {
