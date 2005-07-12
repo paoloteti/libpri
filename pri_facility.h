@@ -232,6 +232,8 @@ struct rose_component {
 /* Decoder for the invoke part of a ROSE request */
 extern int rose_invoke_decode(struct pri *pri, struct q931_call *call, unsigned char *data, int len);
 
+extern int asn1_copy_string(char * buf, int buflen, struct rose_component *comp);
+
 extern int asn1_string_encode(unsigned char asn1_type, void *data, int len, int max_len, void *src, int src_len);
 
 /* Get Name types from ASN.1 */

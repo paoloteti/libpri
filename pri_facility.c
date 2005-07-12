@@ -231,6 +231,26 @@ int asn1_string_encode(unsigned char asn1_type, void *data, int len, int max_len
 	return 2 + src_len;
 }
 
+int asn1_copy_string(char * buf, int buflen, struct rose_component *comp)
+{
+	int res;
+	int datalen;
+
+	if ((comp->len > buflen) && (comp->len != ASN1_LEN_INDEF))
+		return -1;
+
+	if (comp->len == ASN1_LEN_INDEF) {
+		datalen = strlen(comp->data);
+		res = datalen + 2;
+	} else
+		res = datalen = comp->len;
+
+	memcpy(buf, comp->data, datalen);
+	buf[datalen] = 0;
+
+	return res;
+}
+
 static int rose_number_digits_decode(struct pri *pri, q931_call *call, unsigned char *data, int len, struct addressingdataelements_presentednumberunscreened *value)
 {
 	int i = 0;
@@ -304,6 +324,13 @@ static int rose_address_decode(struct pri *pri, q931_call *call, unsigned char *
 		switch(comp->type) {
 		case (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_0):	/* [0] unknownPartyNumber */
 			res = rose_number_digits_decode(pri, call, comp->data, comp->len, value);
+			if (res < 0)
+				return -1;
+			value->npi = PRI_NPI_UNKNOWN;
+			value->ton = PRI_TON_UNKNOWN;
+			break;
+		case (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0):	/* [0] unknownPartyNumber */
+			res = asn1_copy_string(value->partyaddress, sizeof(value->partyaddress), comp);
 			if (res < 0)
 				return -1;
 			value->npi = PRI_NPI_UNKNOWN;
