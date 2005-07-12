@@ -294,10 +294,12 @@ typedef struct pri_event_facname {
 	q931_call *call;
 } pri_event_facname;
 
+#define PRI_CALLINGPLANANI
 typedef struct pri_event_ring {
 	int e;
 	int channel;				/* Channel requested */
 	int callingpres;			/* Presentation of Calling CallerID */
+	int callingplanani;			/* Dialing plan of Calling entity ANI */
 	int callingplan;			/* Dialing plan of Calling entity */
 	char callingani[256];		/* Calling ANI */
 	char callingnum[256];		/* Calling number */
@@ -305,17 +307,17 @@ typedef struct pri_event_ring {
 	int calledplan;				/* Dialing plan of Called number */
 	int ani2;                   /* ANI II */
 	char callednum[256];		/* Called number */
-	char redirectingnum[256];		/* Redirecting number */
-	char redirectingname[256];		/* Redirecting name */
-	int redirectingreason;			/* Reason for redirect */
-	char useruserinfo[256];			/* User->User info */
+	char redirectingnum[256];	/* Redirecting number */
+	char redirectingname[256];	/* Redirecting name */
+	int redirectingreason;		/* Reason for redirect */
+	char useruserinfo[256];		/* User->User info */
 	int flexible;				/* Are we flexible with our channel selection? */
 	int cref;					/* Call Reference Number */
 	int ctype;					/* Call type (see PRI_TRANS_CAP_* */
-	int layer1;				/* User layer 1 */
+	int layer1;					/* User layer 1 */
 	int complete;				/* Have we seen "Complete" i.e. no more number? */
 	q931_call *call;			/* Opaque call pointer */
-	char callingsubaddr[256];		/* Calling parties subaddress */
+	char callingsubaddr[256];	/* Calling parties subaddress */
 	int progress;
 	int progressmask;
 	char origcalledname[256];

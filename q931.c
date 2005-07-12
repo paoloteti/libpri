@@ -913,18 +913,12 @@ static FUNC_RECV(receive_calling_party_number)
 {
 	u_int8_t *data;
 	size_t length;
-	int extbit;
         
-	call->callerplan = ie->data[0] & 0x7f;
-	extbit = (ie->data[0] >> 7) & 0x01;
-
-	if (extbit) {
+	if (ie->data[0] & 0x80) {
 		data = ie->data + 1;
 		length = len - 3;
-		call->callerpres = 0; /* PI presentation allowed
-								 SI user-provided, not screened */        
-	}
-	else {
+		call->callerpres = 0; /* PI presentation allowed SI user-provided, not screened */        
+	} else {
 		data = ie->data + 2;
 		length = len - 4;
 		call->callerpres = ie->data[1] & 0x7f;
@@ -933,15 +927,17 @@ static FUNC_RECV(receive_calling_party_number)
 	if (call->callerpres == PRES_ALLOWED_NETWORK_NUMBER ||
 		call->callerpres == PRES_PROHIB_NETWORK_NUMBER) {
 		q931_get_number((u_int8_t *)call->callerani, sizeof(call->callerani), data, length);
+		call->callerplanani = ie->data[0] & 0x7f;
 
-		/*
-		 * Copy ANI to Caller*ID if Caller*ID is not already set
-		 */
-		if (!*call->callernum)
+		if (!*call->callernum) { /*Copy ANI to CallerID if CallerID is not already set */
 			libpri_copy_string(call->callernum, call->callerani, sizeof(call->callernum));
-	}
-	else
+			call->callerplan = call->callerplanani;
+		}
+		
+	} else {
 		q931_get_number((u_int8_t *)call->callernum, sizeof(call->callernum), data, length);
+		call->callerplan = ie->data[0] & 0x7f;
+	}
 
 	return 0;
 }
@@ -3000,20 +2996,23 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->callernum[0] = '\0';
 		c->callednum[0] = '\0';
 		c->callername[0] = '\0';
-                c->redirectingplan = -1;
-                c->redirectingpres = -1;
-                c->redirectingreason = -1;
-                c->origcalledplan = -1;
-                c->origcalledpres = -1;
-                c->origredirectingreason = -1;
+		c->callerani[0] = '\0';
+		c->callerplanani = -1;
+		c->redirectingplan = -1;
+		c->redirectingpres = -1;
+		c->redirectingreason = -1;
+		c->origcalledplan = -1;
+		c->origcalledpres = -1;
+		c->origredirectingreason = -1;
 		c->redirectingnum[0] = '\0';
 		c->origcallednum[0] = '\0';
 		c->redirectingname[0] = '\0';
 		c->origcalledname[0] = '\0';
-                c->useruserprotocoldisc = -1; 
+		c->useruserprotocoldisc = -1; 
 		c->useruserinfo[0] = '\0';
 		c->complete = 0;
 		c->nonisdn = 0;
+		c->aoc_units = -1;
 		/* Fall through */
 	case Q931_CONNECT:
 	case Q931_ALERTING:
@@ -3210,6 +3209,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.ring.callingpres = c->callerpres;
 		pri->ev.ring.callingplan = c->callerplan;
+		pri->ev.ring.callingplanani = c->callerplanani;
 		pri->ev.ring.ani2 = c->ani2;
 		libpri_copy_string(pri->ev.ring.callingani, c->callerani, sizeof(pri->ev.ring.callingani));
 		libpri_copy_string(pri->ev.ring.callingnum, c->callernum, sizeof(pri->ev.ring.callingnum));

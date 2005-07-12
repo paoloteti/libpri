@@ -199,16 +199,17 @@ struct q931_call {
 	int sugcallstate;		/* Status call state */
 	
 	int callerplan;
+	int callerplanani;
 	int callerpres;			/* Caller presentation */
 	char callerani[256];	/* Caller */
 	char callernum[256];
 	char callername[256];
 
-	char digitbuf[64];	/* Buffer for digits that come in KEYPAD_FACILITY */
+	char digitbuf[64];		/* Buffer for digits that come in KEYPAD_FACILITY */
 
 	int ani2;               /* ANI II */
 	
-	int  calledplan;
+	int calledplan;
 	int nonisdn;
 	char callednum[256];	/* Called Number */
 	int complete;			/* no more digits coming */
@@ -226,11 +227,11 @@ struct q931_call {
 	/* Filled in cases of multiple diversions */
 	int origcalledplan;
 	int origcalledpres;
-	int origredirectingreason;      /* Original reason for redirect (in cases of multiple redirects) */
+	int origredirectingreason;	/* Original reason for redirect (in cases of multiple redirects) */
 	char origcalledname[256];	/* Original name of person being called */
-	char origcallednum[256];		/* Orignal number of person being called */
+	char origcallednum[256];	/* Orignal number of person being called */
 
-        int useruserprotocoldisc;
+	int useruserprotocoldisc;
 	char useruserinfo[256];
 	char callingsubaddr[256];	/* Calling parties sub address */
 	
