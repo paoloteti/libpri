@@ -240,7 +240,7 @@ int asn1_copy_string(char * buf, int buflen, struct rose_component *comp)
 		return -1;
 
 	if (comp->len == ASN1_LEN_INDEF) {
-		datalen = strlen(comp->data);
+		datalen = strlen((char*)comp->data);
 		res = datalen + 2;
 	} else
 		res = datalen = comp->len;
