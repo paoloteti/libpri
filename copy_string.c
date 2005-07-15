@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 
+#include "compiler.h"
 #include "libpri.h"
 #include "pri_internal.h"
 
