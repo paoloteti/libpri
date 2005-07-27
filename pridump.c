@@ -67,12 +67,12 @@ static int pri_open(char *dev)
 	return dfd;
 }
 
-static void dump_packet(char *buf, int len, int txrx)
+static void dump_packet(struct pri *pri, char *buf, int len, int txrx)
 {
 	q921_h *h = (q921_h *)buf;
-	q921_dump(h, len, 1, txrx);
+	q921_dump(pri, h, len, 1, txrx);
 	if (!((h->h.data[0] & Q921_FRAMETYPE_MASK) & 0x3)) {
-		q931_dump((q931_h *)(h->i.data), len - 4 - 2 /* FCS */, txrx);
+		q931_dump(pri, (q931_h *)(h->i.data), len - 4 - 2 /* FCS */, txrx);
 	}
 	fflush(stdout);
 	fflush(stderr);
@@ -103,16 +103,26 @@ static int pri_bridge(int d1, int d2)
 		if (FD_ISSET(d1, &fds)) {
 			/* Copy from d1 to d2 */
 			res = read(d1, buf, sizeof(buf));
-			dump_packet(buf, res, 1);
+			dump_packet((struct pri *)NULL, buf, res, 1);
 			res = write(d2, buf, res);
 		}
 		if (FD_ISSET(d2, &fds)) {
 			/* Copy from d2 to d1 */
 			res = read(d2, buf, sizeof(buf));
-			dump_packet(buf, res, 0);
+			dump_packet((struct pri *)NULL, buf, res, 0);
 			res = write(d1, buf, res);
 		}
 	}
+}
+
+static void my_pri_message(struct pri *pri, char *stuff)
+{
+	fprintf(stdout, "%s", stuff);
+}
+
+static void my_pri_error(struct pri *pri, char *stuff)
+{
+	fprintf(stderr, "%s", stuff);
 }
 
 int main(int argc, char *argv[])
@@ -123,6 +133,9 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Usage: pridump <dev1> <dev2>\n");
 		exit(1);
 	}
+	
+	pri_set_message(my_pri_message);
+	pri_set_error(my_pri_error);
 	
 	d1 = pri_open(argv[1]);
 	if (d1 < 0)

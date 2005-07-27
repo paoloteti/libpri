@@ -104,7 +104,7 @@ testprilib: testprilib.o
 	$(CC) -o testprilib testprilib.o -L. -lpri -lpthread $(CFLAGS)
 
 pridump: pridump.o
-	$(CC) -o pridump pridump.o -L. -lpri -lzap $(CFLAGS)
+	$(CC) -o pridump pridump.o -L. -lpri $(CFLAGS)
 
 ifneq ($(wildcard .depend),)
 include .depend
