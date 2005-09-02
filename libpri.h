@@ -295,6 +295,7 @@ typedef struct pri_event_facname {
 } pri_event_facname;
 
 #define PRI_CALLINGPLANANI
+#define PRI_CALLINGPLANRDNIS
 typedef struct pri_event_ring {
 	int e;
 	int channel;				/* Channel requested */
@@ -310,6 +311,7 @@ typedef struct pri_event_ring {
 	char redirectingnum[256];	/* Redirecting number */
 	char redirectingname[256];	/* Redirecting name */
 	int redirectingreason;		/* Reason for redirect */
+	int callingplanrdnis;			/* Dialing plan of Redirecting Number */
 	char useruserinfo[256];		/* User->User info */
 	int flexible;				/* Are we flexible with our channel selection? */
 	int cref;					/* Call Reference Number */
@@ -322,6 +324,7 @@ typedef struct pri_event_ring {
 	int progressmask;
 	char origcalledname[256];
 	char origcallednum[256];
+	int callingplanorigcalled;		/* Dialing plan of Originally Called Number */
 	int origredirectingreason;
 } pri_event_ring;
 

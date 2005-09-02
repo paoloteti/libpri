@@ -3210,6 +3210,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ring.callingpres = c->callerpres;
 		pri->ev.ring.callingplan = c->callerplan;
 		pri->ev.ring.callingplanani = c->callerplanani;
+		pri->ev.ring.callingplanrdnis = c->redirectingplan;
+		pri->ev.ring.callingplanorigcalled = c->origcalledplan;
 		pri->ev.ring.ani2 = c->ani2;
 		libpri_copy_string(pri->ev.ring.callingani, c->callerani, sizeof(pri->ev.ring.callingani));
 		libpri_copy_string(pri->ev.ring.callingnum, c->callernum, sizeof(pri->ev.ring.callingnum));
