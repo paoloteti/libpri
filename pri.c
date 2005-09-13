@@ -247,6 +247,16 @@ static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *maste
 	return p;
 }
 
+int pri_restart(struct pri *pri)
+{
+	/* Restart Q.921 layer */
+	if (pri) {
+		q921_reset(pri);
+		q921_start(pri, pri->localtype == PRI_CPE);	
+	}
+	return 0;
+}
+
 struct pri *pri_new(int fd, int nodetype, int switchtype)
 {
 	return __pri_new(fd, nodetype, switchtype, NULL, __pri_read, __pri_write, NULL);
