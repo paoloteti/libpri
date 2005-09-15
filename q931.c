@@ -1036,7 +1036,8 @@ static FUNC_RECV(receive_display)
 static FUNC_SEND(transmit_display)
 {
 	int i;
-	if ((pri->switchtype != PRI_SWITCH_NI1) && *call->callername) {
+	if ((pri->switchtype != PRI_SWITCH_NI1) && (pri->switchtype != PRI_SWITCH_QSIG) 
+			&& *call->callername) {
 		i = 0;
 		if(pri->switchtype != PRI_SWITCH_EUROISDN_E1) {
 			ie->data[0] = 0xb1;
