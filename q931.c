@@ -361,7 +361,7 @@ static FUNC_SEND(transmit_channel_id)
 		return 0;
 	}
 
-	if ((pri->switchtype != PRI_SWITCH_QSIG) && (call->ds1no > 0) || call->ds1explicit) {
+	if (((pri->switchtype != PRI_SWITCH_QSIG) && (call->ds1no > 0)) || call->ds1explicit) {
 		/* Note that we are specifying the identifier */
 		ie->data[pos++] |= 0x40;
 		/* We need to use the Channel Identifier Present thingy.  Just specify it and we're done */

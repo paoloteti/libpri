@@ -1300,7 +1300,7 @@ extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call)
 
 	if (pri->switchtype == PRI_SWITCH_QSIG) { /* For Q.SIG it does network and cpe operations */
 		/* FIXME: Presumably, it should only send on a redirect */
-		if (call->redirecting) 
+		if (call->redirectingnum) 
 			rose_diverting_leg_information2_encode(pri, call);
 		add_callername_facility_ies(pri, call, 1);
 	}
