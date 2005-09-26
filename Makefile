@@ -30,7 +30,7 @@
 CC=gcc
 
 OSARCH=$(shell uname -s)
-PROC=$(shell uname -m)
+PROC?=$(shell uname -m)
 
 TOBJS=testpri.o
 T2OBJS=testprilib.o
@@ -39,7 +39,7 @@ DYNAMIC_LIBRARY=libpri.so.1.0
 STATIC_OBJS=copy_string.o pri.o q921.o prisched.o q931.o pri_facility.o
 DYNAMIC_OBJS=copy_string.lo pri.lo q921.lo prisched.lo q931.lo pri_facility.lo
 CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g $(ALERTING) $(LIBPRI_COUNTERS)
-INSTALL_PREFIX=
+INSTALL_PREFIX?=
 INSTALL_BASE=/usr
 SOFLAGS = -Wl,-hlibpri.so.1
 LDCONFIG = /sbin/ldconfig
@@ -86,7 +86,7 @@ ifneq (${OSARCH},SunOS)
 	if [ -x /usr/sbin/sestatus ] && ( /usr/sbin/sestatus | grep "SELinux status:" | grep -q "enabled"); then  restorecon -v $(INSTALL_PREFIX)$(INSTALL_BASE)/lib/$(DYNAMIC_LIBRARY); fi
 	( cd $(INSTALL_PREFIX)$(INSTALL_BASE)/lib ; ln -sf libpri.so.1 libpri.so )
 	install -m 644 $(STATIC_LIBRARY) $(INSTALL_PREFIX)$(INSTALL_BASE)/lib
-	$(LDCONFIG)
+	if test $$(id -u) = 0; then $(LDCONFIG); fi
 else
 	install -f $(INSTALL_PREFIX)$(INSTALL_BASE)/include -m 644 libpri.h
 	install -f $(INSTALL_PREFIX)$(INSTALL_BASE)/lib -m 755 $(DYNAMIC_LIBRARY)
