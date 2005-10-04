@@ -1299,10 +1299,10 @@ extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call)
 		return 0;
 
 	if (pri->switchtype == PRI_SWITCH_QSIG) { /* For Q.SIG it does network and cpe operations */
-		/* FIXME: Presumably, it should only send on a redirect */
-		if (call->redirectingnum) 
+		if (call->redirectingnum[0]) 
 			rose_diverting_leg_information2_encode(pri, call);
 		add_callername_facility_ies(pri, call, 1);
+		return 0;
 	}
 
 	if (pri->localtype == PRI_NETWORK) {
@@ -1313,6 +1313,7 @@ extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call)
 			default:
 				break;
 		}
+		return 0;
 	} else if (pri->localtype == PRI_CPE) {
 		switch (pri->switchtype) {
 			case PRI_SWITCH_NI2:
@@ -1321,6 +1322,7 @@ extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call)
 			default:
 				break;
 		}
+		return 0;
 	}
 
 	return 0;
