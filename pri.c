@@ -247,6 +247,17 @@ static struct pri *__pri_new(int fd, int node, int switchtype, struct pri *maste
 	return p;
 }
 
+void pri_call_set_useruser(q931_call *c, char *userchars)
+{
+	if (userchars)
+		libpri_copy_string(c->useruserinfo, userchars, sizeof(c->useruserinfo));
+}
+
+void pri_sr_set_useruser(struct pri_sr *sr, char *userchars)
+{
+	sr->useruserinfo = userchars;
+}
+
 int pri_restart(struct pri *pri)
 {
 	/* Restart Q.921 layer */
