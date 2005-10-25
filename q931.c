@@ -2525,7 +2525,7 @@ int q931_call_proceeding(struct pri *pri, q931_call *c, int channel, int info)
 	return send_message(pri, c, Q931_CALL_PROCEEDING, call_proceeding_ies);
 }
 #ifndef ALERTING_NO_PROGRESS
-static int alerting_ies[] = { Q931_PROGRESS_INDICATOR, Q931_IE_USER_USER  -1 };
+static int alerting_ies[] = { Q931_PROGRESS_INDICATOR, Q931_IE_USER_USER,  -1 };
 #else
 static int alerting_ies[] = { -1 };
 #endif
