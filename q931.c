@@ -1382,12 +1382,14 @@ static FUNC_RECV(receive_keypad_facility)
 	if (ie->len == 0)
 		return -1;
 
-	if (ie->len > sizeof(call->digitbuf))
-		mylen = sizeof(call->digitbuf);
+	if (ie->len > (sizeof(call->digitbuf) - 1))
+		mylen = (sizeof(call->digitbuf) - 1);
 	else
 		mylen = ie->len;
 
-	libpri_copy_string(call->digitbuf, (char *) ie->data, mylen);
+	memcpy(call->digitbuf, ie->data, mylen);
+
+	call->digitbuf[mylen] = 0;
 
 	return 0;
 }
