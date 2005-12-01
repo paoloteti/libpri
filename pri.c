@@ -471,6 +471,14 @@ int pri_information(struct pri *pri, q931_call *call, char digit)
 	return q931_information(pri, call, digit);
 }
 
+int pri_keypad_facility(struct pri *pri, q931_call *call, char *digits)
+{
+	if (!pri || !call || !digits || !digits[0])
+		return -1;
+
+	return q931_keypad_facility(pri, call, digits);
+}
+
 int pri_notify(struct pri *pri, q931_call *call, int channel, int info)
 {
 	if (!pri || !call)

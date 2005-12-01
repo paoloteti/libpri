@@ -257,6 +257,8 @@ extern int q931_setup_ack(struct pri *pri, q931_call *call, int channel, int non
 
 extern int q931_information(struct pri *pri, q931_call *call, char digit);
 
+extern int q931_keypad_facility(struct pri *pri, q931_call *call, char *digits);
+
 extern int q931_connect(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
 extern int q931_release(struct pri *pri, q931_call *call, int cause);

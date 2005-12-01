@@ -462,6 +462,10 @@ extern int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int in
 /* Send a digit in overlap mode */
 extern int pri_information(struct pri *pri, q931_call *call, char digit);
 
+#define PRI_KEYPAD_FACILITY
+/* Send a keypad facility string of digits */
+extern int pri_keypad_facility(struct pri *pri, q931_call *call, char *digits);
+
 /* Answer the incomplete(call without called number) call on the given channel.
    Set non-isdn to non-zero if you are not connecting to ISDN equipment */
 extern int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisdn);

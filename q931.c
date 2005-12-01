@@ -1371,7 +1371,8 @@ static FUNC_DUMP(dump_keypad_facility)
 	if (ie->len == 0 || ie->len > sizeof(tmp))
 		return;
 	
-	libpri_copy_string(tmp, (char *) ie->data, sizeof(tmp));
+	memcpy(tmp, ie->data, ie->len);
+	tmp[ie->len] = '\0';
 	pri_message(pri, "%c Keypad Facility (len=%2d) [ %s ]\n", prefix, ie->len, tmp );
 }
 
@@ -1382,16 +1383,35 @@ static FUNC_RECV(receive_keypad_facility)
 	if (ie->len == 0)
 		return -1;
 
-	if (ie->len > (sizeof(call->digitbuf) - 1))
-		mylen = (sizeof(call->digitbuf) - 1);
+	if (ie->len > (sizeof(call->keypad_digits) - 1))
+		mylen = (sizeof(call->keypad_digits) - 1);
 	else
 		mylen = ie->len;
 
-	memcpy(call->digitbuf, ie->data, mylen);
-
-	call->digitbuf[mylen] = 0;
+	memcpy(call->keypad_digits, ie->data, mylen);
+	call->keypad_digits[mylen] = 0;
 
 	return 0;
+}
+
+static FUNC_SEND(transmit_keypad_facility)
+{
+	int sublen;
+
+	sublen = strlen(call->keypad_digits);
+
+	if (sublen > 32) {
+		sublen = 32;
+		call->keypad_digits[32] = '\0';
+	}
+
+	if (sublen) {
+		libpri_copy_string(ie->data, (char *) call->keypad_digits, sizeof(call->keypad_digits));
+		/* Make sure we clear the field */
+		call->keypad_digits[0] = '\0';
+		return sublen + 2;
+	} else
+		return 0;
 }
 
 static FUNC_DUMP(dump_display)
@@ -1947,7 +1967,7 @@ struct ie ies[] = {
 	{ 1, Q931_IE_NOTIFY_IND, "Notification Indicator", dump_notify, receive_notify, transmit_notify },
 	{ 1, Q931_DISPLAY, "Display", dump_display, receive_display, transmit_display },
 	{ 1, Q931_IE_TIME_DATE, "Date/Time", dump_time_date },
-	{ 1, Q931_IE_KEYPAD_FACILITY, "Keypad Facility", dump_keypad_facility, receive_keypad_facility },
+	{ 1, Q931_IE_KEYPAD_FACILITY, "Keypad Facility", dump_keypad_facility, receive_keypad_facility, transmit_keypad_facility },
 	{ 0, Q931_IE_SIGNAL, "Signal", dump_signal },
 	{ 1, Q931_IE_SWITCHHOOK, "Switch-hook" },
 	{ 1, Q931_IE_USER_USER, "User-User", dump_user_user, receive_user_user, transmit_user_user },
@@ -2430,13 +2450,21 @@ static int q931_status(struct pri *pri, q931_call *c, int cause)
 	return send_message(pri, cur, Q931_STATUS, status_ies);
 }
 
-static int information_ies[] = { Q931_CALLED_PARTY_NUMBER, -1 };
+static int information_ies[] = { Q931_IE_KEYPAD_FACILITY, Q931_CALLED_PARTY_NUMBER, -1 };
 
 int q931_information(struct pri *pri, q931_call *c, char digit)
 {
-	c->callednum[0]=digit;
-	c->callednum[1]='\0';
+	c->callednum[0] = digit;
+	c->callednum[1] = '\0';
 	return send_message(pri, c, Q931_INFORMATION, information_ies);
+}
+
+static int keypad_facility_ies[] = { Q931_IE_KEYPAD_FACILITY, -1 };
+
+int q931_keypad_facility(struct pri *pri, q931_call *call, char *digits)
+{
+	libpri_copy_string(call->keypad_digits, digits, sizeof(call->keypad_digits));
+	return send_message(pri, call, Q931_INFORMATION, keypad_facility_ies);
 }
 
 static int restart_ack_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
@@ -3502,7 +3530,9 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			pri->ev.e = PRI_EVENT_KEYPAD_DIGIT;
 			pri->ev.digit.call = c;
 			pri->ev.digit.channel = c->channelno | (c->ds1no << 8);
-			libpri_copy_string(pri->ev.digit.digits, c->digitbuf, sizeof(pri->ev.digit.digits));
+			libpri_copy_string(pri->ev.digit.digits, c->keypad_digits, sizeof(pri->ev.digit.digits));
+			/* Make sure we clear it out before we return */
+			c->keypad_digits[0] = '\0';
 			return Q931_RES_HAVEEVENT;
 		}
 		pri->ev.e = PRI_EVENT_INFO_RECEIVED;
