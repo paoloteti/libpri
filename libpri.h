@@ -462,7 +462,7 @@ extern int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int in
 /* Send a digit in overlap mode */
 extern int pri_information(struct pri *pri, q931_call *call, char digit);
 
-#define PRI_KEYPAD_FACILITY
+#define PRI_KEYPAD_FACILITY_TX
 /* Send a keypad facility string of digits */
 extern int pri_keypad_facility(struct pri *pri, q931_call *call, char *digits);
 
