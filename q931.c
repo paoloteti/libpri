@@ -1406,7 +1406,7 @@ static FUNC_SEND(transmit_keypad_facility)
 	}
 
 	if (sublen) {
-		libpri_copy_string(ie->data, (char *) call->keypad_digits, sizeof(call->keypad_digits));
+		libpri_copy_string((char *)ie->data, (char *)call->keypad_digits, sizeof(call->keypad_digits));
 		/* Make sure we clear the field */
 		call->keypad_digits[0] = '\0';
 		return sublen + 2;
