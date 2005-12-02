@@ -70,11 +70,14 @@ endif
 all: depend $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 
 update:
-	@if [ -d CVS ]; then \
+	@if [ -d .svn ]; then \
+		echo "Updating from Subversion..." ; \
+		svn update -q; \
+	elif [ -d CVS ]; then \
 		echo "Updating from CVS..." ; \
 		cvs -q -z3 update -Pd; \
 	else \
-		echo "Not CVS";  \
+		echo "Not under version control";  \
 	fi
 
 install: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
