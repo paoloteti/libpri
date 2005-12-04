@@ -528,9 +528,9 @@ extern int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, 
 extern int pri_sr_set_redirecting(struct pri_sr *sr, char *num, int plan, int pres, int reason);
 #define PRI_USER_USER_TX
 /* Set the user user field.  Warning!  don't send binary data accross this field */
-extern void pri_sr_set_useruser(struct pri_sr *sr, char *userchars);
+extern void pri_sr_set_useruser(struct pri_sr *sr, const char *userchars);
 
-extern void pri_call_set_useruser(q931_call *sr, char *userchars);
+extern void pri_call_set_useruser(q931_call *sr, const char *userchars);
 
 extern int pri_setup(struct pri *pri, q931_call *call, struct pri_sr *req);
 

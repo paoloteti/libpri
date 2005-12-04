@@ -129,7 +129,7 @@ struct pri_sr {
 	int redirectingpres;
 	int redirectingreason;
 	int justsignalling;
-	char *useruserinfo;
+	const char *useruserinfo;
 };
 
 /* Internal switch types */
