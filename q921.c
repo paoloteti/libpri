@@ -338,7 +338,7 @@ static void t200_expire(void *vpri)
          if (pri->debug & PRI_DEBUG_Q921_STATE)
             pri_message(pri, "-- Retransmitting %d bytes\n", pri->txqueue->len);
 		if (pri->busy) 
-			q921_rr(pri, 1, 0);
+			q921_rr(pri, 1, 1);
 		else {
 			if (!pri->txqueue->transmitted) 
 				pri_error(pri, "!! Not good - head of queue has not been transmitted yet\n");
