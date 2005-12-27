@@ -3082,6 +3082,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->channelno = -1;
 		break;
 	case Q931_INFORMATION:
+		c->callednum[0] = '\0';
 		break;
 	case Q931_STATUS_ENQUIRY:
 		break;
