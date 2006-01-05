@@ -32,6 +32,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <limits.h>
 
@@ -1439,9 +1440,7 @@ static void dump_ie_data(unsigned char *c, int len)
 	int x=0;
 	int lastascii = 0;
 	while(len) {
-		if (((*c >= 'A') && (*c <= 'Z')) ||
-		    ((*c >= 'a') && (*c <= 'z')) ||
-		    ((*c >= '0') && (*c <= '9'))) {
+		if (isprint(*c)) {
 			if (!lastascii) {
 				if (*tmp) { 
 					tmp[x++] = ',';
