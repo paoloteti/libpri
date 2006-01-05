@@ -32,6 +32,132 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
+
+static char *asn1id2text(int id)
+{
+	static char data[32];
+	static char *strings[] = {
+		"none",
+		"Boolean",
+		"Integer",
+		"Bit String",
+		"Octet String",
+		"NULL",
+		"Object Identifier",
+		"Object Descriptor",
+		"External Reference",
+		"Real Number",
+		"Enumerated",
+		"Embedded PDV",
+		"UTF-8 String",
+		"Relative Object ID",
+		"Reserved (0e)",
+		"Reserved (0f)",
+		"Sequence",
+		"Set",
+		"Numeric String",
+		"Printable String",
+		"Tele-Text String",
+		"IA-5 String",
+		"UTC Time",
+		"Generalized Time",
+	};
+	if (id > 0 && id <= 0x18) {
+		return strings[id];
+	} else {
+		sprintf(data, "Unknown (%02x)", id);
+		return data;
+	}
+}
+
+static int asn1_dumprecursive(struct pri *pri, void *comp_ptr, int len, int level)
+{
+	unsigned char *vdata = (unsigned char *)comp_ptr;
+	struct rose_component *comp;
+	int i = 0;
+	int j, k, l;
+	int clen = 0;
+
+	while (len > 0) {
+		GET_COMPONENT(comp, i, vdata, len);
+		pri_message(pri, "%*s%02X %04X", 2 * level, "", comp->type, comp->len);
+		if ((comp->type == 0) && (comp->len == 0))
+			return clen + 2;
+		if ((comp->type & ASN1_PC_MASK) == ASN1_PRIMITIVE) {
+			for (j = 0; j < comp->len; ++j)
+				pri_message(pri, " %02X", comp->data[j]);
+		}
+		if ((comp->type & ASN1_CLAN_MASK) == ASN1_UNIVERSAL) {
+			switch (comp->type & ASN1_TYPE_MASK) {
+			case 0:
+				pri_message(pri, " (none)");
+				break;
+			case ASN1_BOOLEAN:
+				pri_message(pri, " (BOOLEAN: %d)", comp->data[0]);
+				break;
+			case ASN1_INTEGER:
+				for (k = l = 0; k < comp->len; ++k)
+					l = (l << 8) | comp->data[k];
+				pri_message(pri, " (INTEGER: %d)", l);
+				break;
+			case ASN1_BITSTRING:
+				pri_message(pri, " (BITSTRING:");
+				for (k = 0; k < comp->len; ++k)
+				pri_message(pri, " %02x", comp->data[k]);
+				pri_message(pri, ")");
+				break;
+			case ASN1_OCTETSTRING:
+				pri_message(pri, " (OCTETSTRING:");
+				for (k = 0; k < comp->len; ++k)
+					pri_message(pri, " %02x", comp->data[k]);
+				pri_message(pri, ")");
+				break;
+			case ASN1_NULL:
+				pri_message(pri, " (NULL)");
+				break;
+			case ASN1_OBJECTIDENTIFIER:
+				pri_message(pri, " (OBJECTIDENTIFIER:");
+				for (k = 0; k < comp->len; ++k)
+					pri_message(pri, " %02x", comp->data[k]);
+				pri_message(pri, ")");
+				break;
+			case ASN1_ENUMERATED:
+				for (k = l = 0; k < comp->len; ++k)
+					l = (l << 8) | comp->data[k];
+				pri_message(pri, " (ENUMERATED: %d)", l);
+				break;
+			case ASN1_SEQUENCE:
+				pri_message(pri, " (SEQUENCE)");
+				break;
+			default:
+				pri_message(pri, " (component %02x - %s)", comp->type, asn1id2text(comp->type & ASN1_TYPE_MASK));
+				break;
+			}
+		}
+		else if ((comp->type & ASN1_CLAN_MASK) == ASN1_CONTEXT_SPECIFIC) {
+			pri_message(pri, " (CONTEXT SPECIFIC [%d])", comp->type & ASN1_TYPE_MASK);
+		}
+		else {
+			pri_message(pri, " (component %02x)", comp->type);
+		}
+		pri_message(pri, "\n");
+		if ((comp->type & ASN1_PC_MASK) == ASN1_CONSTRUCTOR)
+			j = asn1_dumprecursive(pri, comp->data, (comp->len ? comp->len : INT_MAX), level+1);
+		else
+			j = comp->len;
+		j += 2;
+		len -= j;
+		vdata += j;
+		clen += j;
+	}
+	return clen;
+}
+
+int asn1_dump(struct pri *pri, void *comp, int len)
+{
+	return asn1_dumprecursive(pri, comp, len, 0);
+}
 
 static unsigned char get_invokeid(struct pri *pri)
 {
@@ -46,28 +172,44 @@ struct addressingdataelements_presentednumberunscreened {
 	int  pres;
 };
 
+#define PRI_CHECKOVERFLOW(size) \
+		if (msgptr - message + (size) >= sizeof(message)) { \
+			*msgptr = '\0'; \
+			pri_message(pri, "%s", message); \
+			msgptr = message; \
+		}
+
 static void dump_apdu(struct pri *pri, unsigned char *c, int len) 
 {
 	#define MAX_APDU_LENGTH	255
+	static char hexs[16] = "0123456789ABCDEF";
 	int i;
 	char message[(2 + MAX_APDU_LENGTH * 3 + 6 + MAX_APDU_LENGTH + 3)] = "";	/* please adjust here, if you make changes below! */
+	char *msgptr;
 	
-	if (len > MAX_APDU_LENGTH)
-		return;
-	
-	snprintf(message, sizeof(message)-1, " [");	
-	for (i=0; i<len; i++)
-		snprintf((char *)(message+strlen(message)), sizeof(message)-strlen(message)-1, " %02x", c[i]);
-	snprintf((char *)(message+strlen(message)), sizeof(message)-strlen(message)-1, " ] - [");
+	msgptr = message;
+	*msgptr++ = ' ';
+	*msgptr++ = '[';
 	for (i=0; i<len; i++) {
-		if (c[i] < 20 || c[i] >= 128)
-			snprintf((char *)(message+strlen(message)), sizeof(message)-strlen(message)-1, "°");
-		else
-			snprintf((char *)(message+strlen(message)), sizeof(message)-strlen(message)-1, "%c", c[i]);
+		PRI_CHECKOVERFLOW(3);
+		*msgptr++ = ' ';
+		*msgptr++ = hexs[(c[i] >> 4) & 0x0f];
+		*msgptr++ = hexs[(c[i]) & 0x0f];
 	}
-	snprintf((char *)(message+strlen(message)), sizeof(message)-strlen(message)-1, "]\n");
-	pri_message(pri, message);
+	PRI_CHECKOVERFLOW(6);
+	strcpy(msgptr, " ] - [");
+	msgptr += strlen(msgptr);
+	for (i=0; i<len; i++) {
+		PRI_CHECKOVERFLOW(1);
+		*msgptr++ = ((c[i] < ' ') || (c[i] > '~')) ? '.' : c[i];
+	}
+	PRI_CHECKOVERFLOW(2);
+	*msgptr++ = ']';
+	*msgptr++ = '\n';
+	*msgptr = '\0';
+	pri_message(pri, "%s", message);
 }
+#undef PRI_CHECKOVERFLOW
 
 int redirectingreason_from_q931(struct pri *pri, int redirectingreason)
 {
@@ -564,9 +706,11 @@ static int rose_diverting_leg_information2_encode(struct pri *pri, q931_call *ca
 	unsigned char buffer[256];
 	int len = 253;
 	
+#if 0	/* This is not required by specifications */
 	if (!strlen(call->callername)) {
 		return -1;
 	}
+#endif
 
 	buffer[i] = (ASN1_CONTEXT_SPECIFIC | Q932_PROTOCOL_EXTENSIONS);
 	i++;
@@ -749,7 +893,7 @@ static int add_callername_facility_ies(struct pri *pri, q931_call *c, int cpe)
 	}
 
 
-	/* Now the ADPu that contains the information that needs sent.
+	/* Now the APDU that contains the information that needs sent.
 	 * We can reuse the buffer since the queue function doesn't
 	 * need it. */
 
@@ -903,7 +1047,7 @@ extern int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
 
 	res = pri_call_apdu_queue(c1, Q931_FACILITY, buffer, i, NULL, NULL);
 	if (res) {
-		pri_message(pri, "Could not queue ADPU in facility message\n");
+		pri_message(pri, "Could not queue APDU in facility message\n");
 		return -1;
 	}
 
@@ -1110,7 +1254,7 @@ static int aoc_aoce_charging_unit_encode(struct pri *pri, q931_call *c, long cha
 	/* code below is untested */
 	res = pri_call_apdu_queue(c, Q931_FACILITY, buffer, i, NULL, NULL);
 	if (res) {
-		pri_message(pri, "Could not queue ADPU in facility message\n");
+		pri_message(pri, "Could not queue APDU in facility message\n");
 		return -1;
 	}
 
@@ -1305,6 +1449,7 @@ extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call)
 		return 0;
 	}
 
+#if 0
 	if (pri->localtype == PRI_NETWORK) {
 		switch (pri->switchtype) {
 			case PRI_SWITCH_NI2:
@@ -1324,6 +1469,10 @@ extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call)
 		}
 		return 0;
 	}
+#else
+	if (pri->switchtype == PRI_SWITCH_NI2)
+		add_callername_facility_ies(pri, call, (pri->localtype == PRI_CPE));
+#endif
 
 	return 0;
 }

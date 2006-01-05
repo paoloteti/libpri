@@ -146,7 +146,7 @@ struct rose_component {
 		break; \
 	(component) = (struct rose_component*)&((ptr)[idx]); \
 	if ((idx)+(component)->len+2 > (length)) { \
-		if ((component)->len != 128) \
+		if ((component)->len != ASN1_LEN_INDEF) \
 			pri_message(pri, "Length (%d) of 0x%X component is too long\n", (component)->len, (component)->type); \
 	}
 /*
@@ -169,6 +169,7 @@ struct rose_component {
 #define CHECK_COMPONENT(component, comptype, message) \
 	if ((component)->type && ((component)->type & ASN1_TYPE_MASK) != (comptype)) { \
 		pri_message(pri, (message), (component)->type); \
+		asn1_dump(pri, (component), (component)->len+2); \
 		break; \
 	}
 	
@@ -249,7 +250,7 @@ extern int mwi_message_send(struct pri *pri, q931_call *call, struct pri_sr *req
 /* starts a 2BCT */
 extern int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
 
-/* Use this function to queue a facility-IE born ADPU onto a call
+/* Use this function to queue a facility-IE born APDU onto a call
  * call is the call to use, messagetype is any one of the Q931 messages,
  * apdu is the apdu data, apdu_len is the length of the apdu data  */
 extern int pri_call_apdu_queue(q931_call *call, int messagetype, void *apdu, int apdu_len, void (*function)(void *data), void *data);
@@ -257,7 +258,9 @@ extern int pri_call_apdu_queue(q931_call *call, int messagetype, void *apdu, int
 /* Used by q931.c to cleanup the apdu queue upon destruction of a call */
 extern int pri_call_apdu_queue_cleanup(q931_call *call);
 
-/* Adds the "standard" ADPUs to a call */
+/* Adds the "standard" APDUs to a call */
 extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call);
+
+int asn1_dump(struct pri *pri, void *comp, int len);
 
 #endif /* _PRI_FACILITY_H */
