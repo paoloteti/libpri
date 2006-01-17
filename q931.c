@@ -2833,6 +2833,8 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 
 	if (req->useruserinfo)
 		libpri_copy_string(c->useruserinfo, req->useruserinfo, sizeof(c->useruserinfo));
+	else
+		c->useruserinfo[0] = '\0';
 
 	if (req->nonisdn && (pri->switchtype == PRI_SWITCH_NI2))
 		c->progressmask = PRI_PROG_CALLER_NOT_ISDN;
