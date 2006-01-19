@@ -897,7 +897,7 @@ static int add_dms100_transfer_ability_apdu(struct pri *pri, q931_call *c)
 	const unsigned char rlt_op_ind = RLT_OPERATION_IND;
 	int compsp = 0;
 
-	buffer[i++] = (0x80 | Q932_PROTOCOL_ROSE);
+	buffer[i++] = (Q932_PROTOCOL_ROSE);  /* Note to self: DON'T set the EXT bit */
 	buffer[i++] = (0x80 | RLT_SERVICE_ID); /* Service Identifier octet */
 
 	ASN1_ADD_SIMPLE(comp, COMP_TYPE_INVOKE, buffer, i);
