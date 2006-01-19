@@ -1174,27 +1174,57 @@ static FUNC_RECV(receive_facility)
 	if (ie->len < 1)
 		return -1;
 
-	if ((ie->data[i] & 0xe0) != 0x80) {
-		pri_error(pri, "!! Invalid Protocol Profile field 0x%X\n", ie->data[i]);
-		return -1;
+	if (pri->switchtype != PRI_SWITCH_DMS100) {
+		if ((ie->data[i] & 0xe0) != 0x80) {
+			pri_error(pri, "!! Invalid Protocol Profile field 0x%X\n", ie->data[i]);
+			return -1;
+		}
+		switch(next_protocol = protocol = (ie->data[i] & 0x1f)) {
+		case Q932_PROTOCOL_CMIP:
+		case Q932_PROTOCOL_ACSE:
+			if (pri->debug & PRI_DEBUG_APDU)
+				pri_message(pri, "!! Don't know how to handle Q.932 Protocol Profile of type 0x%X\n", protocol);
+			return -1;
+		case Q932_PROTOCOL_EXTENSIONS:
+			state = Q932_STATE_NFE;
+			next_protocol = Q932_PROTOCOL_ROSE;
+			break;
+		case Q932_PROTOCOL_ROSE:
+			break;
+		default:
+			pri_error(pri, "!! Invalid Q.932 Protocol Profile of type 0x%X received\n", protocol);
+			return -1;
+		}
+		i++;
+	} else { /* Silly DMS100s */
+		switch(next_protocol = protocol = (ie->data[i] & 0x1f)) {
+		case Q932_PROTOCOL_CMIP:
+		case Q932_PROTOCOL_ACSE:
+			if (pri->debug & PRI_DEBUG_APDU)
+				pri_message(pri, "!! Don't know how to handle Q.932 Protocol Profile of type 0x%X\n", protocol);
+			return -1;
+		case Q932_PROTOCOL_EXTENSIONS:
+			state = Q932_STATE_NFE;
+			next_protocol = Q932_PROTOCOL_ROSE;
+			break;
+		case Q932_PROTOCOL_ROSE:
+			break;
+		default:
+			pri_error(pri, "!! Invalid Q.932 Protocol Profile of type 0x%X received\n", protocol);
+			return -1;
+		}
+		if (!(ie->data[i] & 0x80)) {
+			i++;
+			if (((ie->data[i] & 0x7f) != RLT_OPERATION_IND) || !(ie->data[i] & 0x80)) {
+				pri_error(pri, "!! Do not support operation 0x%x\n", ie->data[i] & 0xff);
+				return -1;
+			}
+		}
+		i++;
 	}
-	switch(next_protocol = protocol = (ie->data[i] & 0x1f)) {
-	case Q932_PROTOCOL_CMIP:
-	case Q932_PROTOCOL_ACSE:
-		if (pri->debug & PRI_DEBUG_APDU)
-			pri_message(pri, "!! Don't know how to handle Q.932 Protocol Profile of type 0x%X\n", protocol);
-		return -1;
-	case Q932_PROTOCOL_EXTENSIONS:
-		state = Q932_STATE_NFE;
-		next_protocol = Q932_PROTOCOL_ROSE;
-		break;
-	case Q932_PROTOCOL_ROSE:
-		break;
-	default:
-		pri_error(pri, "!! Invalid Q.932 Protocol Profile of type 0x%X received\n", protocol);
-		return -1;
-	}
-	i++;
+
+
+
 
 	if (ie->len < 3)
 		return -1;
