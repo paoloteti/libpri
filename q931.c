@@ -1479,12 +1479,13 @@ static void dump_ie_data(struct pri *pri, unsigned char *c, int len)
 
 static FUNC_DUMP(dump_facility)
 {
+	int dataat = (ie->data[0] & 0x80) ? 1 : 2;
 	pri_message(pri, "%c Facility (len=%2d, codeset=%d) [ ", prefix, len, Q931_IE_CODESET(full_ie));
 	dump_ie_data(pri, ie->data, ie->len);
 	pri_message(NULL, " ]\n");
 	if (ie->len > 1) {
 		pri_message(pri, "PROTOCOL %02X\n", ie->data[0] & ASN1_TYPE_MASK);
-		asn1_dump(pri, &ie->data[1], ie->len - 1);
+		asn1_dump(pri, &ie->data[dataat], ie->len - dataat);
 	}
 
 }
