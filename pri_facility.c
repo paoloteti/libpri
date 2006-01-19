@@ -1025,7 +1025,7 @@ static void mwi_activate_encode_cb(void *data)
 	return;
 }
 
-extern int mwi_message_send(struct pri* pri, q931_call *call, struct pri_sr *req, int activate)
+int mwi_message_send(struct pri* pri, q931_call *call, struct pri_sr *req, int activate)
 {
 	int i = 0;
 	unsigned char buffer[255] = "";
@@ -1348,7 +1348,7 @@ static int aoc_aoce_charging_unit_encode(struct pri *pri, q931_call *c, long cha
 }
 /* End AOC */
 
-extern int rose_reject_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+int rose_reject_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
 {
 	int i = 0;
 	int problemtag = -1;
@@ -1416,7 +1416,7 @@ extern int rose_reject_decode(struct pri *pri, q931_call *call, unsigned char *d
 	
 	return -1;
 }
-extern int rose_return_error_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+int rose_return_error_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
 {
 	int i = 0;
 	int errorvalue = -1;
@@ -1480,7 +1480,7 @@ extern int rose_return_error_decode(struct pri *pri, q931_call *call, unsigned c
 	return -1;
 }
 
-extern int rose_return_result_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+int rose_return_result_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
 {
 	int i = 0;
 	int operationidvalue = -1;
@@ -1542,7 +1542,7 @@ extern int rose_return_result_decode(struct pri *pri, q931_call *call, unsigned 
 	return -1;
 }
 
-extern int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
 {
 	int i = 0;
 	int operation_tag;
@@ -1657,7 +1657,7 @@ extern int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *d
 	return -1;
 }
 
-extern int pri_call_apdu_queue(q931_call *call, int messagetype, void *apdu, int apdu_len, void (*function)(void *data), void *data)
+int pri_call_apdu_queue(q931_call *call, int messagetype, void *apdu, int apdu_len, void (*function)(void *data), void *data)
 {
 	struct apdu_event *cur = NULL;
 	struct apdu_event *new_event = NULL;
@@ -1691,7 +1691,7 @@ extern int pri_call_apdu_queue(q931_call *call, int messagetype, void *apdu, int
 	return 0;
 }
 
-extern int pri_call_apdu_queue_cleanup(q931_call *call)
+int pri_call_apdu_queue_cleanup(q931_call *call)
 {
 	struct apdu_event *cur_event = NULL, *free_event = NULL;
 
@@ -1709,7 +1709,7 @@ extern int pri_call_apdu_queue_cleanup(q931_call *call)
 	return 0;
 }
 
-extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call)
+int pri_call_add_standard_apdus(struct pri *pri, q931_call *call)
 {
 	if (!pri->sendfacility)
 		return 0;
