@@ -839,7 +839,7 @@ static int rose_diverting_leg_information2_encode(struct pri *pri, q931_call *ca
 }
 
 /* Send the rltThirdParty: Invoke */
-extern int rlt_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
+int rlt_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
 {
 	int i = 0;
 	unsigned char buffer[256];
@@ -1075,7 +1075,7 @@ extern int mwi_message_send(struct pri* pri, q931_call *call, struct pri_sr *req
 /* End MWI */
 
 /* EECT functions */
-extern int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
+int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
 {
 	/* Did all the tests to see if we're on the same PRI and
 	 * are on a compatible switchtype */
