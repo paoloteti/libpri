@@ -130,6 +130,7 @@ struct pri_sr {
 	int redirectingreason;
 	int justsignalling;
 	const char *useruserinfo;
+	int transferable;
 };
 
 /* Internal switch types */
@@ -239,6 +240,9 @@ struct q931_call {
 	long aoc_units;				/* Advice of Charge Units */
 
 	struct apdu_event *apdus;	/* APDU queue for call */
+
+	int transferable;
+	unsigned int rlt_call_id;	/* RLT call id */
 };
 
 extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);

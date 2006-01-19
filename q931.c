@@ -1216,9 +1216,9 @@ static FUNC_RECV(receive_facility)
 			case Q932_PROTOCOL_ROSE:
 				switch (comp->type) {
 				Q932_HANDLE_PROC(COMP_TYPE_INVOKE, Q932_STATE_SERVICE, "ROSE Invoke", rose_invoke_decode);
-				Q932_HANDLE_NULL(COMP_TYPE_RETURN_RESULT, Q932_STATE_SERVICE, "ROSE return result", NULL);
-				Q932_HANDLE_NULL(COMP_TYPE_RETURN_ERROR, Q932_STATE_SERVICE, "ROSE return error", NULL);
-				Q932_HANDLE_NULL(COMP_TYPE_REJECT, Q932_STATE_SERVICE, "ROSE reject", NULL);
+				Q932_HANDLE_PROC(COMP_TYPE_RETURN_RESULT, Q932_STATE_SERVICE, "ROSE return result", rose_return_result_decode);
+				Q932_HANDLE_PROC(COMP_TYPE_RETURN_ERROR, Q932_STATE_SERVICE, "ROSE return error", rose_return_error_decode);
+				Q932_HANDLE_PROC(COMP_TYPE_REJECT, Q932_STATE_SERVICE, "ROSE reject", rose_reject_decode);
 				default:
 					if (pri->debug & PRI_DEBUG_APDU)
 						pri_message(pri, "Don't know how to handle ROSE component of type 0x%X\n", comp->type);

@@ -838,6 +838,84 @@ static int rose_diverting_leg_information2_encode(struct pri *pri, q931_call *ca
 	return 0;
 }
 
+/* Send the rltThirdParty: Invoke */
+extern int rlt_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
+{
+	int i = 0;
+	unsigned char buffer[256];
+	struct rose_component *comp = NULL, *compstk[10];
+	const unsigned char rlt_3rd_pty = RLT_THIRD_PARTY;
+	q931_call *callwithid = NULL, *apdubearer = NULL;
+	int compsp = 0;
+
+	if (c2->transferable) {
+		apdubearer = c1;
+		callwithid = c2;
+	} else if (c1->transferable) {
+		apdubearer = c2;
+		callwithid = c1;
+	} else
+		return -1;
+
+	buffer[i++] = (0x80 | Q932_PROTOCOL_ROSE);
+	buffer[i++] = (0x80 | RLT_SERVICE_ID); /* Service Identifier octet */
+
+	ASN1_ADD_SIMPLE(comp, COMP_TYPE_INVOKE, buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+
+	/* Invoke ID is set to the operation ID */
+	ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, buffer, i, rlt_3rd_pty);
+
+	/* Operation Tag */
+	ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, buffer, i, rlt_3rd_pty);
+
+	/* Additional RLT invoke info - Octet 12 */
+	ASN1_ADD_SIMPLE(comp, (ASN1_CONSTRUCTOR | ASN1_SEQUENCE), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+
+	ASN1_ADD_WORDCOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0), buffer, i, callwithid->rlt_call_id & 0xFFFFFF); /* Length is 3 octets */
+	/* Reason for redirect - unused, set to 129 */
+	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_1), buffer, i, 0);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+
+	if (pri_call_apdu_queue(apdubearer, Q931_FACILITY, buffer, i, NULL, NULL))
+		return -1;
+
+	if (q931_facility(apdubearer->pri, apdubearer)) {
+		pri_message(pri, "Could not schedule facility message for call %d\n", apdubearer->cr);
+		return -1;
+	}
+	return 0;
+}
+
+static int add_dms100_transfer_ability_apdu(struct pri *pri, q931_call *c)
+{
+	int i = 0;
+	unsigned char buffer[256];
+	struct rose_component *comp = NULL, *compstk[10];
+	const unsigned char rlt_op_ind = RLT_OPERATION_IND;
+	int compsp = 0;
+
+	buffer[i++] = (0x80 | Q932_PROTOCOL_ROSE);
+	buffer[i++] = (0x80 | RLT_SERVICE_ID); /* Service Identifier octet */
+
+	ASN1_ADD_SIMPLE(comp, COMP_TYPE_INVOKE, buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+
+	/* Invoke ID is set to the operation ID */
+	ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, buffer, i, rlt_op_ind);
+	
+	/* Operation Tag - basically the same as the invoke ID tag */
+	ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, buffer, i, rlt_op_ind);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+
+	if (pri_call_apdu_queue(c, Q931_SETUP, buffer, i, NULL, NULL))
+		return -1;
+	else
+		return 0;
+}
+
 /* Sending callername information functions */
 static int add_callername_facility_ies(struct pri *pri, q931_call *c, int cpe)
 {
@@ -1270,6 +1348,200 @@ static int aoc_aoce_charging_unit_encode(struct pri *pri, q931_call *c, long cha
 }
 /* End AOC */
 
+extern int rose_reject_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+{
+	int i = 0;
+	int problemtag = -1;
+	int problem = -1;
+	int invokeidvalue = -1;
+	unsigned char *vdata = data;
+	struct rose_component *comp = NULL;
+	char *problemtagstr, *problemstr;
+	
+	do {
+		/* Invoke ID stuff */
+		GET_COMPONENT(comp, i, vdata, len);
+		CHECK_COMPONENT(comp, INVOKE_IDENTIFIER, "Don't know what to do if first ROSE component is of type 0x%x\n");
+		ASN1_GET_INTEGER(comp, invokeidvalue);
+		NEXT_COMPONENT(comp, i);
+
+		GET_COMPONENT(comp, i, vdata, len);
+		problemtag = comp->type;
+		problem = comp->data[0];
+
+		if (pri->switchtype == PRI_SWITCH_DMS100) {
+			switch (problemtag) {
+			case 0x80:
+				problemtagstr = "General problem";
+				break;
+			case 0x81:
+				problemtagstr = "Invoke problem";
+				break;
+			case 0x82:
+				problemtagstr = "Return result problem";
+				break;
+			case 0x83:
+				problemtagstr = "Return error problem";
+				break;
+			default:
+				problemtagstr = "Unknown";
+			}
+
+			switch (problem) {
+			case 0x00:
+				problemstr = "Unrecognized component";
+				break;
+			case 0x01:
+				problemstr = "Mistyped component";
+				break;
+			case 0x02:
+				problemstr = "Badly structured component";
+				break;
+			default:
+				problemstr = "Unknown";
+			}
+
+			pri_error(pri, "ROSE REJECT:\n");
+			pri_error(pri, "\tINVOKE ID: 0x%X\n", invokeidvalue);
+			pri_error(pri, "\tPROBLEM TYPE: %s (0x%x)\n", problemtagstr, problemtag);
+			pri_error(pri, "\tPROBLEM: %s (0x%x)\n", problemstr, problem);
+
+			return 0;
+		} else {
+			pri_message(pri, "Unable to handle return result on switchtype %d!\n", pri->switchtype);
+			return -1;
+		}
+
+	} while(0);
+	
+	return -1;
+}
+extern int rose_return_error_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+{
+	int i = 0;
+	int errorvalue = -1;
+	int invokeidvalue = -1;
+	unsigned char *vdata = data;
+	struct rose_component *comp = NULL;
+	char *invokeidstr, *errorstr;
+	
+	do {
+		/* Invoke ID stuff */
+		GET_COMPONENT(comp, i, vdata, len);
+		CHECK_COMPONENT(comp, INVOKE_IDENTIFIER, "Don't know what to do if first ROSE component is of type 0x%x\n");
+		ASN1_GET_INTEGER(comp, invokeidvalue);
+		NEXT_COMPONENT(comp, i);
+
+		GET_COMPONENT(comp, i, vdata, len);
+		CHECK_COMPONENT(comp, ASN1_INTEGER, "Don't know what to do if second component in return error is 0x%x\n");
+		ASN1_GET_INTEGER(comp, errorvalue);
+
+		if (pri->switchtype == PRI_SWITCH_DMS100) {
+			switch (invokeidvalue) {
+			case RLT_OPERATION_IND:
+				invokeidstr = "RLT_OPERATION_IND";
+				break;
+			case RLT_THIRD_PARTY:
+				invokeidstr = "RLT_THIRD_PARTY";
+				break;
+			default:
+				invokeidstr = "Unknown";
+			}
+
+			switch (errorvalue) {
+			case 0x10:
+				errorstr = "RLT Bridge Fail";
+				break;
+			case 0x11:
+				errorstr = "RLT Call ID Not Found";
+				break;
+			case 0x12:
+				errorstr = "RLT Not Allowed";
+				break;
+			case 0x13:
+				errorstr = "RLT Switch Equip Congs";
+				break;
+			default:
+				errorstr = "Unknown";
+			}
+
+			pri_error(pri, "ROSE RETURN ERROR:\n");
+			pri_error(pri, "\tOPERATION: %s\n", invokeidstr);
+			pri_error(pri, "\tERROR: %s\n", errorstr);
+
+			return 0;
+		} else {
+			pri_message(pri, "Unable to handle return result on switchtype %d!\n", pri->switchtype);
+			return -1;
+		}
+
+	} while(0);
+	
+	return -1;
+}
+
+extern int rose_return_result_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+{
+	int i = 0;
+	int operationidvalue = -1;
+	int invokeidvalue = -1;
+	unsigned char *vdata = data;
+	struct rose_component *comp = NULL;
+	
+	do {
+		/* Invoke ID stuff */
+		GET_COMPONENT(comp, i, vdata, len);
+		CHECK_COMPONENT(comp, INVOKE_IDENTIFIER, "Don't know what to do if first ROSE component is of type 0x%x\n");
+		ASN1_GET_INTEGER(comp, invokeidvalue);
+		NEXT_COMPONENT(comp, i);
+
+		if (pri->switchtype == PRI_SWITCH_DMS100) {
+			switch (invokeidvalue) {
+			case RLT_THIRD_PARTY:
+				if (pri->debug & PRI_DEBUG_APDU) pri_message(pri, "Successfully completed RLT transfer!\n");
+				return 0;
+			case RLT_OPERATION_IND:
+				if (pri->debug & PRI_DEBUG_APDU) pri_message(pri, "Received RLT_OPERATION_IND\n");
+				/* Have to take out the rlt_call_id */
+				GET_COMPONENT(comp, i, vdata, len);
+				CHECK_COMPONENT(comp, ASN1_SEQUENCE, "Protocol error detected in parsing RLT_OPERATION_IND return result!\n");
+
+				/* Traverse the contents of this sequence */
+				/* First is the Operation Value */
+				SUB_COMPONENT(comp, i);
+				GET_COMPONENT(comp, i, vdata, len);
+				CHECK_COMPONENT(comp, ASN1_INTEGER, "RLT_OPERATION_IND should be of type ASN1_INTEGER!\n");
+				ASN1_GET_INTEGER(comp, operationidvalue);
+
+				if (operationidvalue != RLT_OPERATION_IND) {
+					pri_message(pri, "Invalid Operation ID value (0x%x) in return result!\n", operationidvalue);
+					return -1;
+				}
+
+				/*  Next is the Call ID */
+				NEXT_COMPONENT(comp, i);
+				GET_COMPONENT(comp, i, vdata, len);
+				CHECK_COMPONENT(comp, (ASN1_CONTEXT_SPECIFIC|ASN1_TAG_0), "Error check failed on Call ID!\n");
+				ASN1_GET_INTEGER(comp, call->rlt_call_id);
+				/* We have enough data to transfer the call */
+				call->transferable = 1;
+
+				return 0;
+				
+			default:
+				pri_message(pri, "Could not parse invoke of type 0x%x!\n", invokeidvalue);
+				return -1;
+			}
+		} else {
+			pri_message(pri, "Unable to handle return result on switchtype %d!\n", pri->switchtype);
+			return -1;
+		}
+
+	} while(0);
+	
+	return -1;
+}
+
 extern int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
 {
 	int i = 0;
@@ -1473,6 +1745,12 @@ extern int pri_call_add_standard_apdus(struct pri *pri, q931_call *call)
 	if (pri->switchtype == PRI_SWITCH_NI2)
 		add_callername_facility_ies(pri, call, (pri->localtype == PRI_CPE));
 #endif
+
+	if ((pri->switchtype == PRI_SWITCH_DMS100) && (pri->localtype == PRI_CPE)) {
+		add_dms100_transfer_ability_apdu(pri, call);
+	}
+
+
 
 	return 0;
 }

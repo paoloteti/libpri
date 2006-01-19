@@ -104,7 +104,7 @@
 #define ASN1_CLAN_MASK			0xc0
 #define ASN1_UNIVERSAL			0x00
 #define ASN1_APPLICATION		0x40
-#define ASN1_CONTEXT_SPECIFIC	0x80
+#define ASN1_CONTEXT_SPECIFIC		0x80
 #define ASN1_PRIVATE			0xc0
 
 /* ASN.1 Length masks */
@@ -134,6 +134,11 @@
 #define Q932_TON_NET_SPECIFIC			0x03
 #define Q932_TON_SUBSCRIBER				0x04
 #define Q932_TON_ABBREVIATED			0x06
+
+/* RLT related Operations */
+#define RLT_SERVICE_ID		0x3e
+#define RLT_OPERATION_IND	0x01
+#define RLT_THIRD_PARTY		0x02
 
 struct rose_component {
 	u_int8_t type;
@@ -230,8 +235,17 @@ struct rose_component {
 		(stack)[(stackpointer)]->len = (unsigned char *)&((data)[(idx)]) - (unsigned char *)(stack)[(stackpointer)] - 2; \
 	} while (0)
 
-/* Decoder for the invoke part of a ROSE request */
+/* Decoder for the invoke ROSE component */
 extern int rose_invoke_decode(struct pri *pri, struct q931_call *call, unsigned char *data, int len);
+
+/* Decoder for the return result ROSE component */
+extern int rose_return_result_decode(struct pri *pri, struct q931_call *call, unsigned char *data, int len);
+
+/* Decoder for the return error ROSE component */
+extern int rose_return_error_decode(struct pri *pri, struct q931_call *call, unsigned char *data, int len);
+
+/* Decoder for the reject ROSE component */
+extern int rose_reject_decode(struct pri *pri, struct q931_call *call, unsigned char *data, int len);
 
 extern int asn1_copy_string(char * buf, int buflen, struct rose_component *comp);
 
@@ -249,6 +263,8 @@ extern int mwi_message_send(struct pri *pri, q931_call *call, struct pri_sr *req
 
 /* starts a 2BCT */
 extern int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
+
+extern int rlt_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
 
 /* Use this function to queue a facility-IE born APDU onto a call
  * call is the call to use, messagetype is any one of the Q931 messages,
