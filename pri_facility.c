@@ -1521,7 +1521,7 @@ int rose_return_result_decode(struct pri *pri, q931_call *call, unsigned char *d
 				/*  Next is the Call ID */
 				NEXT_COMPONENT(comp, i);
 				GET_COMPONENT(comp, i, vdata, len);
-				CHECK_COMPONENT(comp, (ASN1_CONTEXT_SPECIFIC|ASN1_TAG_0), "Error check failed on Call ID!\n");
+				CHECK_COMPONENT(comp, ASN1_TAG_0, "Error check failed on Call ID!\n");
 				ASN1_GET_INTEGER(comp, call->rlt_call_id);
 				/* We have enough data to transfer the call */
 				call->transferable = 1;
