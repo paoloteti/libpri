@@ -857,7 +857,7 @@ int rlt_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
 	} else
 		return -1;
 
-	buffer[i++] = (0x80 | Q932_PROTOCOL_ROSE);
+	buffer[i++] = (Q932_PROTOCOL_ROSE);
 	buffer[i++] = (0x80 | RLT_SERVICE_ID); /* Service Identifier octet */
 
 	ASN1_ADD_SIMPLE(comp, COMP_TYPE_INVOKE, buffer, i);

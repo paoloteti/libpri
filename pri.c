@@ -529,11 +529,6 @@ int pri_channel_bridge(q931_call *call1, q931_call *call2)
 	if (!call1 || !call2)
 		return -1;
 
-	/* Check switchtype compatibility */
-	if (call1->pri->switchtype != PRI_SWITCH_LUCENT5E ||
-			call2->pri->switchtype != PRI_SWITCH_LUCENT5E)
-		return -1;
-
 	/* Check for bearer capability */
 	if (call1->transcapability != call2->transcapability)
 		return -1;
