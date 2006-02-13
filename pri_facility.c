@@ -1136,13 +1136,17 @@ extern int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *d
 	do {
 		/* Invoke ID stuff */
 		GET_COMPONENT(comp, i, vdata, len);
+#if 0
 		CHECK_COMPONENT(comp, INVOKE_IDENTIFIER, "Don't know what to do if first ROSE component is of type 0x%x\n");
+#endif
 		invokeid = comp;
 		NEXT_COMPONENT(comp, i);
 
 		/* Operation Tag */
 		GET_COMPONENT(comp, i, vdata, len);
+#if 0
 		CHECK_COMPONENT(comp, ASN1_INTEGER, "Don't know what to do if second ROSE component is of type 0x%x\n");
+#endif
 		operationid = comp;
 		ASN1_GET_INTEGER(comp, operation_tag);
 		NEXT_COMPONENT(comp, i);
