@@ -3516,6 +3516,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.hangup.cause = c->cause;
 		pri->ev.hangup.call = c;
 		pri->ev.hangup.aoc_units = c->aoc_units;
+                libpri_copy_string(pri->ev.hangup.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo));
+		c->useruserinfo[0] = '\0';
 		if (c->alive)
 			return Q931_RES_HAVEEVENT;
 		else
