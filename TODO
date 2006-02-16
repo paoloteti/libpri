@@ -5,5 +5,4 @@ Q.921:
 -- Get TEI codes working for BRI interfaces
 
 Q.931:
--- Locking Shift IE
 -- Implement the 11 missing Q.931 timers
