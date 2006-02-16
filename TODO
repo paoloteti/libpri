@@ -1,9 +1,8 @@
 General: 
--- D-Channel Backup
--- Test against 4e
 
 Q.921:
 -- Support unnumbered information frames
+-- Get TEI codes working for BRI interfaces
 
 Q.931:
 -- Locking Shift IE
