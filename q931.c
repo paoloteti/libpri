@@ -737,7 +737,7 @@ char *pri_pres2str(int pres)
 
 static void q931_get_number(unsigned char *num, int maxlen, unsigned char *src, int len)
 {
-	if (len > maxlen - 1) {
+	if ((len < 0) || (len > maxlen - 1)) {
 		num[0] = 0;
 		return;
 	}
@@ -781,7 +781,7 @@ static FUNC_DUMP(dump_calling_party_number)
 static FUNC_DUMP(dump_calling_party_subaddr)
 {
 	unsigned char cnum[256];
-	q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
+	q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
 	pri_message(pri, "%c Calling Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
 		prefix, len, ie->data[0] >> 7,
 		subaddrtype2str((ie->data[0] & 0x70) >> 4), (ie->data[0] & 0x70) >> 4,
@@ -890,7 +890,7 @@ static FUNC_DUMP(dump_redirecting_subaddr)
 static FUNC_RECV(receive_calling_party_subaddr)
 {
 	/* copy digits to call->callingsubaddr */
- 	q931_get_number((unsigned char *) call->callingsubaddr, sizeof(call->callingsubaddr), ie->data + 2, len - 4);
+ 	q931_get_number((unsigned char *) call->callingsubaddr, sizeof(call->callingsubaddr), ie->data + 1, len - 3);
 	return 0;
 }
 
