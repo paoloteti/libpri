@@ -120,9 +120,11 @@ struct msgtype causes[] = {
 	{ PRI_CAUSE_BEARERCAPABILITY_NOTAUTH, "Bearer capability not authorized" },
 	{ PRI_CAUSE_BEARERCAPABILITY_NOTAVAIL, "Bearer capability not available" },
 	{ PRI_CAUSE_BEARERCAPABILITY_NOTIMPL, "Bearer capability not implemented" },
+	{ PRI_CAUSE_SERVICEOROPTION_NOTAVAIL, "Service or option not available, unspecified" },
 	{ PRI_CAUSE_CHAN_NOT_IMPLEMENTED, "Channel not implemented" },
 	{ PRI_CAUSE_FACILITY_NOT_IMPLEMENTED, "Facility not implemented" },
 	{ PRI_CAUSE_INVALID_CALL_REFERENCE, "Invalid call reference value" },
+	{ PRI_CAUSE_IDENTIFIED_CHANNEL_NOTEXIST, "Identified channel does not exist" },
 	{ PRI_CAUSE_INCOMPATIBLE_DESTINATION, "Incompatible destination" },
 	{ PRI_CAUSE_INVALID_MSG_UNSPECIFIED, "Invalid message unspecified" },
 	{ PRI_CAUSE_MANDATORY_IE_MISSING, "Mandatory information element is missing" },
@@ -1531,11 +1533,11 @@ static char *pri_causeclass2str(int cause)
 	static struct msgtype causeclasses[] = {
 		{ 0, "Normal Event" },
 		{ 1, "Normal Event" },
-		{ 2, "Network Congestion" },
+		{ 2, "Network Congestion (resource unavailable)" },
 		{ 3, "Service or Option not Available" },
 		{ 4, "Service or Option not Implemented" },
-		{ 5, "Invalid message" },
-		{ 6, "Protocol Error" },
+		{ 5, "Invalid message (e.g. parameter out of range)" },
+		{ 6, "Protocol Error (e.g. unknown message)" },
 		{ 7, "Interworking" },
 	};
 	return code2str(cause, causeclasses, sizeof(causeclasses) / sizeof(causeclasses[0]));
