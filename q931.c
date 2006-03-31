@@ -1060,17 +1060,19 @@ static FUNC_RECV(receive_display)
 static FUNC_SEND(transmit_display)
 {
 	int i;
-	if ((pri->switchtype != PRI_SWITCH_NI1) && (pri->switchtype != PRI_SWITCH_QSIG) 
-			&& *call->callername) {
-		i = 0;
-		if(pri->switchtype != PRI_SWITCH_EUROISDN_E1) {
-			ie->data[0] = 0xb1;
-			++i;
-		}
-		memcpy(ie->data + i, call->callername, strlen(call->callername));
-		return 2 + i + strlen(call->callername);
+	
+	if ((pri->switchtype == PRI_SWITCH_NI1) || (pri->switchtype == PRI_SWITCH_QSIG)
+		|| ((pri->switchtype == PRI_SWITCH_EUROISDN_E1) && (pri->localtype == PRI_CPE)) ||
+		!call->callername[0])
+		return 0;
+
+	i = 0;
+	if(pri->switchtype != PRI_SWITCH_EUROISDN_E1) {
+		ie->data[0] = 0xb1;
+		++i;
 	}
-	return 0;
+	memcpy(ie->data + i, call->callername, strlen(call->callername));
+	return 2 + i + strlen(call->callername);
 }
 
 static FUNC_RECV(receive_progress_indicator)
