@@ -361,6 +361,7 @@ typedef struct pri_event_proceeding {
 typedef struct pri_event_setup_ack {
 	int e;
 	int channel;
+	q931_call *call;
 } pri_event_setup_ack;
 
 typedef struct pri_event_notify {

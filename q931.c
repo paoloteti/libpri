@@ -3573,6 +3573,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->peercallstate = Q931_CALL_STATE_OVERLAP_RECEIVING;
 		pri->ev.e = PRI_EVENT_SETUP_ACK;
 		pri->ev.setup_ack.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		pri->ev.setup_ack.call = c;
 
 		cur = c->apdus;
 		while (cur) {
