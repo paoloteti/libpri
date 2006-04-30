@@ -43,7 +43,7 @@ INSTALL_PREFIX=$(DESTDIR)
 INSTALL_BASE=/usr
 SOFLAGS = -Wl,-hlibpri.so.1.0
 LDCONFIG = /sbin/ldconfig
-ifeq (${OSARCH},Linux)
+ifneq (,$(findstring $(OSARCH), Linux GNU/kFreeBSD))
 LDCONFIG_FLAGS=-n
 else
 ifeq (${OSARCH},FreeBSD)
@@ -89,7 +89,7 @@ ifneq (${OSARCH},SunOS)
 	if [ -x /usr/sbin/sestatus ] && ( /usr/sbin/sestatus | grep "SELinux status:" | grep -q "enabled"); then  restorecon -v $(INSTALL_PREFIX)$(INSTALL_BASE)/lib/$(DYNAMIC_LIBRARY); fi
 	( cd $(INSTALL_PREFIX)$(INSTALL_BASE)/lib ; ln -sf libpri.so.1.0 libpri.so ; ln -sf libpri.so.1.0 libpri.so.1 )
 	install -m 644 $(STATIC_LIBRARY) $(INSTALL_PREFIX)$(INSTALL_BASE)/lib
-	if test $$(id -u) = 0; then $(LDCONFIG); fi
+	if test $$(id -u) = 0; then $(LDCONFIG) $(LDCONFIG_FLAGS) $(INSTALL_PREFIX)$(INSTALL_BASE)/lib; fi
 else
 	install -f $(INSTALL_PREFIX)$(INSTALL_BASE)/include -m 644 libpri.h
 	install -f $(INSTALL_PREFIX)$(INSTALL_BASE)/lib -m 755 $(DYNAMIC_LIBRARY)
