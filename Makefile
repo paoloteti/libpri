@@ -43,7 +43,7 @@ INSTALL_PREFIX=$(DESTDIR)
 INSTALL_BASE=/usr
 SOFLAGS = -Wl,-hlibpri.so.1.0
 LDCONFIG = /sbin/ldconfig
-ifneq (,$(findstring $(OSARCH), Linux GNU))
+ifneq (,$(findstring X$(OSARCH)X, XLinuxX XGNU/kFreeBSDX))
 LDCONFIG_FLAGS=-n
 else
 ifeq (${OSARCH},FreeBSD)
