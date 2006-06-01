@@ -2606,9 +2606,11 @@ static void pri_release_finaltimeout(void *data)
 	pri->schedev = 1;
 	pri->ev.e = PRI_EVENT_HANGUP_ACK;
 	pri->ev.hangup.channel = c->channelno;
-	pri->ev.hangup.cref = c->cr;
 	pri->ev.hangup.cause = c->cause;
+	pri->ev.hangup.cref = c->cr;
 	pri->ev.hangup.call = c;
+	pri->ev.hangup.aoc_units = c->aoc_units;
+	libpri_copy_string(pri->ev.hangup.useruserinfo, c->useruserinfo, sizeof(pri->ev.hangup.useruserinfo));
 	q931_hangup(pri, c, c->cause);
 }
 
@@ -3254,9 +3256,9 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		libpri_copy_string(pri->ev.ring.callednum, c->callednum, sizeof(pri->ev.ring.callednum));
 		libpri_copy_string(pri->ev.ring.origcalledname, c->origcalledname, sizeof(pri->ev.ring.origcalledname));
 		libpri_copy_string(pri->ev.ring.origcallednum, c->origcallednum, sizeof(pri->ev.ring.origcallednum));
-                libpri_copy_string(pri->ev.ring.redirectingnum, c->redirectingnum, sizeof(pri->ev.ring.redirectingnum));
-                libpri_copy_string(pri->ev.ring.redirectingname, c->redirectingname, sizeof(pri->ev.ring.redirectingname));
-                libpri_copy_string(pri->ev.ring.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo));
+		libpri_copy_string(pri->ev.ring.redirectingnum, c->redirectingnum, sizeof(pri->ev.ring.redirectingnum));
+		libpri_copy_string(pri->ev.ring.redirectingname, c->redirectingname, sizeof(pri->ev.ring.redirectingname));
+		libpri_copy_string(pri->ev.ring.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo));
 		c->useruserinfo[0] = '\0';
 		pri->ev.ring.redirectingreason = c->redirectingreason;
 		pri->ev.ring.origredirectingreason = c->origredirectingreason;
@@ -3283,7 +3285,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ringing.call = c;
 		pri->ev.ringing.progress = c->progress;
 		pri->ev.ringing.progressmask = c->progressmask;
-                libpri_copy_string(pri->ev.ringing.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo));
+		libpri_copy_string(pri->ev.ringing.useruserinfo, c->useruserinfo, sizeof(pri->ev.ringing.useruserinfo));
 		c->useruserinfo[0] = '\0';
 		return Q931_RES_HAVEEVENT;
 	case Q931_CONNECT:
@@ -3303,7 +3305,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.answer.call = c;
 		pri->ev.answer.progress = c->progress;
 		pri->ev.answer.progressmask = c->progressmask;
-                libpri_copy_string(pri->ev.answer.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo));
+		libpri_copy_string(pri->ev.answer.useruserinfo, c->useruserinfo, sizeof(pri->ev.answer.useruserinfo));
 		c->useruserinfo[0] = '\0';
 		q931_connect_acknowledge(pri, c);
 		if (c->justsignalling) {  /* Make sure WE release when we initiatie a signalling only connection */
@@ -3389,9 +3391,11 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		/* Workaround for S-12 ver 7.3 - it responds for invalid/non-implemented IEs at SETUP with null call state */
 		if (!c->sugcallstate && (c->ourcallstate != Q931_CALL_STATE_CALL_INITIATED)) {
 			pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
-			pri->ev.hangup.cref = c->cr;          		
-			pri->ev.hangup.cause = c->cause;      		
-			pri->ev.hangup.call = c;              		
+			pri->ev.hangup.cause = c->cause;
+			pri->ev.hangup.cref = c->cr;
+			pri->ev.hangup.call = c;
+			pri->ev.hangup.aoc_units = c->aoc_units;
+			libpri_copy_string(pri->ev.hangup.useruserinfo, c->useruserinfo, sizeof(pri->ev.hangup.useruserinfo));
 			/* Free resources */
 			c->ourcallstate = Q931_CALL_STATE_NULL;
 			c->peercallstate = Q931_CALL_STATE_NULL;
@@ -3415,10 +3419,11 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->ourcallstate = Q931_CALL_STATE_NULL;
 		c->peercallstate = Q931_CALL_STATE_NULL;
 		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
-		pri->ev.hangup.cref = c->cr;          		
-		pri->ev.hangup.cause = c->cause;      		
-		pri->ev.hangup.call = c;              		
-                libpri_copy_string(pri->ev.hangup.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo));
+		pri->ev.hangup.cause = c->cause;
+		pri->ev.hangup.cref = c->cr;
+		pri->ev.hangup.call = c;
+		pri->ev.hangup.aoc_units = c->aoc_units;
+		libpri_copy_string(pri->ev.hangup.useruserinfo, c->useruserinfo, sizeof(pri->ev.hangup.useruserinfo));
 		c->useruserinfo[0] = '\0';
 		/* Free resources */
 		if (c->alive) {
@@ -3449,11 +3454,11 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		c->ourcallstate = Q931_CALL_STATE_NULL;
 		pri->ev.e = PRI_EVENT_HANGUP;
 		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
-		pri->ev.hangup.cref = c->cr;
 		pri->ev.hangup.cause = c->cause;
+		pri->ev.hangup.cref = c->cr;
 		pri->ev.hangup.call = c;
 		pri->ev.hangup.aoc_units = c->aoc_units;
-                libpri_copy_string(pri->ev.hangup.useruserinfo, c->useruserinfo, sizeof(pri->ev.ring.useruserinfo));
+		libpri_copy_string(pri->ev.hangup.useruserinfo, c->useruserinfo, sizeof(pri->ev.hangup.useruserinfo));
 		c->useruserinfo[0] = '\0';
 		/* Don't send release complete if they send us release 
 		   while we sent it, assume a NULL state */
@@ -3477,10 +3482,12 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		/* Return such an event */
 		pri->ev.e = PRI_EVENT_HANGUP_REQ;
 		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
-		pri->ev.hangup.cref = c->cr;
 		pri->ev.hangup.cause = c->cause;
+		pri->ev.hangup.cref = c->cr;
 		pri->ev.hangup.call = c;
 		pri->ev.hangup.aoc_units = c->aoc_units;
+		libpri_copy_string(pri->ev.hangup.useruserinfo, c->useruserinfo, sizeof(pri->ev.hangup.useruserinfo));
+		c->useruserinfo[0] = '\0';
 		if (c->alive)
 			return Q931_RES_HAVEEVENT;
 		else
