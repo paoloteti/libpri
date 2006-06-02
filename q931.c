@@ -2681,7 +2681,10 @@ int q931_connect(struct pri *pri, q931_call *c, int channel, int nonisdn)
 		c->progressmask = PRI_PROG_CALLED_NOT_ISDN;
 	} else
 		c->progressmask = 0;
-	c->ourcallstate = Q931_CALL_STATE_CONNECT_REQUEST;
+	if (pri->localtype == PRI_CPE)
+		c->ourcallstate = Q931_CALL_STATE_CONNECT_REQUEST;
+	else
+		c->ourcallstate = Q931_CALL_STATE_ACTIVE;
 	c->peercallstate = Q931_CALL_STATE_ACTIVE;
 	c->alive = 1;
 	/* Setup timer */
