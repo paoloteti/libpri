@@ -2070,15 +2070,17 @@ static inline void q931_dumpie(struct pri *pri, int codeset, q931_ie *ie, char p
 	unsigned int x;
 	int full_ie = Q931_FULL_IE(codeset, ie->ie);
 	int base_ie;
+	char *buf = malloc(ielen(ie) * 3 + 1);
+	int buflen = 0;
 
-	pri_message(NULL, "%c [", prefix);
-	pri_message(NULL, "%02x", ie->ie);
+	buf[0] = '\0';
 	if (!(ie->ie & 0x80)) {
-		pri_message(NULL, " %02x", ielen(ie)-2);
+		buflen += sprintf(buf, " %02x", ielen(ie)-2);
 		for (x = 0; x + 2 < ielen(ie); ++x)
-			pri_message(NULL, " %02x", ie->data[x]);
+			buflen += sprintf(buf + buflen, " %02x", ie->data[x]);
 	}
-	pri_message(NULL, "]\n");
+	pri_message(pri, "%c [%02x%s]\n", prefix, ie->ie, buf);
+	free(buf);
 
 	/* Special treatment for shifts */
 	if((full_ie & 0xf0) == Q931_LOCKING_SHIFT)
