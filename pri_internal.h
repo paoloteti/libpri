@@ -27,6 +27,9 @@
 
 #include <sys/time.h>
 
+#define DBGHEAD __FILE__ ":%d %s: "
+#define DBGINFO __LINE__,__PRETTY_FUNCTION__
+
 struct pri_sched {
 	struct timeval when;
 	void (*callback)(void *data);
