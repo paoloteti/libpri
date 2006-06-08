@@ -1061,6 +1061,9 @@ static FUNC_SEND(transmit_display)
 {
 	int i;
 	
+	if (!call->callername[0])
+		return 0;
+
 	if ((pri->switchtype == PRI_SWITCH_QSIG)
 		|| ((pri->switchtype == PRI_SWITCH_EUROISDN_E1) && (pri->localtype == PRI_CPE)) ||
 		!call->callername[0])
