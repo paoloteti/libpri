@@ -74,9 +74,6 @@ update:
 	@if [ -d .svn ]; then \
 		echo "Updating from Subversion..." ; \
 		svn update -q; \
-	elif [ -d CVS ]; then \
-		echo "Updating from CVS..." ; \
-		cvs -q -z3 update -Pd; \
 	else \
 		echo "Not under version control";  \
 	fi
