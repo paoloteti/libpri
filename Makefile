@@ -32,8 +32,6 @@ CC=gcc
 OSARCH=$(shell uname -s)
 PROC?=$(shell uname -m)
 
-TOBJS=testpri.o
-T2OBJS=testprilib.o
 STATIC_LIBRARY=libpri.a
 DYNAMIC_LIBRARY=libpri.so.1.0
 STATIC_OBJS=copy_string.o pri.o q921.o prisched.o q931.o pri_facility.o
@@ -135,7 +133,7 @@ $(DYNAMIC_LIBRARY): $(DYNAMIC_OBJS)
 
 clean:
 	rm -f *.o *.so *.lo *.so.1 *.so.1.0
-	rm -f testpri testprilib $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
+	rm -f testprilib $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 	rm -f pritest pridump
 	rm -f .depend
 

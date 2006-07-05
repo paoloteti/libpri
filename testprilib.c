@@ -42,11 +42,7 @@
 #include <sys/time.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
-#if defined(__linux__)
-#include <linux/zaptel.h>
-#elif defined(__FreeBSD__) || defined(SOLARIS)
-#include <zaptel.h>
-#endif
+#include <zaptel/zaptel.h>
 #ifndef SOLARIS
 #include <zap.h>
 #endif
