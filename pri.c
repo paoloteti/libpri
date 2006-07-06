@@ -781,6 +781,7 @@ char *pri_dump_info_str(struct pri *pri)
 	len += sprintf(buf + len, "T203 Timer: %d\n", pri->timers[PRI_TIMER_T203]);
 	len += sprintf(buf + len, "T305 Timer: %d\n", pri->timers[PRI_TIMER_T305]);
 	len += sprintf(buf + len, "T308 Timer: %d\n", pri->timers[PRI_TIMER_T308]);
+	len += sprintf(buf + len, "T309 Timer: %d\n", pri->timers[PRI_TIMER_T309]);
 	len += sprintf(buf + len, "T313 Timer: %d\n", pri->timers[PRI_TIMER_T313]);
 	len += sprintf(buf + len, "N200 Counter: %d\n", pri->timers[PRI_TIMER_N200]);
 

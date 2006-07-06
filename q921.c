@@ -667,6 +667,9 @@ static pri_event *q921_dchannel_up(struct pri *pri)
 	/* Start the T203 timer */
 	pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
 	
+	/* Notify Layer 3 */
+	q931_dl_indication(pri, PRI_EVENT_DCHAN_UP);
+
 	/* Report event that D-Channel is now up */
 	pri->ev.gen.e = PRI_EVENT_DCHAN_UP;
 	return &pri->ev;
@@ -677,6 +680,9 @@ static pri_event *q921_dchannel_down(struct pri *pri)
 	/* Reset counters, reset sabme timer etc */
 	q921_reset(pri);
 	
+	/* Notify Layer 3 */
+	q931_dl_indication(pri, PRI_EVENT_DCHAN_DOWN);
+
 	/* Report event that D-Channel is now up */
 	pri->ev.gen.e = PRI_EVENT_DCHAN_DOWN;
 	return &pri->ev;

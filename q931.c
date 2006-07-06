@@ -216,6 +216,18 @@ static char *msg2str(int msg);
 #define FUNC_RECV(name) int ((name))(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 #define FUNC_SEND(name) int ((name))(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 
+#if 1
+/* Update call state with transition trace. */
+#define UPDATE_OURCALLSTATE(pri,c,newstate) do {\
+	if (pri->debug & (PRI_DEBUG_Q931_STATE) && c->ourcallstate != newstate) \
+		pri_message(pri, DBGHEAD "call %d on channel %d enters state %d (%s)\n", DBGINFO, \
+		            c->cr, c->channelno, newstate, callstate2str(newstate)); \
+	c->ourcallstate = newstate; \
+	} while (0)
+#else
+/* Update call state with no trace. */
+#define UPDATE_OURCALLSTATE(pri,c,newstate) c->ourcallstate = newstate
+#endif
 
 struct ie {
 	/* Maximal count of same IEs at the message (0 - any, 1..n - limited) */
@@ -2484,7 +2496,7 @@ static int restart_ack_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 
 
 static int restart_ack(struct pri *pri, q931_call *c)
 {
-	c->ourcallstate = Q931_CALL_STATE_NULL;
+	UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_NULL);
 	c->peercallstate = Q931_CALL_STATE_NULL;
 	return send_message(pri, c, Q931_RESTART_ACKNOWLEDGE, restart_ack_ies);
 }
@@ -2555,7 +2567,7 @@ int q931_call_proceeding(struct pri *pri, q931_call *c, int channel, int info)
 	}
 	c->chanflags &= ~FLAG_PREFERRED;
 	c->chanflags |= FLAG_EXCLUSIVE;
-	c->ourcallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
+	UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_INCOMING_CALL_PROCEEDING);
 	c->peercallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
 	if (info) {
 		c->progloc = LOC_PRIV_NET_LOCAL_USER;
@@ -2583,7 +2595,7 @@ int q931_alerting(struct pri *pri, q931_call *c, int channel, int info)
 		c->progressmask = PRI_PROG_INBAND_AVAILABLE;
 	} else
 		c->progressmask = 0;
-	c->ourcallstate = Q931_CALL_STATE_CALL_RECEIVED;
+	UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_CALL_RECEIVED);
 	c->peercallstate = Q931_CALL_STATE_CALL_DELIVERED;
 	c->alive = 1;
 	return send_message(pri, c, Q931_ALERTING, alerting_ies);
@@ -2607,7 +2619,7 @@ int q931_setup_ack(struct pri *pri, q931_call *c, int channel, int nonisdn)
 		c->progressmask = PRI_PROG_CALLED_NOT_ISDN;
 	} else
 		c->progressmask = 0;
-	c->ourcallstate = Q931_CALL_STATE_OVERLAP_RECEIVING;
+	UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_OVERLAP_RECEIVING);
 	c->peercallstate = Q931_CALL_STATE_OVERLAP_SENDING;
 	c->alive = 1;
 	return send_message(pri, c, Q931_SETUP_ACKNOWLEDGE, connect_ies);
@@ -2681,10 +2693,11 @@ int q931_connect(struct pri *pri, q931_call *c, int channel, int nonisdn)
 		c->progressmask = PRI_PROG_CALLED_NOT_ISDN;
 	} else
 		c->progressmask = 0;
-	if (pri->localtype == PRI_CPE)
-		c->ourcallstate = Q931_CALL_STATE_CONNECT_REQUEST;
-	else
-		c->ourcallstate = Q931_CALL_STATE_ACTIVE;
+	if (pri->localtype == PRI_CPE) {
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_CONNECT_REQUEST);
+	} else {
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_ACTIVE);
+	}
 	c->peercallstate = Q931_CALL_STATE_ACTIVE;
 	c->alive = 1;
 	/* Setup timer */
@@ -2700,7 +2713,7 @@ static int release_ies[] = { Q931_CAUSE, Q931_IE_USER_USER, -1 };
 
 int q931_release(struct pri *pri, q931_call *c, int cause)
 {
-	c->ourcallstate = Q931_CALL_STATE_RELEASE_REQUEST;
+	UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_RELEASE_REQUEST);
 	/* c->peercallstate stays the same */
 	if (c->alive) {
 		c->alive = 0;
@@ -2739,7 +2752,7 @@ int q931_restart(struct pri *pri, int channel)
 	c->channelno = channel;		
 	c->chanflags &= ~FLAG_PREFERRED;
 	c->chanflags |= FLAG_EXCLUSIVE;
-	c->ourcallstate = Q931_CALL_STATE_RESTART;
+	UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_RESTART);
 	c->peercallstate = Q931_CALL_STATE_RESTART_REQUEST;
 	return send_message(pri, c, Q931_RESTART, restart_ies);
 }
@@ -2748,7 +2761,7 @@ static int disconnect_ies[] = { Q931_CAUSE, Q931_IE_USER_USER, -1 };
 
 int q931_disconnect(struct pri *pri, q931_call *c, int cause)
 {
-	c->ourcallstate = Q931_CALL_STATE_DISCONNECT_REQUEST;
+	UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_DISCONNECT_REQUEST);
 	c->peercallstate = Q931_CALL_STATE_DISCONNECT_INDICATION;
 	if (c->alive) {
 		c->alive = 0;
@@ -2864,7 +2877,7 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 		c->alive = 1;
 		/* make sure we call PRI_EVENT_HANGUP_ACK once we send/receive RELEASE_COMPLETE */
 		c->sendhangupack = 1;
-		c->ourcallstate = Q931_CALL_STATE_CALL_INITIATED;
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_CALL_INITIATED);
 		c->peercallstate = Q931_CALL_STATE_OVERLAP_SENDING;	
 	}
 	return res;
@@ -2876,7 +2889,7 @@ static int release_complete_ies[] = { Q931_IE_USER_USER, -1 };
 static int q931_release_complete(struct pri *pri, q931_call *c, int cause)
 {
 	int res = 0;
-	c->ourcallstate = Q931_CALL_STATE_NULL;
+	UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_NULL);
 	c->peercallstate = Q931_CALL_STATE_NULL;
 	if (cause > -1) {
 		c->cause = cause;
@@ -3256,7 +3269,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_destroycall(pri, c->cr);
 			break;
 		}
-		c->ourcallstate = Q931_CALL_STATE_RESTART;
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_RESTART);
 		c->peercallstate = Q931_CALL_STATE_RESTART_REQUEST;
 		/* Send back the Restart Acknowledge */
 		restart_ack(pri, c);
@@ -3276,7 +3289,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		if (c->progressmask & PRI_PROG_CALLER_NOT_ISDN)
 			c->nonisdn = 1;
 		c->newcall = 0;
-		c->ourcallstate = Q931_CALL_STATE_CALL_PRESENT;
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_CALL_PRESENT);
 		c->peercallstate = Q931_CALL_STATE_CALL_INITIATED;
 		/* it's not yet a call since higher level can respond with RELEASE or RELEASE_COMPLETE */
 		c->alive = 0;
@@ -3321,7 +3334,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_release_complete(pri,c,PRI_CAUSE_INVALID_CALL_REFERENCE);
 			break;
 		}
-		c->ourcallstate = Q931_CALL_STATE_CALL_DELIVERED;
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_CALL_DELIVERED);
 		c->peercallstate = Q931_CALL_STATE_CALL_RECEIVED;
 		pri->ev.e = PRI_EVENT_RINGING;
 		pri->ev.ringing.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
@@ -3341,7 +3354,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_status(pri, c, PRI_CAUSE_WRONG_MESSAGE);
 			break;
 		}
-		c->ourcallstate = Q931_CALL_STATE_ACTIVE;
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_ACTIVE);
 		c->peercallstate = Q931_CALL_STATE_CONNECT_REQUEST;
 		pri->ev.e = PRI_EVENT_ANSWER;
 		pri->ev.answer.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
@@ -3396,7 +3409,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.proceeding.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		if (mh->msg == Q931_CALL_PROCEEDING) {
 			pri->ev.e = PRI_EVENT_PROCEEDING;
-			c->ourcallstate = Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING;
+			UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING);
 			c->peercallstate = Q931_CALL_STATE_INCOMING_CALL_PROCEEDING;
 		}
 		pri->ev.proceeding.progress = c->progress;
@@ -3413,7 +3426,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_status(pri,c,PRI_CAUSE_WRONG_MESSAGE);
 			break;
 		}
-		c->ourcallstate = Q931_CALL_STATE_ACTIVE;
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_ACTIVE);
 		c->peercallstate = Q931_CALL_STATE_ACTIVE;
 		break;
 	case Q931_STATUS:
@@ -3441,7 +3454,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			pri->ev.hangup.aoc_units = c->aoc_units;
 			libpri_copy_string(pri->ev.hangup.useruserinfo, c->useruserinfo, sizeof(pri->ev.hangup.useruserinfo));
 			/* Free resources */
-			c->ourcallstate = Q931_CALL_STATE_NULL;
+			UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_NULL);
 			c->peercallstate = Q931_CALL_STATE_NULL;
 			if (c->alive) {
 				pri->ev.e = PRI_EVENT_HANGUP;
@@ -3460,7 +3473,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		}
 		break;
 	case Q931_RELEASE_COMPLETE:
-		c->ourcallstate = Q931_CALL_STATE_NULL;
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_NULL);
 		c->peercallstate = Q931_CALL_STATE_NULL;
 		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.hangup.cause = c->cause;
@@ -3495,7 +3508,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		else {
 			c->peercallstate = Q931_CALL_STATE_RELEASE_REQUEST;
 		}
-		c->ourcallstate = Q931_CALL_STATE_NULL;
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_NULL);
 		pri->ev.e = PRI_EVENT_HANGUP;
 		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 		pri->ev.hangup.cause = c->cause;
@@ -3520,7 +3533,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_release_complete(pri,c,PRI_CAUSE_INVALID_CALL_REFERENCE);
 			break;
 		}
-		c->ourcallstate = Q931_CALL_STATE_DISCONNECT_INDICATION;
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_DISCONNECT_INDICATION);
 		c->peercallstate = Q931_CALL_STATE_DISCONNECT_REQUEST;
 		c->sendhangupack = 1;
 		/* Return such an event */
@@ -3538,7 +3551,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_hangup(pri,c,c->cause);
 		break;
 	case Q931_RESTART_ACKNOWLEDGE:
-		c->ourcallstate = Q931_CALL_STATE_NULL;
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_NULL);
 		c->peercallstate = Q931_CALL_STATE_NULL;
 		pri->ev.e = PRI_EVENT_RESTART_ACK;
 		pri->ev.restartack.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
@@ -3579,7 +3592,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_release_complete(pri,c,PRI_CAUSE_INVALID_CALL_REFERENCE);
 			break;
 		}
-		c->ourcallstate = Q931_CALL_STATE_OVERLAP_SENDING;
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_OVERLAP_SENDING);
 		c->peercallstate = Q931_CALL_STATE_OVERLAP_RECEIVING;
 		pri->ev.e = PRI_EVENT_SETUP_ACK;
 		pri->ev.setup_ack.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
@@ -3626,6 +3639,131 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		return -1;
 	}
 	return 0;
+}
+
+/* Clear a call, although we did not receive any hangup notification. */
+static int pri_internal_clear(void *data)
+{
+	struct q931_call *c = data;
+	struct pri *pri = c->pri;
+	int res;
+
+	if (c->retranstimer)
+		pri_schedule_del(pri, c->retranstimer);
+	c->retranstimer = 0;
+	c->useruserinfo[0] = '\0';
+	c->cause = -1;
+	c->causecode = -1;
+	c->causeloc = -1;
+	c->sugcallstate = -1;
+	c->aoc_units = -1;
+
+	UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_NULL);
+	c->peercallstate = Q931_CALL_STATE_NULL;
+	pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+	pri->ev.hangup.cause = c->cause;      		
+	pri->ev.hangup.cref = c->cr;          		
+	pri->ev.hangup.call = c;              		
+	pri->ev.hangup.aoc_units = c->aoc_units;
+	libpri_copy_string(pri->ev.hangup.useruserinfo, c->useruserinfo, sizeof(pri->ev.hangup.useruserinfo));
+
+	/* Free resources */
+	if (c->alive) {
+		pri->ev.e = PRI_EVENT_HANGUP;
+		res = Q931_RES_HAVEEVENT;
+		c->alive = 0;
+	} else if (c->sendhangupack) {
+		res = Q931_RES_HAVEEVENT;
+		pri->ev.e = PRI_EVENT_HANGUP_ACK;
+		q931_hangup(pri, c, c->cause);
+	} else {
+		res = 0;
+		q931_hangup(pri, c, c->cause);
+	}
+
+	return res;
+}
+
+/* Handle T309 timeout for an active call. */
+static void pri_dl_down_timeout(void *data)
+{
+	struct q931_call *c = data;
+	struct pri *pri = c->pri;
+	if (pri->debug & PRI_DEBUG_Q931_STATE)
+		pri_message(pri, DBGHEAD "Timed out waiting for data link re-establishment\n", DBGINFO);
+
+	c->cause = PRI_CAUSE_DESTINATION_OUT_OF_ORDER;
+	if (pri_internal_clear(c) == Q931_RES_HAVEEVENT)
+		pri->schedev = 1;
+}
+
+/* Handle Layer 2 down event for a non active call. */
+static void pri_dl_down_cancelcall(void *data)
+{
+	struct q931_call *c = data;
+	struct pri *pri = c->pri;
+	if (pri->debug & PRI_DEBUG_Q931_STATE)
+		pri_message(pri, DBGHEAD "Cancel non active call after data link failure\n", DBGINFO);
+
+	c->cause = PRI_CAUSE_DESTINATION_OUT_OF_ORDER;
+	if (pri_internal_clear(c) == Q931_RES_HAVEEVENT)
+		pri->schedev = 1;
+}
+
+/* Receive an indication from Layer 2 */
+void q931_dl_indication(struct pri *pri, int event)
+{
+	q931_call *cur = NULL;
+
+	/* Just return if T309 is not enabled. */
+	if (!pri || pri->timers[PRI_TIMER_T309] < 0)
+		return;
+
+	switch (event) {
+	case PRI_EVENT_DCHAN_DOWN:
+		pri_message(pri, DBGHEAD "link is DOWN\n", DBGINFO);
+		cur = *pri->callpool;
+		while(cur) {
+			if (cur->ourcallstate == Q931_CALL_STATE_ACTIVE) {
+				/* For a call in Active state, activate T309 only if there is no timer already running. */
+				if (!cur->retranstimer) {
+					pri_message(pri, DBGHEAD "activate T309 for call %d on channel %d\n", DBGINFO, cur->cr, cur->channelno);
+					cur->retranstimer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T309], pri_dl_down_timeout, cur);
+				}
+			} else if (cur->ourcallstate != Q931_CALL_STATE_NULL) {
+				/* For a call that is not in Active state, schedule internal clearing of the call 'ASAP' (delay 0). */
+				pri_message(pri, DBGHEAD "cancel call %d on channel %d in state %d (%s)\n", DBGINFO,
+				            cur->cr, cur->channelno, cur->ourcallstate, callstate2str(cur->ourcallstate));
+				if (cur->retranstimer)
+					pri_schedule_del(pri, cur->retranstimer);
+				cur->retranstimer = pri_schedule_event(pri, 0, pri_dl_down_cancelcall, cur);
+			}
+			cur = cur->next;
+		}
+		break;
+	case PRI_EVENT_DCHAN_UP:
+		pri_message(pri, DBGHEAD "link is UP\n", DBGINFO);
+		cur = *pri->callpool;
+		while(cur) {
+			if (cur->ourcallstate == Q931_CALL_STATE_ACTIVE && cur->retranstimer) {
+				pri_message(pri, DBGHEAD "cancel T309 for call %d on channel %d\n", DBGINFO, cur->cr, cur->channelno);
+				pri_schedule_del(pri, cur->retranstimer);
+				cur->retranstimer = 0;
+				q931_status(pri, cur, PRI_CAUSE_NORMAL_UNSPECIFIED);
+			} else if (cur->ourcallstate != Q931_CALL_STATE_NULL &&
+				cur->ourcallstate != Q931_CALL_STATE_DISCONNECT_REQUEST &&
+				cur->ourcallstate != Q931_CALL_STATE_DISCONNECT_INDICATION &&
+				cur->ourcallstate != Q931_CALL_STATE_RELEASE_REQUEST) {
+
+				/* The STATUS message sent here is not required by Q.931, but it may help anyway. */
+				q931_status(pri, cur, PRI_CAUSE_NORMAL_UNSPECIFIED);
+			}
+			cur = cur->next;
+		}
+		break;
+	default:
+		pri_message(pri, DBGHEAD "unexpected event %d.\n", DBGINFO, event);
+	}
 }
 
 int q931_call_getcrv(struct pri *pri, q931_call *call, int *callmode)
