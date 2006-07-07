@@ -44,7 +44,7 @@ struct msgtype {
 	int mandies[MAX_MAND_IES];
 };
 
-struct msgtype msgs[] = {
+static struct msgtype msgs[] = {
 	/* Call establishment messages */
 	{ Q931_ALERTING, "ALERTING" },
 	{ Q931_CALL_PROCEEDING, "CALL PROCEEDING" },
@@ -90,7 +90,7 @@ struct msgtype msgs[] = {
 	{ NATIONAL_SERVICE_ACKNOWLEDGE, "SERVICE ACKNOWLEDGE" },
 };
 
-struct msgtype causes[] = {
+static struct msgtype causes[] = {
 	{ PRI_CAUSE_UNALLOCATED, "Unallocated (unassigned) number" },
 	{ PRI_CAUSE_NO_ROUTE_TRANSIT_NET, "No route to specified transmit network" },
 	{ PRI_CAUSE_NO_ROUTE_DESTINATION, "No route to destination" },
@@ -139,7 +139,7 @@ struct msgtype causes[] = {
 	{ PRI_CAUSE_INTERWORKING, "Interworking, unspecified" },
 };
 
-struct msgtype facilities[] = {
+static struct msgtype facilities[] = {
        { PRI_NSF_SID_PREFERRED, "CPN (SID) preferred" },
        { PRI_NSF_ANI_PREFERRED, "BN (ANI) preferred" },
        { PRI_NSF_SID_ONLY, "CPN (SID) only" },
@@ -1966,7 +1966,7 @@ static FUNC_DUMP(dump_transit_count)
 }
 
 
-struct ie ies[] = {
+static struct ie ies[] = {
 	/* Codeset 0 - Common */
 	{ 1, NATIONAL_CHANGE_STATUS, "Change Status" },
 	{ 0, Q931_LOCKING_SHIFT, "Locking Shift", dump_shift },
