@@ -1433,7 +1433,7 @@ static FUNC_DUMP(dump_display)
 {
 	int x, y;
 	char *buf = malloc(len + 1);
-	char tmp[80];
+	char tmp[80] = "";
 	if (buf) {
 		x=y=0;
 		if ((x < ie->len) && (ie->data[x] & 0x80)) {
