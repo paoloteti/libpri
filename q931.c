@@ -418,7 +418,7 @@ static FUNC_DUMP(dump_channel_id)
 		"No channel selected", "As indicated in following octets", "Reserved","Any channel selected"
 	};
 
-	pri_message(pri, "%c Channel ID (len=%2d) [ Ext: %d  IntID: %s, %s Spare: %d, %s Dchan: %d\n",
+	pri_message(pri, "%c Channel ID (len=%2d) [ Ext: %d  IntID: %s  %s  Spare: %d  %s  Dchan: %d\n",
 		prefix, len, (ie->data[0] & 0x80) ? 1 : 0, (ie->data[0] & 0x40) ? "Explicit" : "Implicit",
 		(ie->data[0] & 0x20) ? "PRI" : "Other", (ie->data[0] & 0x10) ? 1 : 0,
 		(ie->data[0] & 0x08) ? "Exclusive" : "Preferred",  (ie->data[0] & 0x04) ? 1 : 0);
@@ -435,7 +435,7 @@ static FUNC_DUMP(dump_channel_id)
 	}
 	if (pos+2 < len) {
 		/* Still more information here */
-		pri_message(pri, "%c                       Ext: %d  Coding: %d   %s Specified   Channel Type: %d\n",
+		pri_message(pri, "%c                       Ext: %d  Coding: %d  %s Specified  Channel Type: %d\n",
 				prefix, (ie->data[pos] & 0x80) >> 7, (ie->data[pos] & 60) >> 5, 
 				(ie->data[pos] & 0x10) ? "Slot Map" : "Number", ie->data[pos] & 0x0f);
 		if (!(ie->data[pos] & 0x10)) {
@@ -764,7 +764,7 @@ static FUNC_DUMP(dump_called_party_number)
 	unsigned char cnum[256];
 
 	q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
-	pri_message(pri, "%c Called Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d) '%s' ]\n",
+	pri_message(pri, "%c Called Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)  '%s' ]\n",
 		prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f, cnum);
 }
 
@@ -772,7 +772,7 @@ static FUNC_DUMP(dump_called_party_subaddr)
 {
 	unsigned char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
-	pri_message(pri, "%c Called Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
+	pri_message(pri, "%c Called Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d)  O: %d  '%s' ]\n",
 		prefix, len, ie->data[0] >> 7,
 		subaddrtype2str((ie->data[0] & 0x70) >> 4), (ie->data[0] & 0x70) >> 4,
 		(ie->data[0] & 0x08) >> 3, cnum);
@@ -787,16 +787,16 @@ static FUNC_DUMP(dump_calling_party_number)
 		q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
 	pri_message(pri, "%c Calling Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)\n", prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
 	if (ie->data[0] & 0x80)
-		pri_message(pri, "%c                           Presentation: %s (%d) '%s' ]\n", prefix, pri_pres2str(0), 0, cnum);
+		pri_message(pri, "%c                           Presentation: %s (%d)  '%s' ]\n", prefix, pri_pres2str(0), 0, cnum);
 	else
-		pri_message(pri, "%c                           Presentation: %s (%d) '%s' ]\n", prefix, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f, cnum);
+		pri_message(pri, "%c                           Presentation: %s (%d)  '%s' ]\n", prefix, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f, cnum);
 }
 
 static FUNC_DUMP(dump_calling_party_subaddr)
 {
 	unsigned char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
-	pri_message(pri, "%c Calling Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
+	pri_message(pri, "%c Calling Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d)  O: %d  '%s' ]\n",
 		prefix, len, ie->data[0] >> 7,
 		subaddrtype2str((ie->data[0] & 0x70) >> 4), (ie->data[0] & 0x70) >> 4,
 		(ie->data[0] & 0x08) >> 3, cnum);
@@ -815,18 +815,18 @@ static FUNC_DUMP(dump_redirecting_number)
 				prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
 			break;
 		case 1: /* Octet 3a */
-			pri_message(pri, "\n%c                               Ext: %d Presentation: %s (%d)",
+			pri_message(pri, "\n%c                               Ext: %d  Presentation: %s (%d)",
 				prefix, ie->data[1] >> 7, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f);
 			break;
 		case 2: /* Octet 3b */
-			pri_message(pri, "\n%c                               Ext: %d Reason: %s (%d)",
+			pri_message(pri, "\n%c                               Ext: %d  Reason: %s (%d)",
 				prefix, ie->data[2] >> 7, redirection_reason2str(ie->data[2] & 0x7f), ie->data[2] & 0x7f);
 			break;
 		}
 	}
 	while(!(ie->data[i++]& 0x80));
 	q931_get_number(cnum, sizeof(cnum), ie->data + i, ie->len - i);
-	pri_message(pri, " '%s' ]\n", cnum);
+	pri_message(pri, "  '%s' ]\n", cnum);
 }
 
 static FUNC_DUMP(dump_connected_number)
@@ -842,14 +842,14 @@ static FUNC_DUMP(dump_connected_number)
 				prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
 			break;
 		case 1: /* Octet 3a */
-			pri_message(pri, "\n%c                             Ext: %d Presentation: %s (%d)",
+			pri_message(pri, "\n%c                             Ext: %d  Presentation: %s (%d)",
 				prefix, ie->data[1] >> 7, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f);
 			break;
 		}
 	}
 	while(!(ie->data[i++]& 0x80));
 	q931_get_number(cnum, sizeof(cnum), ie->data + i, ie->len - i);
-	pri_message(pri, " '%s' ]\n", cnum);
+	pri_message(pri, "  '%s' ]\n", cnum);
 }
 
 
@@ -895,7 +895,7 @@ static FUNC_DUMP(dump_redirecting_subaddr)
 {
 	unsigned char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
-	pri_message(pri, "%c Redirecting Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d) O: %d '%s' ]\n",
+	pri_message(pri, "%c Redirecting Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d)  O: %d  '%s' ]\n",
 		prefix, len, ie->data[0] >> 7,
 		subaddrtype2str((ie->data[0] & 0x70) >> 4), (ie->data[0] & 0x70) >> 4,
 		(ie->data[0] & 0x08) >> 3, cnum);
@@ -1049,7 +1049,7 @@ static char *loc2str(int loc)
 
 static FUNC_DUMP(dump_progress_indicator)
 {
-	pri_message(pri, "%c Progress Indicator (len=%2d) [ Ext: %d  Coding: %s (%d) 0: %d   Location: %s (%d)\n",
+	pri_message(pri, "%c Progress Indicator (len=%2d) [ Ext: %d  Coding: %s (%d)  0: %d  Location: %s (%d)\n",
 		prefix, len, ie->data[0] >> 7, coding2str((ie->data[0] & 0x60) >> 5), (ie->data[0] & 0x60) >> 5,
 		(ie->data[0] & 0x10) >> 4, loc2str(ie->data[0] & 0xf), ie->data[0] & 0xf);
 	pri_message(pri, "%c                               Ext: %d  Progress Description: %s (%d) ]\n",
@@ -1347,7 +1347,7 @@ static char *callstate2str(int callstate)
 
 static FUNC_DUMP(dump_call_state)
 {
-	pri_message(pri, "%c Call State (len=%2d) [ Ext: %d  Coding: %s (%d) Call state: %s (%d)\n",
+	pri_message(pri, "%c Call State (len=%2d) [ Ext: %d  Coding: %s (%d)  Call state: %s (%d)\n",
 		prefix, len, ie->data[0] >> 7, coding2str((ie->data[0] & 0xC0) >> 6), (ie->data[0] & 0xC0) >> 6,
 		callstate2str(ie->data[0] & 0x3f), ie->data[0] & 0x3f);
 }
@@ -1560,7 +1560,7 @@ static char *pri_causeclass2str(int cause)
 static FUNC_DUMP(dump_cause)
 {
 	int x;
-	pri_message(pri, "%c Cause (len=%2d) [ Ext: %d  Coding: %s (%d) 0: %d   Location: %s (%d)\n",
+	pri_message(pri, "%c Cause (len=%2d) [ Ext: %d  Coding: %s (%d)  Spare: %d  Location: %s (%d)\n",
 		prefix, len, ie->data[0] >> 7, coding2str((ie->data[0] & 0x60) >> 5), (ie->data[0] & 0x60) >> 5,
 		(ie->data[0] & 0x10) >> 4, loc2str(ie->data[0] & 0xf), ie->data[0] & 0xf);
 	pri_message(pri, "%c                  Ext: %d  Cause: %s (%d), class = %s (%d) ]\n",
@@ -3106,6 +3106,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	case Q931_PROGRESS:
 		c->useruserinfo[0] = '\0';
 		c->cause = -1;
+		/* Fall through */
 	case Q931_CALL_PROCEEDING:
 		c->progress = -1;
 		c->progressmask = 0;
@@ -3131,6 +3132,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			pri_schedule_del(pri, c->retranstimer);
 		c->retranstimer = 0;
 		c->useruserinfo[0] = '\0';
+		/* Fall through */
 	case Q931_STATUS:
 		c->cause = -1;
 		c->causecode = -1;
@@ -3168,12 +3170,13 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri_error(pri, "!! Not yet handling pre-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
 		/* Fall through */
 	default:
-		pri_error(pri, "!! Don't know how to post-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		pri_error(pri, "!! Don't know how to pre-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
 		q931_status(pri,c, PRI_CAUSE_MESSAGE_TYPE_NONEXIST);
 		if (c->newcall) 
 			q931_destroycall(pri,c->cr);
 		return -1;
 	}
+	/* Handle IEs */
 	memset(mandies, 0, sizeof(mandies));
 	missingmand = 0;
 	for (x=0;x<sizeof(msgs) / sizeof(msgs[0]); x++)  {
