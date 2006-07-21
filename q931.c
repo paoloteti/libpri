@@ -2693,18 +2693,17 @@ int q931_connect(struct pri *pri, q931_call *c, int channel, int nonisdn)
 		c->progressmask = PRI_PROG_CALLED_NOT_ISDN;
 	} else
 		c->progressmask = 0;
-	if (pri->localtype == PRI_CPE) {
-		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_CONNECT_REQUEST);
-	} else {
+	if(pri->localtype == PRI_NETWORK || pri->switchtype == PRI_SWITCH_QSIG)
 		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_ACTIVE);
-	}
+	else
+		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_CONNECT_REQUEST);
 	c->peercallstate = Q931_CALL_STATE_ACTIVE;
 	c->alive = 1;
-	/* Setup timer */
+	/* Connect request timer */
 	if (c->retranstimer)
 		pri_schedule_del(pri, c->retranstimer);
 	c->retranstimer = 0;
-	if ((pri->localtype == PRI_CPE) && (!pri->subchannel))
+	if ((c->ourcallstate == Q931_CALL_STATE_CONNECT_REQUEST) && (!pri->subchannel))
 		c->retranstimer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T313], pri_connect_timeout, c);
 	return send_message(pri, c, Q931_CONNECT, connect_ies);
 }
@@ -3422,7 +3421,9 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_release_complete(pri,c,PRI_CAUSE_INVALID_CALL_REFERENCE);
 			break;
 		}
-		if (c->ourcallstate != Q931_CALL_STATE_CONNECT_REQUEST) {
+		if (!(c->ourcallstate == Q931_CALL_STATE_CONNECT_REQUEST) &&
+		    !(c->ourcallstate == Q931_CALL_STATE_ACTIVE &&
+		      (pri->localtype == PRI_NETWORK || pri->switchtype == PRI_SWITCH_QSIG))) {
 			q931_status(pri,c,PRI_CAUSE_WRONG_MESSAGE);
 			break;
 		}
