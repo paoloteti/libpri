@@ -3364,6 +3364,16 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.proceeding.progressmask = c->progressmask;
 		pri->ev.proceeding.cref = c->cr;
 		pri->ev.proceeding.call = c;
+
+		cur = c->apdus;
+		while (cur) {
+			if (!cur->sent && cur->message == Q931_FACILITY) {
+				q931_facility(pri, c);
+				break;
+			}
+			cur = cur->next;
+		}
+
 		return Q931_RES_HAVEEVENT;
 	case Q931_CONNECT_ACKNOWLEDGE:
 		if (c->newcall) {
