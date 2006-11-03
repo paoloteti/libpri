@@ -68,8 +68,10 @@ static void q921_discard_retransmissions(struct pri *pri)
 static int q921_transmit(struct pri *pri, q921_h *h, int len) 
 {
 	int res;
-	if (pri->master)
-		return q921_transmit(pri->master, h, len);
+
+	while (pri->master)
+		pri = pri->master;
+
 #ifdef RANDOM_DROPS
    if (!(random() % 3)) {
          pri_message(pri, " === Dropping Packet ===\n");
