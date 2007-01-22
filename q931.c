@@ -2912,8 +2912,6 @@ int q931_hangup(struct pri *pri, q931_call *c, int cause)
 		/* sent CONNECT */
 	case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
 		/* we sent CALL_PROCEEDING */
-	case Q931_CALL_STATE_ACTIVE:
-		/* received CONNECT */
 	case Q931_CALL_STATE_OVERLAP_RECEIVING:
 		/* received SETUP_ACKNOWLEDGE */
 		/* send DISCONNECT in general */
@@ -2926,6 +2924,10 @@ int q931_hangup(struct pri *pri, q931_call *c, int cause)
 				q931_release(pri,c,cause);
 		} else 
 			pri_error(pri, "Wierd, doing nothing but this shouldn't happen, ourstate %s, peerstate %s\n",callstate2str(c->ourcallstate),callstate2str(c->peercallstate));
+		break;
+	case Q931_CALL_STATE_ACTIVE:
+		/* received CONNECT */
+		q931_disconnect(pri,c,cause);
 		break;
 	case Q931_CALL_STATE_DISCONNECT_REQUEST:
 		/* sent DISCONNECT */
