@@ -32,6 +32,15 @@
 #define COMP_TYPE_NFE						0xAA
 
 /* Operation ID values */
+/* Q.952.7 (ECMA-178) ROSE operations (Transfer) */
+#define ROSE_CALL_TRANSFER_IDENTIFY			7
+#define ROSE_CALL_TRANSFER_ABANDON			8
+#define ROSE_CALL_TRANSFER_INITIATE			9
+#define ROSE_CALL_TRANSFER_SETUP			10
+#define ROSE_CALL_TRANSFER_ACTIVE			11
+#define ROSE_CALL_TRANSFER_COMPLETE			12
+#define ROSE_CALL_TRANSFER_UPDATE			13
+#define ROSE_SUBADDRESS_TRANSFER 			14
 /* Q.952 ROSE operations (Diverting) */
 #define ROSE_DIVERTING_LEG_INFORMATION1		18
 #define ROSE_DIVERTING_LEG_INFORMATION2		0x15
@@ -146,7 +155,8 @@ struct rose_component {
 	u_int8_t data[0];
 };
 
-#define GET_COMPONENT(component, idx, ptr, length) \
+#if 1
+	#define GET_COMPONENT(component, idx, ptr, length) \
 	if ((idx)+2 > (length)) \
 		break; \
 	(component) = (struct rose_component*)&((ptr)[idx]); \
@@ -154,16 +164,24 @@ struct rose_component {
 		if ((component)->len != ASN1_LEN_INDEF) \
 			pri_message(pri, "Length (%d) of 0x%X component is too long\n", (component)->len, (component)->type); \
 	}
-/*
-	pri_message("XX Got component %d (0x%02X), length %d\n", (component)->type, (component)->type, (component)->len); \
+#else /* Debugging */
+	#define GET_COMPONENT(component, idx, ptr, length) \
+	if ((idx)+2 > (length)) \
+		break; \
+	(component) = (struct rose_component*)&((ptr)[idx]); \
+	if ((idx)+(component)->len+2 > (length)) { \
+		if ((component)->len != 128) \
+			pri_message(pri, "Length (%d) of 0x%X component is too long\n", (component)->len, (component)->type); \
+	} \
+	pri_message(pri, "XX  %s:%d  Got component %d (0x%02X), length %d\n", __FUNCTION__, __LINE__, (component)->type, (component)->type, (component)->len); \
 	if ((component)->len > 0) { \
 		int zzz; \
-		pri_message("XX  Data:"); \
+		pri_message(pri, "XX  Data:"); \
 		for (zzz = 0; zzz < (component)->len; ++zzz) \
-			pri_message(" %02X", (component)->data[zzz]); \
-		pri_message("\n"); \
+			pri_message(pri, " %02X", (component)->data[zzz]); \
+		pri_message(pri, "\n"); \
 	}
-*/
+#endif
 
 #define NEXT_COMPONENT(component, idx) \
 	(idx) += (component)->len + 2

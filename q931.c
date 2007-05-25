@@ -3383,6 +3383,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		libpri_copy_string(pri->ev.facname.callingname, c->callername, sizeof(pri->ev.facname.callingname));
 		libpri_copy_string(pri->ev.facname.callingnum, c->callernum, sizeof(pri->ev.facname.callingnum));
 		pri->ev.facname.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		pri->ev.facname.callingpres = c->callerpres;
+		pri->ev.facname.callingplan = c->callerplan;
 		pri->ev.facname.cref = c->cr;
 		pri->ev.facname.call = c;
 #if 0

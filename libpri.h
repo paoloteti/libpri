@@ -291,6 +291,8 @@ typedef struct pri_event_answer {
 
 typedef struct pri_event_facname {
 	int e;
+	int callingpres;			/* Presentation of Calling CallerID */
+	int callingplan;			/* Dialing plan of Calling entity */
 	char callingname[256];
 	char callingnum[256];
 	int channel;
