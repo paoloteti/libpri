@@ -721,11 +721,13 @@ static int add_callername_facility_ies(struct pri *pri, q931_call *c, int cpe)
 	buffer[i++] = (ASN1_CONTEXT_SPECIFIC | Q932_PROTOCOL_EXTENSIONS);
 	/* Interpretation component */
 
-	ASN1_ADD_SIMPLE(comp, COMP_TYPE_NFE, buffer, i);
-	ASN1_PUSH(compstk, compsp, comp);
-	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0), buffer, i, 0);
-	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2), buffer, i, 0);
-	ASN1_FIXUP(compstk, compsp, buffer, i);
+	if (pri->switchtype == PRI_SWITCH_QSIG) {
+		ASN1_ADD_SIMPLE(comp, COMP_TYPE_NFE, buffer, i);
+		ASN1_PUSH(compstk, compsp, comp);
+		ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0), buffer, i, 0);
+		ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2), buffer, i, 0);
+		ASN1_FIXUP(compstk, compsp, buffer, i);
+	}
 
 	ASN1_ADD_BYTECOMP(comp, COMP_TYPE_INTERPRETATION, buffer, i, 0);
 
@@ -762,11 +764,12 @@ static int add_callername_facility_ies(struct pri *pri, q931_call *c, int cpe)
 	buffer[i++] = (ASN1_CONTEXT_SPECIFIC | Q932_PROTOCOL_EXTENSIONS);
 	/* Interpretation component */
 
-	ASN1_ADD_SIMPLE(comp, COMP_TYPE_NFE, buffer, i);
-	ASN1_PUSH(compstk, compsp, comp);
-	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0), buffer, i, 0);
-	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2), buffer, i, 0);
-	ASN1_FIXUP(compstk, compsp, buffer, i);
+	if (pri->switchtype == PRI_SWITCH_QSIG) {
+		ASN1_ADD_SIMPLE(comp, COMP_TYPE_NFE, buffer, i); ASN1_PUSH(compstk, compsp, comp);
+		ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0), buffer, i, 0);
+		ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2), buffer, i, 0);
+		ASN1_FIXUP(compstk, compsp, buffer, i);
+	}
 
 	ASN1_ADD_BYTECOMP(comp, COMP_TYPE_INTERPRETATION, buffer, i, 0);
 
