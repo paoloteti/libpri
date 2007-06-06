@@ -1174,7 +1174,7 @@ static FUNC_RECV(receive_facility)
 					state = my_state; \
 					if (pri->debug) \
 						pri_message(pri, "Handle Q.932 %s component\n", name); \
-					(handler)(pri, call, comp->data, comp->len); \
+					(handler)(pri, call, ie, comp->data, comp->len); \
 					break;
 #define Q932_HANDLE_NULL(component, my_state, name, handle) \
 				case component: \

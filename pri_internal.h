@@ -246,6 +246,9 @@ struct q931_call {
 
 	int transferable;
 	unsigned int rlt_call_id;	/* RLT call id */
+
+	/* Bridged call info */
+	q931_call *bridged_call;        /* Pointer to other leg of bridged call */
 };
 
 extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);

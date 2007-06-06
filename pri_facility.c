@@ -1192,6 +1192,162 @@ int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
 }
 /* End EECT */
 
+static int anfpr_pathreplacement_respond(struct pri *pri, q931_call *call, q931_ie *ie)
+{
+	int res;
+	
+	res = pri_call_apdu_queue_cleanup(call->bridged_call);
+	if (res) {
+	        pri_message(pri, "Could not Clear queue ADPU\n");
+	        return -1;
+	}
+	
+	/* Send message */
+	res = pri_call_apdu_queue(call->bridged_call, Q931_FACILITY, ie->data, ie->len, NULL, NULL);
+	if (res) {
+	        pri_message(pri, "Could not queue ADPU in facility message\n");
+	        return -1;
+	}
+	
+	/* Remember that if we queue a facility IE for a facility message we
+	 * have to explicitly send the facility message ourselves */
+	
+	res = q931_facility(call->bridged_call->pri, call->bridged_call);
+	if (res) {
+		pri_message(pri, "Could not schedule facility message for call %d\n", call->bridged_call->cr);
+		return -1;
+	}
+
+	return 0;
+}
+/* AFN-PR */
+extern int anfpr_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
+{
+	/* Did all the tests to see if we're on the same PRI and
+	 * are on a compatible switchtype */
+	/* TODO */
+	int i = 0;
+	int res = 0;
+	unsigned char buffer[255] = "";
+	unsigned short call_reference = c2->cr;
+	struct rose_component *comp = NULL, *compstk[10];
+	unsigned char buffer2[255] = "";
+	int compsp = 0;
+	static unsigned char op_tag[] = {
+		0x0C,
+	};
+	
+	/* Channel 1 */
+	buffer[i++] = (ASN1_CONTEXT_SPECIFIC | Q932_PROTOCOL_EXTENSIONS);
+	/* Interpretation component */
+	
+	ASN1_ADD_SIMPLE(comp, COMP_TYPE_NFE, buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0), buffer, i, 0);
+	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2), buffer, i, 0);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+	
+	ASN1_ADD_BYTECOMP(comp, COMP_TYPE_INTERPRETATION, buffer, i, 2);    /* reject - to get feedback from QSIG switch */
+	
+	ASN1_ADD_SIMPLE(comp, COMP_TYPE_INVOKE, buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	
+	ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, buffer, i, get_invokeid(pri));
+	
+	res = asn1_string_encode(ASN1_INTEGER, &buffer[i], sizeof(buffer)-i, sizeof(op_tag), op_tag, sizeof(op_tag));
+	if (res < 0)
+		return -1;
+	i += res;
+	
+	ASN1_ADD_SIMPLE(comp, (ASN1_SEQUENCE | ASN1_CONSTRUCTOR), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	buffer[i++] = (0x0a);
+	buffer[i++] = (0x01);
+	buffer[i++] = (0x00);
+	buffer[i++] = (0x81);
+	buffer[i++] = (0x00);
+	buffer[i++] = (0x0a);
+	buffer[i++] = (0x01);
+	buffer[i++] = (0x01);
+	ASN1_ADD_WORDCOMP(comp, ASN1_INTEGER, buffer, i, call_reference);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+	
+	res = pri_call_apdu_queue(c1, Q931_FACILITY, buffer, i, NULL, NULL);
+	if (res) {
+		pri_message(pri, "Could not queue ADPU in facility message\n");
+		return -1;
+	}
+	
+	/* Remember that if we queue a facility IE for a facility message we
+	 * have to explicitly send the facility message ourselves */
+	
+	res = q931_facility(c1->pri, c1);
+	if (res) {
+		pri_message(pri, "Could not schedule facility message for call %d\n", c1->cr);
+		return -1;
+	}
+	
+	/* Channel 2 */
+	i = 0;
+	res = 0;
+	compsp = 0;
+	
+	buffer2[i++] = (ASN1_CONTEXT_SPECIFIC | Q932_PROTOCOL_EXTENSIONS);
+	/* Interpretation component */
+	
+	ASN1_ADD_SIMPLE(comp, COMP_TYPE_NFE, buffer2, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0), buffer2, i, 0);
+	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2), buffer2, i, 0);
+	ASN1_FIXUP(compstk, compsp, buffer2, i);
+	
+	ASN1_ADD_BYTECOMP(comp, COMP_TYPE_INTERPRETATION, buffer2, i, 2);  /* reject */
+	
+	ASN1_ADD_SIMPLE(comp, COMP_TYPE_INVOKE, buffer2, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	
+	ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, buffer2, i, get_invokeid(pri));
+	
+	res = asn1_string_encode(ASN1_INTEGER, &buffer2[i], sizeof(buffer2)-i, sizeof(op_tag), op_tag, sizeof(op_tag));
+	if (res < 0)
+		return -1;
+	i += res;
+	
+	ASN1_ADD_SIMPLE(comp, (ASN1_SEQUENCE | ASN1_CONSTRUCTOR), buffer2, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	buffer2[i++] = (0x0a);
+	buffer2[i++] = (0x01);
+	buffer2[i++] = (0x01);
+	buffer2[i++] = (0x81);
+	buffer2[i++] = (0x00);
+	buffer2[i++] = (0x0a);
+	buffer2[i++] = (0x01);
+	buffer2[i++] = (0x01);
+	ASN1_ADD_WORDCOMP(comp, ASN1_INTEGER, buffer2, i, call_reference);
+	ASN1_FIXUP(compstk, compsp, buffer2, i);
+	ASN1_FIXUP(compstk, compsp, buffer2, i);
+	
+	
+	res = pri_call_apdu_queue(c2, Q931_FACILITY, buffer2, i, NULL, NULL);
+	if (res) {
+		pri_message(pri, "Could not queue ADPU in facility message\n");
+		return -1;
+	}
+	
+	/* Remember that if we queue a facility IE for a facility message we
+	 * have to explicitly send the facility message ourselves */
+	
+	res = q931_facility(c2->pri, c2);
+	if (res) {
+		pri_message(pri, "Could not schedule facility message for call %d\n", c1->cr);
+		return -1;
+	}
+	
+	return 0;
+}
+/* End AFN-PR */
+
 /* AOC */
 static int aoc_aoce_charging_request_decode(struct pri *pri, q931_call *call, unsigned char *data, int len) 
 {
@@ -1824,7 +1980,7 @@ static int rose_call_transfer_update_decode(struct pri *pri, q931_call *call, st
 
 
 
-int rose_reject_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+int rose_reject_decode(struct pri *pri, q931_call *call, q931_ie *ie, unsigned char *data, int len)
 {
 	int i = 0;
 	int problemtag = -1;
@@ -1892,7 +2048,7 @@ int rose_reject_decode(struct pri *pri, q931_call *call, unsigned char *data, in
 	
 	return -1;
 }
-int rose_return_error_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+int rose_return_error_decode(struct pri *pri, q931_call *call, q931_ie *ie, unsigned char *data, int len)
 {
 	int i = 0;
 	int errorvalue = -1;
@@ -1956,7 +2112,7 @@ int rose_return_error_decode(struct pri *pri, q931_call *call, unsigned char *da
 	return -1;
 }
 
-int rose_return_result_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+int rose_return_result_decode(struct pri *pri, q931_call *call, q931_ie *ie, unsigned char *data, int len)
 {
 	int i = 0;
 	int operationidvalue = -1;
@@ -2018,9 +2174,10 @@ int rose_return_result_decode(struct pri *pri, q931_call *call, unsigned char *d
 	return -1;
 }
 
-int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *data, int len)
+int rose_invoke_decode(struct pri *pri, q931_call *call, q931_ie *ie, unsigned char *data, int len)
 {
 	int i = 0;
+	int res = 0;
 	int operation_tag;
 	unsigned char *vdata = data;
 	struct rose_component *comp = NULL, *invokeid = NULL, *operationid = NULL;
@@ -2169,6 +2326,15 @@ int rose_invoke_decode(struct pri *pri, q931_call *call, unsigned char *data, in
 				dump_apdu (pri, (u_int8_t *)comp, comp->len + 2);
 			}
 			return -1;
+                case SS_ANFPR_PATHREPLACEMENT:
+			/* Clear Queue */
+			res = pri_call_apdu_queue_cleanup(call->bridged_call);
+			if (res) {
+			        pri_message(pri, "Could not Clear queue ADPU\n");
+			        return -1;
+			}
+			anfpr_pathreplacement_respond(pri, call, ie);
+                        break;
 		default:
 			if (pri->debug & PRI_DEBUG_APDU) {
 				pri_message(pri, "!! Unable to handle ROSE operation %d", operation_tag);

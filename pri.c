@@ -544,6 +544,12 @@ int pri_channel_bridge(q931_call *call1, q931_call *call2)
 	if (call1->pri->switchtype == PRI_SWITCH_DMS100)
 		return rlt_initiate_transfer(call1->pri, call1, call2);
 
+	if (call1->pri->switchtype == PRI_SWITCH_QSIG) {
+		call1->bridged_call = call2;
+		call2->bridged_call = call1;
+		return anfpr_initiate_transfer(call1->pri, call1, call2);
+	}
+
 	return -1;
 }
 
