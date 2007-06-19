@@ -2625,6 +2625,7 @@ int q931_setup_ack(struct pri *pri, q931_call *c, int channel, int nonisdn)
 	return send_message(pri, c, Q931_SETUP_ACKNOWLEDGE, connect_ies);
 }
 
+/* T313 expiry, first time */
 static void pri_connect_timeout(void *data)
 {
 	struct q931_call *c = data;
@@ -2635,6 +2636,7 @@ static void pri_connect_timeout(void *data)
 	
 }
 
+/* T308 expiry, first time */
 static void pri_release_timeout(void *data)
 {
 	struct q931_call *c = data;
@@ -2643,9 +2645,12 @@ static void pri_release_timeout(void *data)
 		pri_message(pri, "Timed out looking for release complete\n");
 	c->t308_timedout++;
 	c->alive = 1;
-	q931_release(pri, c, PRI_CAUSE_NORMAL_CLEARING);
+
+	/* The call to q931_release will re-schedule T308 */
+	q931_release(pri, c, c->cause);
 }
 
+/* T308 expiry, second time */
 static void pri_release_finaltimeout(void *data)
 {
 	struct q931_call *c = data;
@@ -2667,6 +2672,7 @@ static void pri_release_finaltimeout(void *data)
 	q931_hangup(pri, c, c->cause);
 }
 
+/* T305 expiry, first time */
 static void pri_disconnect_timeout(void *data)
 {
 	struct q931_call *c = data;

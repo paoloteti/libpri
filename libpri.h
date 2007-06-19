@@ -257,20 +257,24 @@ typedef struct q931_call q931_call;
 typedef struct pri_event_generic {
 	/* Events with no additional information fall in this category */
 	int e;
+	struct pri *pri;
 } pri_event_generic;
 
 typedef struct pri_event_error {
 	int e;
+	struct pri *pri;
 	char err[256];
 } pri_event_error;
 
 typedef struct pri_event_restart {
 	int e;
+	struct pri *pri;
 	int channel;
 } pri_event_restart;
 
 typedef struct pri_event_ringing {
 	int e;
+	struct pri *pri;
 	int channel;
 	int cref;
 	int progress;
@@ -281,6 +285,7 @@ typedef struct pri_event_ringing {
 
 typedef struct pri_event_answer {
 	int e;
+	struct pri *pri;
 	int channel;
 	int cref;
 	int progress;
@@ -291,6 +296,7 @@ typedef struct pri_event_answer {
 
 typedef struct pri_event_facname {
 	int e;
+ 	struct pri *pri;
 	int callingpres;			/* Presentation of Calling CallerID */
 	int callingplan;			/* Dialing plan of Calling entity */
 	char callingname[256];
@@ -304,7 +310,9 @@ typedef struct pri_event_facname {
 #define PRI_CALLINGPLANRDNIS
 typedef struct pri_event_ring {
 	int e;
+	struct pri *pri;
 	int channel;				/* Channel requested */
+	int cref;					/* Call Reference Number */
 	int callingpres;			/* Presentation of Calling CallerID */
 	int callingplanani;			/* Dialing plan of Calling entity ANI */
 	int callingplan;			/* Dialing plan of Calling entity */
@@ -320,7 +328,6 @@ typedef struct pri_event_ring {
 	int callingplanrdnis;			/* Dialing plan of Redirecting Number */
 	char useruserinfo[260];		/* User->User info */
 	int flexible;				/* Are we flexible with our channel selection? */
-	int cref;					/* Call Reference Number */
 	int ctype;					/* Call type (see PRI_TRANS_CAP_* */
 	int layer1;					/* User layer 1 */
 	int complete;				/* Have we seen "Complete" i.e. no more number? */
@@ -336,9 +343,10 @@ typedef struct pri_event_ring {
 
 typedef struct pri_event_hangup {
 	int e;
+	struct pri *pri;
 	int channel;				/* Channel requested */
-	int cause;
 	int cref;
+	int cause;
 	q931_call *call;			/* Opaque call pointer */
 	long aoc_units;				/* Advise of Charge number of charged units */
 	char useruserinfo[260];		/* User->User info */
@@ -346,12 +354,14 @@ typedef struct pri_event_hangup {
 
 typedef struct pri_event_restart_ack {
 	int e;
+	struct pri *pri;
 	int channel;
 } pri_event_restart_ack;
 
 #define PRI_PROGRESS_CAUSE
 typedef struct pri_event_proceeding {
 	int e;
+	struct pri *pri;
 	int channel;
 	int cref;
 	int progress;
@@ -362,18 +372,21 @@ typedef struct pri_event_proceeding {
  
 typedef struct pri_event_setup_ack {
 	int e;
+ 	struct pri *pri;
 	int channel;
 	q931_call *call;
 } pri_event_setup_ack;
 
 typedef struct pri_event_notify {
 	int e;
+ 	struct pri *pri;
 	int channel;
 	int info;
 } pri_event_notify;
 
 typedef struct pri_event_keypad_digit {
 	int e;
+ 	struct pri *pri;
 	int channel;
 	q931_call *call;
 	char digits[64];
@@ -408,6 +421,7 @@ typedef int (*pri_io_cb)(struct pri *pri, void *buf, int buflen);
    must be NON-BLOCKING! Frames received on the fd should include FCS.  Nodetype 
    must be one of PRI_NETWORK or PRI_CPE.  switchtype should be PRI_SWITCH_* */
 extern struct pri *pri_new(int fd, int nodetype, int switchtype);
+extern struct pri *pri_new_bri(int fd, int nodetype, int switchtype);
 
 /* Create D-channel just as above with user defined I/O callbacks and data */
 extern struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata);
@@ -602,7 +616,7 @@ extern int pri_timer2idx(char *timer);
 #define PRI_TIMER_N200	0	/* Maximum numer of q921 retransmissions */
 #define PRI_TIMER_N201	1	/* Maximum numer of octets in an information field */
 #define PRI_TIMER_N202	2	/* Maximum numer of transmissions of the TEI identity request message */
-#define PRI_TIMER_K	3	/* Maximum number of outstanding I-frames */
+#define PRI_TIMER_K		3	/* Maximum number of outstanding I-frames */
 
 #define PRI_TIMER_T200	4	/* time between SABME's */
 #define PRI_TIMER_T201	5	/* minimum time between retransmissions of the TEI Identity check messages */
@@ -629,5 +643,8 @@ extern int pri_timer2idx(char *timer);
 #define PRI_TIMER_T320	25
 #define PRI_TIMER_T321	26
 #define PRI_TIMER_T322	27
+
+#define PRI_TIMER_TM20	28	/* maximum time avaiting XID response */
+#define PRI_TIMER_NM20	29	/* number of XID retransmits */
 
 #endif
