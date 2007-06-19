@@ -3294,6 +3294,16 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri->ev.ringing.progressmask = c->progressmask;
 		libpri_copy_string(pri->ev.ringing.useruserinfo, c->useruserinfo, sizeof(pri->ev.ringing.useruserinfo));
 		c->useruserinfo[0] = '\0';
+
+		cur = c->apdus;
+		while (cur) {
+			if (!cur->sent && cur->message == Q931_FACILITY) {
+				q931_facility(pri, c);
+				break;
+			}
+			cur = cur->next;
+		}
+
 		return Q931_RES_HAVEEVENT;
 	case Q931_CONNECT:
 		if (c->newcall) {
