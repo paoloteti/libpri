@@ -39,7 +39,7 @@ DYNAMIC_OBJS=copy_string.lo pri.lo q921.lo prisched.lo q931.lo pri_facility.lo
 CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g $(ALERTING) $(LIBPRI_COUNTERS)
 INSTALL_PREFIX=$(DESTDIR)
 INSTALL_BASE=/usr
-SOFLAGS = -Wl,-h./libpri.so.1.0
+SOFLAGS = -Wl,-hlibpri.so.1.0
 LDCONFIG = /sbin/ldconfig
 ifneq (,$(findstring X$(OSARCH)X, XLinuxX XGNU/kFreeBSDX))
 LDCONFIG_FLAGS=-n
