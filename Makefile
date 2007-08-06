@@ -140,4 +140,4 @@ clean:
 depend: .depend
 
 .depend: 
-	CC=$(CC) ./mkdep ${CFLAGS} `ls *.c`
+	CC="$(CC)" ./mkdep ${CFLAGS} `ls *.c`
