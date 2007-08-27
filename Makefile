@@ -38,7 +38,7 @@ STATIC_LIBRARY=libpri.a
 DYNAMIC_LIBRARY=libpri.so.1.0
 STATIC_OBJS=copy_string.o pri.o q921.o prisched.o q931.o pri_facility.o
 DYNAMIC_OBJS=copy_string.lo pri.lo q921.lo prisched.lo q931.lo pri_facility.lo
-CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g $(ALERTING) $(LIBPRI_COUNTERS)
+CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g -fPIC $(ALERTING) $(LIBPRI_COUNTERS)
 INSTALL_PREFIX=$(DESTDIR)
 INSTALL_BASE=/usr
 SOFLAGS = -Wl,-hlibpri.so.1.0
@@ -122,7 +122,7 @@ include .depend
 endif
 
 %.lo : %.c
-	$(CC) -fPIC $(CFLAGS) -o $@ -c $<
+	$(CC) $(CFLAGS) -o $@ -c $<
 
 $(STATIC_LIBRARY): $(STATIC_OBJS)
 	ar rcs $(STATIC_LIBRARY) $(STATIC_OBJS)
