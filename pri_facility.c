@@ -1081,13 +1081,10 @@ int mwi_message_send(struct pri* pri, q931_call *call, struct pri_sr *req, int a
 /* EECT functions */
 int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
 {
-	/* Did all the tests to see if we're on the same PRI and
-	 * are on a compatible switchtype */
-	/* TODO */
 	int i = 0;
 	int res = 0;
 	unsigned char buffer[255] = "";
-	unsigned short call_reference = c2->cr;
+	short call_reference = c2->cr ^ 0x8000;  /* Let's do the trickery to make sure the flag is correct */
 	struct rose_component *comp = NULL, *compstk[10];
 	int compsp = 0;
 	static unsigned char op_tag[] = {
@@ -1100,16 +1097,7 @@ int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
 		0x08,
 	};
 
-	buffer[i++] = (ASN1_CONTEXT_SPECIFIC | Q932_PROTOCOL_EXTENSIONS);
-	/* Interpretation component */
-
-	ASN1_ADD_SIMPLE(comp, COMP_TYPE_NFE, buffer, i);
-	ASN1_PUSH(compstk, compsp, comp);
-	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0), buffer, i, 0);
-	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2), buffer, i, 0);
-	ASN1_FIXUP(compstk, compsp, buffer, i);
-
-	ASN1_ADD_BYTECOMP(comp, COMP_TYPE_INTERPRETATION, buffer, i, 0);
+	buffer[i++] = (ASN1_CONTEXT_SPECIFIC | Q932_PROTOCOL_ROSE);
 
 	ASN1_ADD_SIMPLE(comp, COMP_TYPE_INVOKE, buffer, i);
 	ASN1_PUSH(compstk, compsp, comp);
