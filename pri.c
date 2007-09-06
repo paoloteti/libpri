@@ -521,24 +521,30 @@ int pri_channel_bridge(q931_call *call1, q931_call *call2)
 	if (!call1 || !call2)
 		return -1;
 
-	/* Check switchtype compatibility */
-	if (call1->pri->switchtype != PRI_SWITCH_LUCENT5E ||
-			call2->pri->switchtype != PRI_SWITCH_LUCENT5E)
+	/* Make sure we have compatible switchtypes */
+	if (call1->pri->switchtype != call2->pri->switchtype)
 		return -1;
 
 	/* Check for bearer capability */
 	if (call1->transcapability != call2->transcapability)
 		return -1;
-	/* Check to see if calls are on the same PRI dchannel
-	 * Currently only support calls on the same dchannel
-	 */
+
+	/* Check to see if we're on the same PRI */
 	if (call1->pri != call2->pri)
 		return -1;
 	
-	if (eect_initiate_transfer(call1->pri, call1, call2))
-		return -1;
-
-	return 0;
+	switch (call1->pri->switchtype) {
+		case PRI_SWITCH_NI2:
+		case PRI_SWITCH_LUCENT5E:
+		case PRI_SWITCH_ATT4ESS:
+			if (eect_initiate_transfer(call1->pri, call1, call2))
+				return -1;
+			else
+				return 0;
+			break;
+		default:
+			return -1;
+	}
 }
 
 int pri_hangup(struct pri *pri, q931_call *call, int cause)
