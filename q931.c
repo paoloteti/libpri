@@ -548,7 +548,7 @@ static char *l12str(int proto)
 		{ PRI_LAYER_1_ALAW, "A-Law" },
 		{ PRI_LAYER_1_G721, "G.721 ADPCM" },
 		{ PRI_LAYER_1_G722_G725, "G.722/G.725 7kHz Audio" },
-		{ PRI_LAYER_1_G7XX_384K, "G.7xx 384k Video" },
+		{ PRI_LAYER_1_H223_H245, "H.223 and H.245" },	/* Recommendation Q.931(05/98) page 60) */
 		{ PRI_LAYER_1_NON_ITU_ADAPT, "Non-ITU Rate Adaption" },
 		{ PRI_LAYER_1_V120_RATE_ADAPT, "V.120 Rate Adaption" },
 		{ PRI_LAYER_1_X31_RATE_ADAPT, "X.31 Rate Adaption" },
@@ -662,7 +662,8 @@ static FUNC_SEND(transmit_bearer_capability)
 	}
 	ie->data[0] = 0x80 | tc;
 	ie->data[1] = call->transmoderate | 0x80;
-	if ((tc & PRI_TRANS_CAP_DIGITAL)&&(pri->switchtype == PRI_SWITCH_EUROISDN_E1)) {
+	if ( (tc & PRI_TRANS_CAP_DIGITAL) && (pri->switchtype == PRI_SWITCH_EUROISDN_E1) &&
+		(call->transmoderate == TRANS_MODE_PACKET) ) {
 		/* Apparently EuroISDN switches don't seem to like user layer 2/3 */
 		return 4;
 	}
