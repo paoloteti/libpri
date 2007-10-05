@@ -401,7 +401,7 @@ typedef union {
 	pri_event_ring	  ring;		/* Ring */
 	pri_event_hangup  hangup;	/* Hang up */
 	pri_event_ringing ringing;	/* Ringing */
-	pri_event_ringing answer;	/* Answer */
+	pri_event_answer  answer;	/* Answer */
 	pri_event_restart_ack restartack;	/* Restart Acknowledge */
 	pri_event_proceeding  proceeding;	/* Call proceeding & Progress */
 	pri_event_setup_ack   setup_ack;	/* SETUP_ACKNOWLEDGE structure */
