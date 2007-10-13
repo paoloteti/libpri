@@ -1062,7 +1062,8 @@ static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 		}
 
 	}
-	pri_message(pri, "Handling message for SAPI/TEI=%d/%d\n", h->h.sapi, h->h.tei);
+	if (pri->debug & PRI_DEBUG_Q921_DUMP)
+		pri_message(pri, "Handling message for SAPI/TEI=%d/%d\n", h->h.sapi, h->h.tei);
 	ev = __q921_receive_qualified(pri, h, len);
 	reschedule_t203(pri);
 	return ev;
