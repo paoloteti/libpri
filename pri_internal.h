@@ -25,6 +25,7 @@
 #ifndef _PRI_INTERNAL_H
 #define _PRI_INTERNAL_H
 
+#include <stddef.h>
 #include <sys/time.h>
 
 struct pri_sched {
