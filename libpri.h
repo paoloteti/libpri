@@ -421,7 +421,7 @@ typedef int (*pri_io_cb)(struct pri *pri, void *buf, int buflen);
    must be NON-BLOCKING! Frames received on the fd should include FCS.  Nodetype 
    must be one of PRI_NETWORK or PRI_CPE.  switchtype should be PRI_SWITCH_* */
 extern struct pri *pri_new(int fd, int nodetype, int switchtype);
-extern struct pri *pri_new_bri(int fd, int nodetype, int switchtype);
+extern struct pri *pri_new_bri(int fd, int ptpmode, int nodetype, int switchtype);
 
 /* Create D-channel just as above with user defined I/O callbacks and data */
 extern struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata);

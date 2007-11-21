@@ -61,6 +61,7 @@ struct pri {
 	int localtype;		/* Local network type (unknown, network, cpe) */
 	int remotetype;		/* Remote network type (unknown, network, cpe) */
 
+	int bri;
 	int sapi;
 	int tei;
 	int protodisc;
@@ -269,6 +270,6 @@ extern void pri_error(struct pri *pri, char *fmt, ...);
 
 void libpri_copy_string(char *dst, const char *src, size_t size);
 
-struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei);
+struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri);
 
 #endif

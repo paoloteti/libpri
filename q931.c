@@ -294,15 +294,22 @@ static FUNC_RECV(receive_channel_id)
  	}
 #endif
 #ifndef NOAUTO_CHANNEL_SELECTION_SUPPORT
-	switch (ie->data[0] & 3) {
-		case 0:
+	if (pri->bri) {
+		if (!(ie->data[0] & 3))
 			call->justsignalling = 1;
-			break;
-		case 1:
-			break;
-		default:
-			pri_error(pri, "!! Unexpected Channel selection %d\n", ie->data[0] & 3);
-			return -1;
+		else
+			call->channelno = ie->data[0] & 3;
+	} else {
+		switch (ie->data[0] & 3) {
+			case 0:
+				call->justsignalling = 1;
+				break;
+			case 1:
+				break;
+			default:
+				pri_error(pri, "!! Unexpected Channel selection %d\n", ie->data[0] & 3);
+				return -1;
+		}
 	}
 #endif
 	if (ie->data[0] & 0x08)
@@ -366,7 +373,11 @@ static FUNC_SEND(transmit_channel_id)
 	/* Start with standard stuff */
 	if (pri->switchtype == PRI_SWITCH_GR303_TMC)
 		ie->data[pos] = 0x69;
-	else
+	else if (pri->bri) {
+		ie->data[pos] = 0x80;
+		if (call->channelno > -1)
+			ie->data[pos] |= (call->channelno & 0x3);
+	} else
 		ie->data[pos] = 0xa1;
 	/* Add exclusive flag if necessary */
 	if (call->chanflags & FLAG_EXCLUSIVE)
@@ -383,6 +394,10 @@ static FUNC_SEND(transmit_channel_id)
 		ie->data[pos++] = 0x80 | call->ds1no;
 	} else
 		pos++;
+
+	if (pri->bri)
+		return pos + 2;
+
 	if ((call->channelno > -1) || (call->slotmap != -1)) {
 		/* We'll have the octet 8.2 and 8.3's present */
 		ie->data[pos++] = 0x83;
@@ -2375,26 +2390,40 @@ static void init_header(struct pri *pri, q931_call *call, unsigned char *buf, q9
 {
 	/* Returns header and message header and modifies length in place */
 	q931_h *h = (q931_h *)buf;
-	q931_mh * mh = (q931_mh *)(h->contents + 2);
+	q931_mh * mh;
 	h->pd = pri->protodisc;
 	h->x0 = 0;		/* Reserved 0 */
-	h->crlen = 2;	/* Two bytes of Call Reference.  Invert the top bit to make it from our sense */
-	if (call->cr || call->forceinvert) {
-		h->crv[0] = ((call->cr ^ 0x8000) & 0xff00) >> 8;
-		h->crv[1] = (call->cr & 0xff);
+	if (!pri->bri) {
+		h->crlen = 2;	/* Two bytes of Call Reference.  Invert the top bit to make it from our sense */
+		if (call->cr || call->forceinvert) {
+			h->crv[0] = ((call->cr ^ 0x8000) & 0xff00) >> 8;
+			h->crv[1] = (call->cr & 0xff);
+		} else {
+			/* Unless of course this has no call reference */
+			h->crv[0] = 0;
+			h->crv[1] = 0;
+		}
+		if (pri->subchannel) {
+			/* On GR-303, top bit is always 0 */
+			h->crv[0] &= 0x7f;
+		}
 	} else {
-		/* Unless of course this has no call reference */
-		h->crv[0] = 0;
-		h->crv[1] = 0;
+		h->crlen = 1;
+		if (call->cr || call->forceinvert) {
+			h->crv[0] = (((call->cr ^ 0x8000) & 0x8000) >> 8) | (call->cr & 0x7f);
+		} else {
+			/* Unless of course this has no call reference */
+			h->crv[0] = 0;
+		}
 	}
-	if (pri->subchannel) {
-		/* On GR-303, top bit is always 0 */
-		h->crv[0] &= 0x7f;
-	}
+	mh = (q931_mh *)(h->contents + h->crlen);
 	mh->f = 0;
 	*hb = h;
 	*mhb = mh;
-	*len -= 5;
+	if (h->crlen == 2)
+		*len -= 5;
+	else
+		*len -= 4;
 	
 }
 

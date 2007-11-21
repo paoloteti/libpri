@@ -187,12 +187,13 @@ static int __pri_write(struct pri *pri, void *buf, int buflen)
 	return res;
 }
 
-struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei)
+struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri)
 {
 	struct pri *p;
 	p = malloc(sizeof(struct pri));
 	if (p) {
 		memset(p, 0, sizeof(struct pri));
+		p->bri = bri;
 		p->fd = fd;
 		p->read_func = rd;
 		p->write_func = wr;
@@ -223,7 +224,7 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
 			p->sapi = Q921_SAPI_GR303_EOC;
 			p->tei = Q921_TEI_GR303_EOC_OPS;
-			p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_EOC_PATH, p, NULL, NULL, NULL, Q921_TEI_GR303_EOC_PATH);
+			p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_EOC_PATH, p, NULL, NULL, NULL, Q921_TEI_GR303_EOC_PATH, 0);
 			if (!p->subchannel) {
 				free(p);
 				p = NULL;
@@ -232,7 +233,7 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
 			p->sapi = Q921_SAPI_GR303_TMC_CALLPROC;
 			p->tei = Q921_TEI_GR303_TMC_CALLPROC;
-			p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_TMC_SWITCHING, p, NULL, NULL, NULL, Q921_TEI_GR303_TMC_SWITCHING);
+			p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_TMC_SWITCHING, p, NULL, NULL, NULL, Q921_TEI_GR303_TMC_SWITCHING, 0);
 			if (!p->subchannel) {
 				free(p);
 				p = NULL;
@@ -276,12 +277,15 @@ int pri_restart(struct pri *pri)
 
 struct pri *pri_new(int fd, int nodetype, int switchtype)
 {
-	return __pri_new_tei(fd, nodetype, switchtype, NULL, __pri_read, __pri_write, NULL, Q921_TEI_PRI);
+	return __pri_new_tei(fd, nodetype, switchtype, NULL, __pri_read, __pri_write, NULL, Q921_TEI_PRI, 0);
 }
 
-struct pri *pri_new_bri(int fd, int nodetype, int switchtype)
+struct pri *pri_new_bri(int fd, int ptpmode, int nodetype, int switchtype)
 {
-	return __pri_new_tei(fd, nodetype, switchtype, NULL, __pri_read, __pri_write, NULL, Q921_TEI_GROUP);
+	if (ptpmode)
+		return __pri_new_tei(fd, nodetype, switchtype, NULL, __pri_read, __pri_write, NULL, Q921_TEI_PRI, 1);
+	else
+		return __pri_new_tei(fd, nodetype, switchtype, NULL, __pri_read, __pri_write, NULL, Q921_TEI_GROUP, 1);
 }
 
 struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata)
@@ -290,7 +294,7 @@ struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, 
 		io_read = __pri_read;
 	if (!io_write)
 		io_write = __pri_write;
-	return __pri_new_tei(fd, nodetype, switchtype, NULL, io_read, io_write, userdata, Q921_TEI_PRI);
+	return __pri_new_tei(fd, nodetype, switchtype, NULL, io_read, io_write, userdata, Q921_TEI_PRI, 0);
 }
 
 void *pri_get_userdata(struct pri *pri)

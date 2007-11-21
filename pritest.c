@@ -294,7 +294,7 @@ static int run_pri(int dfd, int swtype, int node)
 	fd_set rfds, efds;
 	int res,x;
 
-	pri = pri_new(dfd, node, swtype);
+	pri = pri_new_bri(dfd, 1, node, swtype);
 	if (!pri) {
 		fprintf(stderr, "Unable to create PRI\n");
 		return -1;

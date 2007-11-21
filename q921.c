@@ -799,7 +799,7 @@ static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
 			if(sub->subchannel->tei == tei)
 				++tei;
 		}
-		sub->subchannel = __pri_new_tei(-1, pri->localtype, pri->switchtype, pri, NULL, NULL, NULL, tei);
+		sub->subchannel = __pri_new_tei(-1, pri->localtype, pri->switchtype, pri, NULL, NULL, NULL, tei, 1);
 		if (!sub->subchannel) {
 			pri_error(pri, "Unable to allocate D-channel for new TEI %d\n", tei);
 			return NULL;
@@ -819,7 +819,7 @@ static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
 			pri_error(pri, "TEI already assigned (new is %d, current is %d)\n", tei, pri->subchannel->tei);
 		}
 		pri_message(pri, "TEI assiged to %d\n", tei);
-		pri->subchannel = __pri_new_tei(-1, pri->localtype, pri->switchtype, pri, NULL, NULL, NULL, tei);
+		pri->subchannel = __pri_new_tei(-1, pri->localtype, pri->switchtype, pri, NULL, NULL, NULL, tei, 1);
 		if (!pri->subchannel) {
 			pri_error(pri, "Unable to allocate D-channel for new TEI %d\n", tei);
 			return NULL;
