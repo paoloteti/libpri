@@ -2212,8 +2212,13 @@ q931_call *q931_new_call(struct pri *pri)
 	do {
 		cur = *pri->callpool;
 		pri->cref++;
-		if (pri->cref > 32767)
-			pri->cref = 1;
+		if (!pri->bri) {
+			if (pri->cref > 32767)
+				pri->cref = 1;
+		} else {
+			if (pri->cref > 127)
+				pri->cref = 1;
+		}
 		while(cur) {
 			if (cur->cr == (0x8000 | pri->cref))
 				break;
