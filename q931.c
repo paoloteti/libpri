@@ -657,7 +657,7 @@ static FUNC_SEND(transmit_bearer_capability)
 		return 0;
 
 	tc = call->transcapability;
-	if (pri->subchannel) {
+	if (pri->subchannel && !pri->bri) {
 		/* Bearer capability is *hard coded* in GR-303 */
 		ie->data[0] = 0x88;
 		ie->data[1] = 0x90;
@@ -1285,7 +1285,7 @@ static FUNC_SEND(transmit_progress_indicator)
 {
 	int code, mask;
 	/* Can't send progress indicator on GR-303 -- EVER! */
-	if (pri->subchannel)
+	if (pri->subchannel && !pri->bri)
 		return 0;
 	if (call->progressmask > 0) {
 		if (call->progressmask & (mask = PRI_PROG_CALL_NOT_E2E_ISDN))
@@ -2231,6 +2231,11 @@ q931_call *q931_new_call(struct pri *pri)
 static void q931_destroy(struct pri *pri, int cr, q931_call *c)
 {
 	q931_call *cur, *prev;
+
+	/* Magic for BRI PTMP CPE */
+	if (pri->subchannel && (pri->localtype == PRI_CPE) && pri->bri)
+		return q931_destroy(pri->subchannel, cr, c);
+
 	prev = NULL;
 	cur = *pri->callpool;
 	while(cur) {
@@ -2408,7 +2413,7 @@ static void init_header(struct pri *pri, q931_call *call, unsigned char *buf, q9
 			h->crv[0] = 0;
 			h->crv[1] = 0;
 		}
-		if (pri->subchannel) {
+		if (pri->subchannel && !pri->bri) {
 			/* On GR-303, top bit is always 0 */
 			h->crv[0] &= 0x7f;
 		}
@@ -2744,7 +2749,7 @@ int q931_connect(struct pri *pri, q931_call *c, int channel, int nonisdn)
 	if (c->retranstimer)
 		pri_schedule_del(pri, c->retranstimer);
 	c->retranstimer = 0;
-	if ((c->ourcallstate == Q931_CALL_STATE_CONNECT_REQUEST) && (!pri->subchannel))
+	if ((c->ourcallstate == Q931_CALL_STATE_CONNECT_REQUEST) && (pri->bri || (!pri->subchannel)))
 		c->retranstimer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T313], pri_connect_timeout, c);
 	return send_message(pri, c, Q931_CONNECT, connect_ies);
 }
@@ -2838,7 +2843,7 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 	c->ds1no = (req->channel & 0xff00) >> 8;
 	c->ds1explicit = (req->channel & 0x10000) >> 16;
 	req->channel &= 0xff;
-	if ((pri->localtype == PRI_CPE) && pri->subchannel) {
+	if ((pri->localtype == PRI_CPE) && pri->subchannel && !pri->bri) {
 		req->channel = 0;
 		req->exclusive = 0;
 	}
@@ -2908,7 +2913,7 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 
 	pri_call_add_standard_apdus(pri, c);
 
-	if (pri->subchannel)
+	if (pri->subchannel && !pri->bri)
 		res = send_message(pri, c, Q931_SETUP, gr303_setup_ies);
 	else if (c->justsignalling)
 		res = send_message(pri, c, Q931_SETUP, cis_setup_ies);
@@ -2952,7 +2957,7 @@ static int gr303_connect_acknowledge_ies[] = { Q931_CHANNEL_IDENT, -1 };
 
 static int q931_connect_acknowledge(struct pri *pri, q931_call *c)
 {
-	if (pri->subchannel) {
+	if (pri->subchannel && !pri->bri) {
 		if (pri->localtype == PRI_CPE)
 			return send_message(pri, c, Q931_CONNECT_ACKNOWLEDGE, gr303_connect_acknowledge_ies);
 	} else

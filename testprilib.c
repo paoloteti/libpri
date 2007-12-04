@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
 		perror("socketpair");
 		exit(1);
 	}
-	if (!(pri = pri_new_bri(pair[0], PRI_NETWORK, PRI_DEF_SWITCHTYPE))) {
+	if (!(pri = pri_new_bri(pair[0], 0, PRI_NETWORK, PRI_DEF_SWITCHTYPE))) {
 		perror("pri(0)");
 		exit(1);
 	}
@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
 		perror("thread(0)");
 		exit(1);
 	}
-	if (!(pri = pri_new_bri(pair[1], PRI_CPE, PRI_DEF_SWITCHTYPE))) {
+	if (!(pri = pri_new_bri(pair[1], 0, PRI_CPE, PRI_DEF_SWITCHTYPE))) {
 		perror("pri(1)");
 		exit(1);
 	}

@@ -438,6 +438,11 @@ static void t200_expire(void *vpri)
 int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 {
 	q921_frame *f, *prev=NULL;
+
+	/* Exception for BRI CPE PTMP */
+	if (pri->bri && (pri->localtype == PRI_CPE) && pri->subchannel)
+		return q921_transmit_iframe(pri->subchannel, buf, len, cr);
+
 	for (f=pri->txqueue; f; f = f->next) prev = f;
 	f = malloc(sizeof(q921_frame) + len + 2);
 	if (f) {
@@ -968,8 +973,16 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 			} else if (!h->u.m2) {
 				if ((pri->sapi == Q921_SAPI_LAYER2_MANAGEMENT) && (pri->tei == Q921_TEI_GROUP))
 					q921_receive_MDL(pri, (q921_u *)h, len);
-				else
-					pri_message(pri, "XXX Unnumbered Information not implemented XXX\n");
+				else {
+					int res;
+
+					res = q931_receive(pri, (q931_h *) h->u.data, len - 3);
+					if (res == -1) {
+						return NULL;
+					}
+					if (res & Q931_RES_HAVEEVENT)
+						return &pri->ev;
+				}
 			}
 			break;
 		case 2:
@@ -1048,8 +1061,9 @@ static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 		return NULL;
 #endif
 
+	if (!((h->h.sapi == pri->sapi) && ((h->h.tei == pri->tei) || (h->h.tei == Q921_TEI_GROUP)))) {
 	/* Check for SAPIs we don't yet handle */
-	if ((h->h.sapi != pri->sapi) || (h->h.tei != pri->tei)) {
+	//if ((h->h.sapi != pri->sapi) || ((h->h.tei != pri->tei) && (h->h.tei != Q921_TEI_GROUP))) {
 //#ifdef PROCESS_SUBCHANNELS
 		/* If it's not us, try any subchannels we have */
 		if (pri->subchannel)
