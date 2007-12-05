@@ -439,10 +439,6 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 {
 	q921_frame *f, *prev=NULL;
 
-	/* Exception for BRI CPE PTMP */
-	if (pri->bri && (pri->localtype == PRI_CPE) && pri->subchannel)
-		return q921_transmit_iframe(pri->subchannel, buf, len, cr);
-
 	for (f=pri->txqueue; f; f = f->next) prev = f;
 	f = malloc(sizeof(q921_frame) + len + 2);
 	if (f) {
@@ -1062,14 +1058,11 @@ static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 #endif
 
 	if (!((h->h.sapi == pri->sapi) && ((h->h.tei == pri->tei) || (h->h.tei == Q921_TEI_GROUP)))) {
-	/* Check for SAPIs we don't yet handle */
-	//if ((h->h.sapi != pri->sapi) || ((h->h.tei != pri->tei) && (h->h.tei != Q921_TEI_GROUP))) {
-//#ifdef PROCESS_SUBCHANNELS
+		/* Check for SAPIs we don't yet handle */
 		/* If it's not us, try any subchannels we have */
 		if (pri->subchannel)
 			return q921_receive(pri->subchannel, h, len + 2);
 		else 
-//#endif
 		{
 			pri_error(pri, "Message for SAPI/TEI=%d/%d IS NOT HANDLED\n", h->h.sapi, h->h.tei);
 			return NULL;

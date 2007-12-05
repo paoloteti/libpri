@@ -2177,10 +2177,15 @@ static inline void q931_dumpie(struct pri *pri, int codeset, q931_ie *ie, char p
 	pri_error(pri, "!! %c Unknown IE %d (cs%d, len = %d)\n", prefix, Q931_IE_IE(base_ie), Q931_IE_CODESET(base_ie), ielen(ie));
 }
 
-static q931_call *q931_getcall(struct pri *pri, int cr)
+static q931_call *q931_getcall(struct pri *pri, int cr, int newcall)
 {
 	q931_call *cur, *prev;
-	cur = *pri->callpool;
+	struct pri *master;
+
+	/* Find the master  - He has the call pool */
+	for (master = pri; master->master; master = master->master);
+	
+	cur = *master->callpool;
 	prev = NULL;
 	while(cur) {
 		if (cur->cr == cr)
@@ -2196,12 +2201,17 @@ static q931_call *q931_getcall(struct pri *pri, int cr)
 		call_init(cur);
 		/* Call reference */
 		cur->cr = cr;
-		cur->pri = pri;
+		/* PRI is set to whoever called us */
+		if (pri->bri && (pri->localtype == PRI_CPE) && pri->subchannel && newcall)
+			cur->pri = pri->subchannel;
+		else
+			cur->pri = pri;
+
 		/* Append to end of list */
 		if (prev)
 			prev->next = cur;
 		else
-			*pri->callpool = cur;
+			*master->callpool = cur;
 	}
 	return cur;
 }
@@ -2209,6 +2219,7 @@ static q931_call *q931_getcall(struct pri *pri, int cr)
 q931_call *q931_new_call(struct pri *pri)
 {
 	q931_call *cur;
+
 	do {
 		cur = *pri->callpool;
 		pri->cref++;
@@ -2225,16 +2236,16 @@ q931_call *q931_new_call(struct pri *pri)
 			cur = cur->next;
 		}
 	} while(cur);
-	return q931_getcall(pri, pri->cref | 0x8000);
+
+	return q931_getcall(pri, pri->cref | 0x8000, 1);
 }
 
 static void q931_destroy(struct pri *pri, int cr, q931_call *c)
 {
 	q931_call *cur, *prev;
 
-	/* Magic for BRI PTMP CPE */
-	if (pri->subchannel && (pri->localtype == PRI_CPE) && pri->bri)
-		return q931_destroy(pri->subchannel, cr, c);
+	/* For destroying, make sure we are using the master span, since it maintains the call pool */
+	for (;pri->master; pri = pri->master);
 
 	prev = NULL;
 	cur = *pri->callpool;
@@ -2482,7 +2493,7 @@ static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
 	}
 	/* Invert the logic */
 	len = sizeof(buf) - len;
-	q931_xmit(pri, h, len, 1);
+	q931_xmit(c->pri, h, len, 1);
 	c->acked = 1;
 	return 0;
 }
@@ -2785,7 +2796,7 @@ static int restart_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
 int q931_restart(struct pri *pri, int channel)
 {
 	struct q931_call *c;
-	c = q931_getcall(pri, 0 | 0x8000);
+	c = q931_getcall(pri, 0 | 0x8000, 0);
 	if (!c)
 		return -1;
 	if (!channel)
@@ -3091,7 +3102,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri_error(pri, "Warning: unknown/inappropriate protocol discriminator received (%02x/%d)\n", h->pd, h->pd);
 		return 0;
 	}
-	c = q931_getcall(pri, q931_cr(h));
+	c = q931_getcall(pri, q931_cr(h), 0);
 	if (!c) {
 		pri_error(pri, "Unable to locate call %d\n", q931_cr(h));
 		return -1;
