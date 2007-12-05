@@ -2177,7 +2177,7 @@ static inline void q931_dumpie(struct pri *pri, int codeset, q931_ie *ie, char p
 	pri_error(pri, "!! %c Unknown IE %d (cs%d, len = %d)\n", prefix, Q931_IE_IE(base_ie), Q931_IE_CODESET(base_ie), ielen(ie));
 }
 
-static q931_call *q931_getcall(struct pri *pri, int cr, int newcall)
+static q931_call *q931_getcall(struct pri *pri, int cr, int outboundnew)
 {
 	q931_call *cur, *prev;
 	struct pri *master;
@@ -2202,7 +2202,7 @@ static q931_call *q931_getcall(struct pri *pri, int cr, int newcall)
 		/* Call reference */
 		cur->cr = cr;
 		/* PRI is set to whoever called us */
-		if (pri->bri && (pri->localtype == PRI_CPE) && pri->subchannel && newcall)
+		if (pri->bri && (pri->localtype == PRI_CPE) && pri->subchannel && outboundnew)
 			cur->pri = pri->subchannel;
 		else
 			cur->pri = pri;
