@@ -81,7 +81,7 @@ char *pri_switch2str(int sw)
 
 static void pri_default_timers(struct pri *pri, int switchtype)
 {
-	int defaulttimers[20][PRI_MAX_TIMERS] = PRI_TIMERS_ALL;
+	static const int defaulttimers[20][PRI_MAX_TIMERS] = PRI_TIMERS_ALL;
 	int x;
 
 	for (x = 0; x<PRI_MAX_TIMERS; x++) {
