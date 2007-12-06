@@ -2344,19 +2344,16 @@ int pri_call_apdu_queue(q931_call *call, int messagetype, void *apdu, int apdu_l
 	if (!call || !messagetype || !apdu || (apdu_len < 1) || (apdu_len > 255))
 		return -1;
 
-	new_event = malloc(sizeof(struct apdu_event));
-
-	if (new_event) {
-		memset(new_event, 0, sizeof(struct apdu_event));
-		new_event->message = messagetype;
-		new_event->callback = function;
-		new_event->data = data;
-		memcpy(new_event->apdu, apdu, apdu_len);
-		new_event->apdu_len = apdu_len;
-	} else {
+	if (!(new_event = calloc(1, sizeof(*new_event)))) {
 		pri_error(call->pri, "!! Malloc failed!\n");
 		return -1;
 	}
+
+	new_event->message = messagetype;
+	new_event->callback = function;
+	new_event->data = data;
+	memcpy(new_event->apdu, apdu, apdu_len);
+	new_event->apdu_len = apdu_len;
 	
 	if (call->apdus) {
 		cur = call->apdus;

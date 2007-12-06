@@ -255,18 +255,10 @@ static char *code2str(int code, struct msgtype *codes, int max)
 
 static void call_init(struct q931_call *c)
 {
-	memset(c, 0, sizeof(*c));
-	c->alive = 0;
-	c->sendhangupack = 0;
 	c->forceinvert = -1;	
 	c->cr = -1;
 	c->slotmap = -1;
 	c->channelno = -1;
-	c->ds1no = 0;
-	c->ds1explicit = 0;
-	c->chanflags = 0;
-	c->next = NULL;
-	c->sentchannel = 0;
 	c->newcall = 1;
 	c->ourcallstate = Q931_CALL_STATE_NULL;
 	c->peercallstate = Q931_CALL_STATE_NULL;
@@ -2196,23 +2188,25 @@ static q931_call *q931_getcall(struct pri *pri, int cr, int outboundnew)
 	/* No call exists, make a new one */
 	if (pri->debug & PRI_DEBUG_Q931_STATE)
 		pri_message(pri, "-- Making new call for cr %d\n", cr);
-	cur = malloc(sizeof(struct q931_call));
-	if (cur) {
-		call_init(cur);
-		/* Call reference */
-		cur->cr = cr;
-		/* PRI is set to whoever called us */
-		if (pri->bri && (pri->localtype == PRI_CPE) && pri->subchannel && outboundnew)
-			cur->pri = pri->subchannel;
-		else
-			cur->pri = pri;
+	
+	if (!(cur = calloc(1, sizeof(*cur))))
+		return NULL;
 
-		/* Append to end of list */
-		if (prev)
-			prev->next = cur;
-		else
-			*master->callpool = cur;
-	}
+	call_init(cur);
+	/* Call reference */
+	cur->cr = cr;
+	/* PRI is set to whoever called us */
+	if (pri->bri && (pri->localtype == PRI_CPE) && pri->subchannel && outboundnew)
+		cur->pri = pri->subchannel;
+	else
+		cur->pri = pri;
+
+	/* Append to end of list */
+	if (prev)
+		prev->next = cur;
+	else
+		*master->callpool = cur;
+	
 	return cur;
 }
 

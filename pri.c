@@ -845,7 +845,7 @@ void pri_enslave(struct pri *master, struct pri *slave)
 struct pri_sr *pri_sr_new(void)
 {
 	struct pri_sr *req;
-	req = malloc(sizeof(struct pri_sr));
+	req = malloc(sizeof(*req));
 	if (req) 
 		pri_sr_init(req);
 	return req;

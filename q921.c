@@ -99,25 +99,21 @@ static void q921_send_tei(struct pri *pri, int message, int ri, int ai, int isre
 {
 	q921_u *f;
 
-	f = malloc(sizeof(*f) + 5);
-	if (f) {
-		memset(f, 0, sizeof(*f) + 5);
-		Q921_INIT(pri, *f);
-		f->h.c_r = isreq;
-		f->m3 = 0;
-		f->m2 = 0;
-		f->p_f = 0;
-		f->ft = Q921_FRAMETYPE_U;
-		f->data[0] = 0x0f;	/* Management entity */
-		f->data[1] = (ri >> 8) & 0xff;
-		f->data[2] = ri & 0xff;
-		f->data[3] = message;
-		f->data[4] = (ai << 1) | 1;
-//		if (pri->debug & PRI_DEBUG_Q921_STATE)
-			pri_message(pri, "Sending TEI management message %d, TEI=%d\n", message, ai);
-		q921_transmit(pri, (q921_h *)f, 8);
-		free(f);
-	}
+	if (!(f = calloc(1, sizeof(*f) + 5)))
+		return;
+
+	Q921_INIT(pri, *f);
+	f->h.c_r = isreq;
+	f->ft = Q921_FRAMETYPE_U;
+	f->data[0] = 0x0f;	/* Management entity */
+	f->data[1] = (ri >> 8) & 0xff;
+	f->data[2] = ri & 0xff;
+	f->data[3] = message;
+	f->data[4] = (ai << 1) | 1;
+//	if (pri->debug & PRI_DEBUG_Q921_STATE)
+		pri_message(pri, "Sending TEI management message %d, TEI=%d\n", message, ai);
+	q921_transmit(pri, (q921_h *)f, 8);
+	free(f);
 }
 
 static void q921_tei_request(void *vpri)
@@ -440,9 +436,8 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 	q921_frame *f, *prev=NULL;
 
 	for (f=pri->txqueue; f; f = f->next) prev = f;
-	f = malloc(sizeof(q921_frame) + len + 2);
+	f = calloc(1, sizeof(q921_frame) + len + 2);
 	if (f) {
-		memset(f,0,sizeof(q921_frame) + len + 2);
 		Q921_INIT(pri, f->h);
 		switch(pri->localtype) {
 		case PRI_NETWORK:
