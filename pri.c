@@ -190,67 +190,68 @@ static int __pri_write(struct pri *pri, void *buf, int buflen)
 struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri)
 {
 	struct pri *p;
-	p = malloc(sizeof(struct pri));
-	if (p) {
-		memset(p, 0, sizeof(struct pri));
-		p->bri = bri;
-		p->fd = fd;
-		p->read_func = rd;
-		p->write_func = wr;
-		p->userdata = userdata;
-		p->localtype = node;
-		p->switchtype = switchtype;
-		p->cref = 1;
-		p->sapi = (tei == Q921_TEI_GROUP) ? Q921_SAPI_LAYER2_MANAGEMENT : Q921_SAPI_CALL_CTRL;
-		p->tei = tei;
-		p->nsf = PRI_NSF_NONE;
-		p->protodisc = Q931_PROTOCOL_DISCRIMINATOR;
-		p->master = master;
-		p->callpool = &p->localpool;
-		p->ev.gen.pri = p;
-		pri_default_timers(p, switchtype);
-		if (master) {
-			pri_set_debug(p, master->debug);
-			if (master->sendfacility)
-				pri_facility_enable(p);
-		}
-#ifdef LIBPRI_COUNTERS
-		p->q921_rxcount = 0;
-		p->q921_txcount = 0;
-		p->q931_rxcount = 0;
-		p->q931_txcount = 0;
-#endif
-		if (switchtype == PRI_SWITCH_GR303_EOC) {
-			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
-			p->sapi = Q921_SAPI_GR303_EOC;
-			p->tei = Q921_TEI_GR303_EOC_OPS;
-			p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_EOC_PATH, p, NULL, NULL, NULL, Q921_TEI_GR303_EOC_PATH, 0);
-			if (!p->subchannel) {
-				free(p);
-				p = NULL;
-			}
-		} else if (switchtype == PRI_SWITCH_GR303_TMC) {
-			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
-			p->sapi = Q921_SAPI_GR303_TMC_CALLPROC;
-			p->tei = Q921_TEI_GR303_TMC_CALLPROC;
-			p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_TMC_SWITCHING, p, NULL, NULL, NULL, Q921_TEI_GR303_TMC_SWITCHING, 0);
-			if (!p->subchannel) {
-				free(p);
-				p = NULL;
-			}
-		} else if (switchtype == PRI_SWITCH_GR303_TMC_SWITCHING) {
-			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
-			p->sapi = Q921_SAPI_GR303_TMC_SWITCHING;
-			p->tei = Q921_TEI_GR303_TMC_SWITCHING;
-		} else if (switchtype == PRI_SWITCH_GR303_EOC_PATH) {
-			p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
-			p->sapi = Q921_SAPI_GR303_EOC;
-			p->tei = Q921_TEI_GR303_EOC_PATH;
-		}
-		/* Start Q.921 layer, Wait if we're the network */
-		if (p)
-			q921_start(p, p->localtype == PRI_CPE);
+
+	if (!(p = calloc(1, sizeof(*p))))
+		return NULL;
+
+	p->bri = bri;
+	p->fd = fd;
+	p->read_func = rd;
+	p->write_func = wr;
+	p->userdata = userdata;
+	p->localtype = node;
+	p->switchtype = switchtype;
+	p->cref = 1;
+	p->sapi = (tei == Q921_TEI_GROUP) ? Q921_SAPI_LAYER2_MANAGEMENT : Q921_SAPI_CALL_CTRL;
+	p->tei = tei;
+	p->nsf = PRI_NSF_NONE;
+	p->protodisc = Q931_PROTOCOL_DISCRIMINATOR;
+	p->master = master;
+	p->callpool = &p->localpool;
+	p->ev.gen.pri = p;
+	pri_default_timers(p, switchtype);
+	if (master) {
+		pri_set_debug(p, master->debug);
+		if (master->sendfacility)
+			pri_facility_enable(p);
 	}
+#ifdef LIBPRI_COUNTERS
+	p->q921_rxcount = 0;
+	p->q921_txcount = 0;
+	p->q931_rxcount = 0;
+	p->q931_txcount = 0;
+#endif
+	if (switchtype == PRI_SWITCH_GR303_EOC) {
+		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
+		p->sapi = Q921_SAPI_GR303_EOC;
+		p->tei = Q921_TEI_GR303_EOC_OPS;
+		p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_EOC_PATH, p, NULL, NULL, NULL, Q921_TEI_GR303_EOC_PATH, 0);
+		if (!p->subchannel) {
+			free(p);
+			p = NULL;
+		}
+	} else if (switchtype == PRI_SWITCH_GR303_TMC) {
+		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
+		p->sapi = Q921_SAPI_GR303_TMC_CALLPROC;
+		p->tei = Q921_TEI_GR303_TMC_CALLPROC;
+		p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_TMC_SWITCHING, p, NULL, NULL, NULL, Q921_TEI_GR303_TMC_SWITCHING, 0);
+		if (!p->subchannel) {
+			free(p);
+			p = NULL;
+		}
+	} else if (switchtype == PRI_SWITCH_GR303_TMC_SWITCHING) {
+		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
+		p->sapi = Q921_SAPI_GR303_TMC_SWITCHING;
+		p->tei = Q921_TEI_GR303_TMC_SWITCHING;
+	} else if (switchtype == PRI_SWITCH_GR303_EOC_PATH) {
+		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
+		p->sapi = Q921_SAPI_GR303_EOC;
+		p->tei = Q921_TEI_GR303_EOC_PATH;
+	}
+	/* Start Q.921 layer, Wait if we're the network */
+	if (p)
+		q921_start(p, p->localtype == PRI_CPE);
+	
 	return p;
 }
 
