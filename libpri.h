@@ -420,78 +420,78 @@ typedef int (*pri_io_cb)(struct pri *pri, void *buf, int buflen);
    channel operating in HDLC mode with FCS computed by the fd's driver.  Also it
    must be NON-BLOCKING! Frames received on the fd should include FCS.  Nodetype 
    must be one of PRI_NETWORK or PRI_CPE.  switchtype should be PRI_SWITCH_* */
-extern struct pri *pri_new(int fd, int nodetype, int switchtype);
-extern struct pri *pri_new_bri(int fd, int ptpmode, int nodetype, int switchtype);
+struct pri *pri_new(int fd, int nodetype, int switchtype);
+struct pri *pri_new_bri(int fd, int ptpmode, int nodetype, int switchtype);
 
 /* Create D-channel just as above with user defined I/O callbacks and data */
-extern struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata);
+struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata);
 
 /* Retrieve the user data associated with the D channel */
-extern void *pri_get_userdata(struct pri *pri);
+void *pri_get_userdata(struct pri *pri);
 
 /* Set the user data associated with the D channel */
-extern void pri_set_userdata(struct pri *pri, void *userdata);
+void pri_set_userdata(struct pri *pri, void *userdata);
 
 /* Set Network Specific Facility for PRI */
-extern void pri_set_nsf(struct pri *pri, int nsf);
+void pri_set_nsf(struct pri *pri, int nsf);
 
 /* Set debug parameters on PRI -- see above debug definitions */
-extern void pri_set_debug(struct pri *pri, int debug);
+void pri_set_debug(struct pri *pri, int debug);
 
 /* Get debug parameters on PRI -- see above debug definitions */
-extern int pri_get_debug(struct pri *pri);
+int pri_get_debug(struct pri *pri);
 
 #define PRI_FACILITY_ENABLE
 /* Enable transmission support of Facility IEs on the pri */
-extern void pri_facility_enable(struct pri *pri);
+void pri_facility_enable(struct pri *pri);
 
 /* Run PRI on the given D-channel, taking care of any events that
    need to be handled.  If block is set, it will block until an event
    occurs which needs to be handled */
-extern pri_event *pri_dchannel_run(struct pri *pri, int block);
+pri_event *pri_dchannel_run(struct pri *pri, int block);
 
 /* Check for an outstanding event on the PRI */
 pri_event *pri_check_event(struct pri *pri);
 
 /* Give a name to a given event ID */
-extern char *pri_event2str(int id);
+char *pri_event2str(int id);
 
 /* Give a name to a node type */
-extern char *pri_node2str(int id);
+char *pri_node2str(int id);
 
 /* Give a name to a switch type */
-extern char *pri_switch2str(int id);
+char *pri_switch2str(int id);
 
 /* Print an event */
-extern void pri_dump_event(struct pri *pri, pri_event *e);
+void pri_dump_event(struct pri *pri, pri_event *e);
 
 /* Turn presentation into a string */
-extern char *pri_pres2str(int pres);
+char *pri_pres2str(int pres);
 
 /* Turn numbering plan into a string */
-extern char *pri_plan2str(int plan);
+char *pri_plan2str(int plan);
 
 /* Turn cause into a string */
-extern char *pri_cause2str(int cause);
+char *pri_cause2str(int cause);
 
 /* Acknowledge a call and place it on the given channel.  Set info to non-zero if there
    is in-band data available on the channel */
-extern int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info);
+int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info);
 
 /* Send a digit in overlap mode */
-extern int pri_information(struct pri *pri, q931_call *call, char digit);
+int pri_information(struct pri *pri, q931_call *call, char digit);
 
 #define PRI_KEYPAD_FACILITY_TX
 /* Send a keypad facility string of digits */
-extern int pri_keypad_facility(struct pri *pri, q931_call *call, char *digits);
+int pri_keypad_facility(struct pri *pri, q931_call *call, char *digits);
 
 /* Answer the incomplete(call without called number) call on the given channel.
    Set non-isdn to non-zero if you are not connecting to ISDN equipment */
-extern int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisdn);
+int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
 /* Answer the call on the given channel (ignored if you called acknowledge already).
    Set non-isdn to non-zero if you are not connecting to ISDN equipment */
-extern int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn);
+int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
 /* Set CRV reference for GR-303 calls */
 
@@ -508,59 +508,59 @@ extern int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn
 
 /* Hangup a call */
 #define PRI_HANGUP
-extern int pri_hangup(struct pri *pri, q931_call *call, int cause);
+int pri_hangup(struct pri *pri, q931_call *call, int cause);
 
 #define PRI_DESTROYCALL
-extern void pri_destroycall(struct pri *pri, q931_call *call);
+void pri_destroycall(struct pri *pri, q931_call *call);
 
 #define PRI_RESTART
-extern int pri_restart(struct pri *pri);
+int pri_restart(struct pri *pri);
 
-extern int pri_reset(struct pri *pri, int channel);
+int pri_reset(struct pri *pri, int channel);
 
 /* Create a new call */
-extern q931_call *pri_new_call(struct pri *pri);
+q931_call *pri_new_call(struct pri *pri);
 
 /* Retrieve CRV reference for GR-303 calls.  Returns >0 on success. */
-extern int pri_get_crv(struct pri *pri, q931_call *call, int *callmode);
+int pri_get_crv(struct pri *pri, q931_call *call, int *callmode);
 
 /* Retrieve CRV reference for GR-303 calls.  CRV must be >0, call mode should be 0 */
-extern int pri_set_crv(struct pri *pri, q931_call *call, int crv, int callmode);
+int pri_set_crv(struct pri *pri, q931_call *call, int crv, int callmode);
 
 /* How long until you need to poll for a new event */
-extern struct timeval *pri_schedule_next(struct pri *pri);
+struct timeval *pri_schedule_next(struct pri *pri);
 
 /* Run any pending schedule events */
-extern pri_event *pri_schedule_run(struct pri *pri);
+pri_event *pri_schedule_run(struct pri *pri);
 
-extern int pri_call(struct pri *pri, q931_call *c, int transmode, int channel,
+int pri_call(struct pri *pri, q931_call *c, int transmode, int channel,
    int exclusive, int nonisdn, char *caller, int callerplan, char *callername, int callerpres,
 	 char *called,int calledplan, int ulayer1);
 
-extern struct pri_sr *pri_sr_new(void);
-extern void pri_sr_free(struct pri_sr *sr);
+struct pri_sr *pri_sr_new(void);
+void pri_sr_free(struct pri_sr *sr);
 
-extern int pri_sr_set_channel(struct pri_sr *sr, int channel, int exclusive, int nonisdn);
-extern int pri_sr_set_bearer(struct pri_sr *sr, int transmode, int userl1);
-extern int pri_sr_set_called(struct pri_sr *sr, char *called, int calledplan, int complete);
-extern int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int callerplan, int callerpres);
-extern int pri_sr_set_redirecting(struct pri_sr *sr, char *num, int plan, int pres, int reason);
+int pri_sr_set_channel(struct pri_sr *sr, int channel, int exclusive, int nonisdn);
+int pri_sr_set_bearer(struct pri_sr *sr, int transmode, int userl1);
+int pri_sr_set_called(struct pri_sr *sr, char *called, int calledplan, int complete);
+int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int callerplan, int callerpres);
+int pri_sr_set_redirecting(struct pri_sr *sr, char *num, int plan, int pres, int reason);
 #define PRI_USER_USER_TX
 /* Set the user user field.  Warning!  don't send binary data accross this field */
-extern void pri_sr_set_useruser(struct pri_sr *sr, const char *userchars);
+void pri_sr_set_useruser(struct pri_sr *sr, const char *userchars);
 
-extern void pri_call_set_useruser(q931_call *sr, const char *userchars);
+void pri_call_set_useruser(q931_call *sr, const char *userchars);
 
-extern int pri_setup(struct pri *pri, q931_call *call, struct pri_sr *req);
+int pri_setup(struct pri *pri, q931_call *call, struct pri_sr *req);
 
 /* Set a call has a call indpendent signalling connection (i.e. no bchan) */
-extern int pri_sr_set_connection_call_independent(struct pri_sr *req);
+int pri_sr_set_connection_call_independent(struct pri_sr *req);
 
 /* Send an MWI indication to a remote location.  If activate is non zero, activates, if zero, decativates */
-extern int pri_mwi_activate(struct pri *pri, q931_call *c, char *caller, int callerplan, char *callername, int callerpres, char *called, int calledplan);
+int pri_mwi_activate(struct pri *pri, q931_call *c, char *caller, int callerplan, char *callername, int callerpres, char *called, int calledplan);
 
 /* Send an MWI deactivate request to a remote location */
-extern int pri_mwi_deactivate(struct pri *pri, q931_call *c, char *caller, int callerplan, char *callername, int callerpres, char *called, int calledplan);
+int pri_mwi_deactivate(struct pri *pri, q931_call *c, char *caller, int callerplan, char *callername, int callerpres, char *called, int calledplan);
 
 #define PRI_2BCT
 /* Attempt to pass the channels back to the NET side if compatable and
@@ -569,30 +569,30 @@ int pri_channel_bridge(q931_call *call1, q931_call *call2);
 
 /* Override message and error stuff */
 #define PRI_NEW_SET_API
-extern void pri_set_message(void (*__pri_error)(struct pri *pri, char *));
-extern void pri_set_error(void (*__pri_error)(struct pri *pri, char *));
+void pri_set_message(void (*__pri_error)(struct pri *pri, char *));
+void pri_set_error(void (*__pri_error)(struct pri *pri, char *));
 
 /* Set overlap mode */
 #define PRI_SET_OVERLAPDIAL
-extern void pri_set_overlapdial(struct pri *pri,int state);
+void pri_set_overlapdial(struct pri *pri,int state);
 
 #define PRI_DUMP_INFO_STR
-extern char *pri_dump_info_str(struct pri *pri);
+char *pri_dump_info_str(struct pri *pri);
 
 /* Get file descriptor */
-extern int pri_fd(struct pri *pri);
+int pri_fd(struct pri *pri);
 
 #define PRI_PROGRESS
 /* Send call proceeding */
-extern int pri_progress(struct pri *pri, q931_call *c, int channel, int info);
+int pri_progress(struct pri *pri, q931_call *c, int channel, int info);
 
 #define PRI_PROCEEDING_FULL
 /* Send call proceeding */
-extern int pri_proceeding(struct pri *pri, q931_call *c, int channel, int info);
+int pri_proceeding(struct pri *pri, q931_call *c, int channel, int info);
 
 /* Enslave a PRI to another, so they share the same call list
    (and maybe some timers) */
-extern void pri_enslave(struct pri *master, struct pri *slave);
+void pri_enslave(struct pri *master, struct pri *slave);
 
 #define PRI_GR303_SUPPORT
 #define PRI_ENSLAVE_SUPPORT
@@ -603,13 +603,13 @@ extern void pri_enslave(struct pri *master, struct pri *slave);
 #define PRI_ANI
 
 /* Send notification */
-extern int pri_notify(struct pri *pri, q931_call *c, int channel, int info);
+int pri_notify(struct pri *pri, q931_call *c, int channel, int info);
 
 /* Get/Set PRI Timers  */
 #define PRI_GETSET_TIMERS
-extern int pri_set_timer(struct pri *pri, int timer, int value);
-extern int pri_get_timer(struct pri *pri, int timer);
-extern int pri_timer2idx(char *timer);
+int pri_set_timer(struct pri *pri, int timer, int value);
+int pri_get_timer(struct pri *pri, int timer);
+int pri_timer2idx(char *timer);
 
 #define PRI_MAX_TIMERS 32
 
