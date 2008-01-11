@@ -576,8 +576,9 @@ static FUNC_DUMP(dump_bearer_capability)
 		pos++;
 	}
 	/* Stop here if no more */
-	if (pos >= len)
+	if (pos >= len - 2)
 		return;
+
 	if ((ie->data[1] & 0x7f) != TRANS_MODE_PACKET) {
 		/* Look for octets 5 and 5.a if present */
 		pri_message(pri, "%c                              Ext: %d  User information layer 1: %s (%d)\n", prefix, (ie->data[pos] >> 7), l12str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
@@ -604,6 +605,10 @@ static FUNC_RECV(receive_bearer_capability)
 	call->transmoderate = ie->data[1] & 0x7f;
 	if (call->transmoderate == PRI_TRANS_CAP_AUDIO_4ESS)
 		call->transmoderate = PRI_TRANS_CAP_3_1K_AUDIO;
+
+	if (pos >= len - 2)
+		return 0;
+
 	if (call->transmoderate != TRANS_MODE_PACKET) {
 		call->userl1 = ie->data[pos] & 0x7f;
 		if (call->userl1 == PRI_LAYER_1_ITU_RATE_ADAPT) {
