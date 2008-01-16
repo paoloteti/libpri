@@ -71,7 +71,16 @@ all: depend $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 update:
 	@if [ -d .svn ]; then \
 		echo "Updating from Subversion..." ; \
-		svn update -q; \
+		fromrev="`svn info | $(AWK) '/Revision: / {print $$2}'`"; \
+		svn update | tee update.out; \
+		torev="`svn info | $(AWK) '/Revision: / {print $$2}'`"; \
+		echo "`date`  Updated from revision $${fromrev} to $${torev}." >> update.log; \
+		rm -f .version; \
+		if [ `grep -c ^C update.out` -gt 0 ]; then \
+			echo ; echo "The following files have conflicts:" ; \
+			grep ^C update.out | cut -b4- ; \
+		fi ; \
+		rm -f update.out; \
 	else \
 		echo "Not under version control";  \
 	fi
