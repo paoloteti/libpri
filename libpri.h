@@ -205,6 +205,52 @@
 #define PRI_LAYER_1_V120_RATE_ADAPT	0x28
 #define PRI_LAYER_1_X31_RATE_ADAPT	0x29
 
+
+/* Intermediate rates for V.110 */
+#define PRI_INT_RATE_8K			1
+#define PRI_INT_RATE_16K		2
+#define PRI_INT_RATE_32K		3
+
+
+/* Rate adaption for bottom 5 bits of rateadaption */
+#define PRI_RATE_USER_RATE_MASK		0x1F
+#define PRI_RATE_ADAPT_UNSPEC		0x00
+#define PRI_RATE_ADAPT_0K6		0x01
+#define PRI_RATE_ADAPT_1K2		0x02
+#define PRI_RATE_ADAPT_2K4		0x03
+#define PRI_RATE_ADAPT_3K6		0x04
+#define PRI_RATE_ADAPT_4K8		0x05
+#define PRI_RATE_ADAPT_7K2		0x06
+#define PRI_RATE_ADAPT_8K		0x07
+#define PRI_RATE_ADAPT_9K6		0x08
+#define PRI_RATE_ADAPT_14K4		0x09
+#define PRI_RATE_ADAPT_16K		0x0A
+#define PRI_RATE_ADAPT_19K2		0x0B
+#define PRI_RATE_ADAPT_32K		0x0C
+#define PRI_RATE_ADAPT_38K4		0x0D
+#define PRI_RATE_ADAPT_48K		0x0E
+#define PRI_RATE_ADAPT_56K		0x0F
+#define PRI_RATE_ADAPT_57K6		0x12
+#define PRI_RATE_ADAPT_28K8		0x13
+#define PRI_RATE_ADAPT_24K		0x14
+#define PRI_RATE_ADAPT_0K1345		0x15
+#define PRI_RATE_ADAPT_0K1		0x16
+#define PRI_RATE_ADAPT_0K075_1K2	0x17
+#define PRI_RATE_ADAPT_1K2_0K075	0x18
+#define PRI_RATE_ADAPT_0K05		0x19
+#define PRI_RATE_ADAPT_0K075		0x1A
+#define PRI_RATE_ADAPT_0K110		0x1B
+#define PRI_RATE_ADAPT_0K150		0x1C
+#define PRI_RATE_ADAPT_0K200		0x1D
+#define PRI_RATE_ADAPT_0K300		0x1E
+#define PRI_RATE_ADAPT_12K		0x1F
+
+/* in-band negotiation flag for rateadaption bit 5 */
+#define PRI_RATE_ADAPT_NEGOTIATION_POSS	0x20
+
+/* async flag for rateadaption bit 6 */
+#define PRI_RATE_ADAPT_ASYNC		0x40
+
 /* Notifications */
 #define PRI_NOTIFY_USER_SUSPENDED		0x00	/* User suspended */
 #define PRI_NOTIFY_USER_RESUMED			0x01	/* User resumed */
@@ -510,6 +556,7 @@ extern struct timeval *pri_schedule_next(struct pri *pri);
 
 /* Run any pending schedule events */
 extern pri_event *pri_schedule_run(struct pri *pri);
+extern pri_event *pri_schedule_run_tv(struct pri *pri, const struct timeval *now);
 
 extern int pri_call(struct pri *pri, q931_call *c, int transmode, int channel,
    int exclusive, int nonisdn, char *caller, int callerplan, char *callername, int callerpres,
