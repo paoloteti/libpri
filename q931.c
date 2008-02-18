@@ -543,12 +543,12 @@ static char *mode2str(int mode)
 static char *l12str(int proto)
 {
 	static struct msgtype protos[] = {
-		{ PRI_LAYER_1_ITU_RATE_ADAPT, "ITU Rate Adaption" },
+ 		{ PRI_LAYER_1_ITU_RATE_ADAPT, "V.110 Rate Adaption" },
 		{ PRI_LAYER_1_ULAW, "u-Law" },
 		{ PRI_LAYER_1_ALAW, "A-Law" },
 		{ PRI_LAYER_1_G721, "G.721 ADPCM" },
 		{ PRI_LAYER_1_G722_G725, "G.722/G.725 7kHz Audio" },
-		{ PRI_LAYER_1_H223_H245, "H.223 and H.245" },	/* Recommendation Q.931(05/98) page 60) */
+ 		{ PRI_LAYER_1_H223_H245, "H.223/H.245 Multimedia" },
 		{ PRI_LAYER_1_NON_ITU_ADAPT, "Non-ITU Rate Adaption" },
 		{ PRI_LAYER_1_V120_RATE_ADAPT, "V.120 Rate Adaption" },
 		{ PRI_LAYER_1_X31_RATE_ADAPT, "X.31 Rate Adaption" },
@@ -559,7 +559,7 @@ static char *l12str(int proto)
 static char *ra2str(int proto)
 {
 	static struct msgtype protos[] = {
-		{ RATE_ADAPT_56K, "from 56kbps" },
+		{ PRI_RATE_ADAPT_9K6, "9.6 kbit/s" },
 	};
 	return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
 }
@@ -580,32 +580,143 @@ static char *l32str(int proto)
 	return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
 }
 
+static char *int_rate2str(int proto)
+{
+    static struct msgtype protos[] = {
+		{ PRI_INT_RATE_8K, "8 kbit/s" },
+		{ PRI_INT_RATE_16K, "16 kbit/s" },
+		{ PRI_INT_RATE_32K, "32 kbit/s" },
+    };
+    return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
+}
+
 static FUNC_DUMP(dump_bearer_capability)
 {
 	int pos=2;
 	pri_message(pri, "%c Bearer Capability (len=%2d) [ Ext: %d  Q.931 Std: %d  Info transfer capability: %s (%d)\n",
 		prefix, len, (ie->data[0] & 0x80 ) >> 7, (ie->data[0] & 0x60) >> 5, cap2str(ie->data[0] & 0x1f), (ie->data[0] & 0x1f));
 	pri_message(pri, "%c                              Ext: %d  Trans mode/rate: %s (%d)\n", prefix, (ie->data[1] & 0x80) >> 7, mode2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f);
+
+	/* octet 4.1 exists iff mode/rate is multirate */
 	if ((ie->data[1] & 0x7f) == 0x18) {
 	    pri_message(pri, "%c                              Ext: %d  Transfer rate multiplier: %d x 64\n", prefix, (ie->data[2] & 0x80) >> 7, ie->data[2] & 0x7f);
 		pos++;
 	}
-	/* Stop here if no more */
-	if (pos >= len - 2)
-		return;
 
-	if ((ie->data[1] & 0x7f) != TRANS_MODE_PACKET) {
-		/* Look for octets 5 and 5.a if present */
-		pri_message(pri, "%c                              Ext: %d  User information layer 1: %s (%d)\n", prefix, (ie->data[pos] >> 7), l12str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
-		if ((ie->data[pos] & 0x7f) == PRI_LAYER_1_ITU_RATE_ADAPT)
-			pri_message(pri, "%c                                Ext: %d  Rate adaptatation: %s (%d)\n", prefix, ie->data[pos] >> 7, ra2str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
+	/* don't count the IE num and length as part of the data */
+	len -= 2;
+	
+	/* Look for octet 5; this is identified by bits 5,6 == 01 */
+     	if (pos < len &&
+		(ie->data[pos] & 0x60) == 0x20) {
+
+		/* although the layer1 is only the bottom 5 bits of the byte,
+		   previous versions of this library passed bits 5&6 through
+		   too, so we have to do the same for binary compatability */
+		u_int8_t layer1 = ie->data[pos] & 0x7f;
+
+		pri_message(pri, "%c                                User information layer 1: %s (%d)\n",
+		            prefix, l12str(layer1), layer1);
 		pos++;
-	} else {
-		/* Look for octets 6 and 7 but not 5 and 5.a */
-		pri_message(pri, "%c                              Ext: %d  User information layer 2: %s (%d)\n", prefix, ie->data[pos] >> 7, l22str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
+		
+		/* octet 5a? */
+		if (pos < len && !(ie->data[pos-1] & 0x80)) {
+			int ra = ie->data[pos] & 0x7f;
+
+			pri_message(pri, "%c                                Async: %d, Negotiation: %d, "
+				"User rate: %s (%#x)\n", 
+				prefix,
+				ra & PRI_RATE_ADAPT_ASYNC ? 1 : 0,
+				ra & PRI_RATE_ADAPT_NEGOTIATION_POSS ? 1 : 0,
+				ra2str(ra & PRI_RATE_USER_RATE_MASK),
+				ra & PRI_RATE_USER_RATE_MASK);
+			pos++;
+		}
+		
+		/* octet 5b? */
+		if (pos < len && !(ie->data[pos-1] & 0x80)) {
+			u_int8_t data = ie->data[pos];
+			if (layer1 == PRI_LAYER_1_ITU_RATE_ADAPT) {
+				pri_message(pri, "%c                                Intermediate rate: %s (%d), "
+					"NIC on Tx: %d, NIC on Rx: %d, "
+					"Flow control on Tx: %d, "
+					"Flow control on Rx: %d\n",
+					prefix, int_rate2str((data & 0x60)>>5),
+					(data & 0x60)>>5,
+					(data & 0x10)?1:0,
+					(data & 0x08)?1:0,
+					(data & 0x04)?1:0,
+					(data & 0x02)?1:0);
+			} else if (layer1 == PRI_LAYER_1_V120_RATE_ADAPT) {
+				pri_message(pri, "%c                                Hdr: %d, Multiframe: %d, Mode: %d, "
+					"LLI negot: %d, Assignor: %d, "
+					"In-band neg: %d\n", prefix,
+					(data & 0x40)?1:0,
+					(data & 0x20)?1:0,
+					(data & 0x10)?1:0,
+					(data & 0x08)?1:0,
+					(data & 0x04)?1:0,
+					(data & 0x02)?1:0);
+			} else {
+				pri_message(pri, "%c                                Unknown octet 5b: 0x%x\n", data );
+			}
+			pos++;
+		}
+
+		/* octet 5c? */
+		if (pos < len && !(ie->data[pos-1] & 0x80)) {
+			u_int8_t data = ie->data[pos];
+			const char *stop_bits[] = {"?","1","1.5","2"};
+			const char *data_bits[] = {"?","5","7","8"};
+			const char *parity[] = {"Odd","?","Even","None",
+				       "zero","one","?","?"};
+	
+			pri_message(pri, "%c                                Stop bits: %s, data bits: %s, "
+			    "parity: %s\n", prefix,
+			    stop_bits[(data & 0x60) >> 5],
+			    data_bits[(data & 0x18) >> 3],
+			    parity[(data & 0x7)]);
+	
+			pos++;
+		}
+	
+			/* octet 5d? */
+		if (pos < len && !(ie->data[pos-1] & 0x80)) {
+			u_int8_t data = ie->data[pos];
+			pri_message(pri, "%c                                Duplex mode: %d, modem type: %d\n",
+				prefix, (data & 0x40) ? 1 : 0,data & 0x3F);
+ 			pos++;
+		}
+ 	}
+
+
+	/* Look for octet 6; this is identified by bits 5,6 == 10 */
+	if (pos < len && 
+		(ie->data[pos] & 0x60) == 0x40) {
+		pri_message(pri, "%c                                User information layer 2: %s (%d)\n",
+			prefix, l22str(ie->data[pos] & 0x1f),
+			ie->data[pos] & 0x1f);
 		pos++;
-		pri_message(pri, "%c                              Ext: %d  User information layer 3: %s (%d)\n", prefix, ie->data[pos] >> 7, l32str(ie->data[pos] & 0x7f), ie->data[pos] & 0x7f);
+	}
+
+	/* Look for octet 7; this is identified by bits 5,6 == 11 */
+	if (pos < len && (ie->data[pos] & 0x60) == 0x60) {
+		pri_message(pri, "%c                                User information layer 3: %s (%d)\n",
+			prefix, l32str(ie->data[pos] & 0x1f),
+			ie->data[pos] & 0x1f);
 		pos++;
+
+		/* octets 7a and 7b? */
+		if (pos + 1 < len && !(ie->data[pos-1] & 0x80) &&
+			!(ie->data[pos] & 0x80)) {
+			unsigned int proto;
+			proto = ((ie->data[pos] & 0xF) << 4 ) | 
+			         (ie->data[pos+1] & 0xF);
+
+			pri_message(pri, "%c                                Network layer: 0x%x\n", prefix,
+			            proto );
+			pos += 2;
+		}
 	}
 }
 
@@ -618,22 +729,44 @@ static FUNC_RECV(receive_bearer_capability)
 	}
 	call->transcapability = ie->data[0] & 0x1f;
 	call->transmoderate = ie->data[1] & 0x7f;
-	if (call->transmoderate == PRI_TRANS_CAP_AUDIO_4ESS)
-		call->transmoderate = PRI_TRANS_CAP_3_1K_AUDIO;
+   
+	/* octet 4.1 exists iff mode/rate is multirate */
+	if (call->transmoderate == TRANS_MODE_MULTIRATE) {
+		call->transmultiple = ie->data[pos++] & 0x7f;
+	}
 
-	if (pos >= len - 2)
-		return 0;
-
-	if (call->transmoderate != TRANS_MODE_PACKET) {
+	/* Look for octet 5; this is identified by bits 5,6 == 01 */
+	if (pos < len && 
+	     (ie->data[pos] & 0x60) == 0x20 ) {
+		/* although the layer1 is only the bottom 5 bits of the byte,
+		   previous versions of this library passed bits 5&6 through
+		   too, so we have to do the same for binary compatability */
 		call->userl1 = ie->data[pos] & 0x7f;
-		if (call->userl1 == PRI_LAYER_1_ITU_RATE_ADAPT) {
-			call->rateadaption = ie->data[++pos] & 0x7f;
-		}
 		pos++;
-	} else {
-		/* Get 6 and 7 */
-		call->userl2 = ie->data[pos++] & 0x7f;
-		call->userl3 = ie->data[pos] & 0x7f;
+		
+		/* octet 5a? */
+		if (pos < len && !(ie->data[pos-1] & 0x80)) {
+			call->rateadaption = ie->data[pos] & 0x7f;
+			pos++;
+ 		}
+		
+		/* octets 5b through 5d? */
+		while (pos < len && !(ie->data[pos-1] & 0x80)) {
+			pos++;
+		}
+		
+	}
+
+	/* Look for octet 6; this is identified by bits 5,6 == 10 */
+     	if (pos < len && 
+             (ie->data[pos] & 0x60) == 0x40) {
+		call->userl2 = ie->data[pos++] & 0x1f;
+	}
+
+	/* Look for octet 7; this is identified by bits 5,6 == 11 */
+     	if (pos < len && 
+             (ie->data[pos] & 0x60) == 0x60) {
+		call->userl3 = ie->data[pos++] & 0x1f;
 	}
 	return 0;
 }
@@ -641,6 +774,7 @@ static FUNC_RECV(receive_bearer_capability)
 static FUNC_SEND(transmit_bearer_capability)
 {
 	int tc;
+	int pos;
 
 	/* We are ready to transmit single IE only */	
 	if(order > 1)
@@ -660,34 +794,46 @@ static FUNC_SEND(transmit_bearer_capability)
 		return 4;
 	}
 	
-	if (pri->switchtype == PRI_SWITCH_ATT4ESS) {
-		/* 4ESS uses a different trans capability for 3.1khz audio */
-		if (tc == PRI_TRANS_CAP_3_1K_AUDIO)
-			tc = PRI_TRANS_CAP_AUDIO_4ESS;
-	}
 	ie->data[0] = 0x80 | tc;
 	ie->data[1] = call->transmoderate | 0x80;
-	if ( (tc & PRI_TRANS_CAP_DIGITAL) && (pri->switchtype == PRI_SWITCH_EUROISDN_E1) &&
-		(call->transmoderate == TRANS_MODE_PACKET) ) {
+
+ 	pos = 2;
+ 	/* octet 4.1 exists iff mode/rate is multirate */
+ 	if (call->transmoderate == TRANS_MODE_MULTIRATE ) {
+ 		ie->data[pos++] = call->transmultiple | 0x80;
+	}
+
+	if ((tc & PRI_TRANS_CAP_DIGITAL) && (pri->switchtype == PRI_SWITCH_EUROISDN_E1) &&
+		(call->transmoderate == TRANS_MODE_PACKET)) {
 		/* Apparently EuroISDN switches don't seem to like user layer 2/3 */
 		return 4;
 	}
 	if (call->transmoderate != TRANS_MODE_PACKET) {
 		/* If you have an AT&T 4ESS, you don't send any more info */
 		if ((pri->switchtype != PRI_SWITCH_ATT4ESS) && (call->userl1 > -1)) {
-			ie->data[2] = call->userl1 | 0x80; /* XXX Ext bit? XXX */
+			ie->data[pos++] = call->userl1 | 0x80; /* XXX Ext bit? XXX */
 			if (call->userl1 == PRI_LAYER_1_ITU_RATE_ADAPT) {
-				ie->data[3] = call->rateadaption | 0x80;
-				return 6;
+				ie->data[pos++] = call->rateadaption | 0x80;
 			}
-			return 5;
-		} else
-			return 4;
-	} else {
-		ie->data[2] = 0x80 | call->userl2;
-		ie->data[3] = 0x80 | call->userl3;
-		return 6;
-	}
+			return pos + 2;
+ 		}
+ 
+ 		ie->data[pos++] = 0xa0 | (call->userl1 & 0x1f);
+ 
+ 		if (call->userl1 == PRI_LAYER_1_ITU_RATE_ADAPT) {
+ 		    ie->data[pos-1] &= ~0x80; /* clear EXT bit in octet 5 */
+ 		    ie->data[pos++] = call->rateadaption | 0x80;
+ 		}
+ 	}
+ 	
+ 	
+ 	if (call->userl2 != -1)
+ 		ie->data[pos++] = 0xc0 | (call->userl2 & 0x1f);
+ 
+ 	if (call->userl3 != -1)
+ 		ie->data[pos++] = 0xe0 | (call->userl3 & 0x1f);
+ 
+ 	return pos + 2;
 }
 
 char *pri_plan2str(int plan)
@@ -2800,6 +2946,8 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 	if (!req->userl1)
 		req->userl1 = PRI_LAYER_1_ULAW;
 	c->userl1 = req->userl1;
+	c->userl2 = -1;
+	c->userl3 = -1;
 	c->ds1no = (req->channel & 0xff00) >> 8;
 	c->ds1explicit = (req->channel & 0x10000) >> 16;
 	req->channel &= 0xff;
