@@ -3547,7 +3547,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_release_complete(pri,c,PRI_CAUSE_INVALID_CALL_REFERENCE);
 			break;
 		}
-		if (c->ourcallstate != Q931_CALL_STATE_CONNECT_REQUEST) {
+		if ((c->ourcallstate != Q931_CALL_STATE_CONNECT_REQUEST) && (c->ourcallstate != Q931_CALL_STATE_ACTIVE)) {
 			q931_status(pri,c,PRI_CAUSE_WRONG_MESSAGE);
 			break;
 		}
