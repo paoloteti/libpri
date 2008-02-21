@@ -3716,6 +3716,12 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		UPDATE_OURCALLSTATE(pri, c, Q931_CALL_STATE_DISCONNECT_INDICATION);
 		c->peercallstate = Q931_CALL_STATE_DISCONNECT_REQUEST;
 		c->sendhangupack = 1;
+
+		/* wait for a RELEASE so that sufficient time has passed
+		   for the inband audio to be heard */
+		if (c->progressmask & PRI_PROG_INBAND_AVAILABLE)
+			break;
+
 		/* Return such an event */
 		pri->ev.e = PRI_EVENT_HANGUP_REQ;
 		pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
