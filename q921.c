@@ -323,6 +323,7 @@ static void q921_rr(struct pri *pri, int pbit, int cmd) {
 static void t200_expire(void *vpri)
 {
 	struct pri *pri = vpri;
+
 	if (pri->txqueue) {
 		/* Retransmit first packet in the queue, setting the poll bit */
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
@@ -334,35 +335,35 @@ static void t200_expire(void *vpri)
 		pri->v_na = pri->v_r;
 		pri->solicitfbit = 1;
 		pri->retrans++;
-      /* Up to three retransmissions */
-      if (pri->retrans < pri->timers[PRI_TIMER_N200]) {
-         /* Reschedule t200_timer */
-         if (pri->debug & PRI_DEBUG_Q921_DUMP)
-            pri_message(pri, "-- Retransmitting %d bytes\n", pri->txqueue->len);
-		if (pri->busy) 
-			q921_rr(pri, 1, 1);
-		else {
-			if (!pri->txqueue->transmitted) 
-				pri_error(pri, "!! Not good - head of queue has not been transmitted yet\n");
-			q921_transmit(pri, (q921_h *)&pri->txqueue->h, pri->txqueue->len);
+		/* Up to three retransmissions */
+		if (pri->retrans < pri->timers[PRI_TIMER_N200]) {
+			/* Reschedule t200_timer */
+			if (pri->debug & PRI_DEBUG_Q921_DUMP)
+				pri_message(pri, "-- Retransmitting %d bytes\n", pri->txqueue->len);
+			if (pri->busy) 
+				q921_rr(pri, 1, 1);
+			else {
+				if (!pri->txqueue->transmitted) 
+					pri_error(pri, "!! Not good - head of queue has not been transmitted yet\n");
+				q921_transmit(pri, (q921_h *)&pri->txqueue->h, pri->txqueue->len);
+			}
+			if (pri->debug & PRI_DEBUG_Q921_DUMP)
+				pri_message(pri, "-- Rescheduling retransmission (%d)\n", pri->retrans);
+			pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
+		} else {
+			if (pri->debug & PRI_DEBUG_Q921_STATE)
+				pri_message(pri, "-- Timeout occured, restarting PRI\n");
+			if (pri->debug & PRI_DEBUG_Q921_STATE && pri->q921_state != Q921_LINK_CONNECTION_RELEASED)
+				pri_message(pri, DBGHEAD "q921_state now is Q921_LINK_CONNECTION_RELEASED\n",DBGINFO);
+			pri->q921_state = Q921_LINK_CONNECTION_RELEASED;
+			pri->t200_timer = 0;
+			q921_dchannel_down(pri);
+			q921_start(pri, 1);
+			pri->schedev = 1;
 		}
-         if (pri->debug & PRI_DEBUG_Q921_DUMP)
-               pri_message(pri, "-- Rescheduling retransmission (%d)\n", pri->retrans);
-         pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
-      } else {
-         if (pri->debug & PRI_DEBUG_Q921_STATE)
-               pri_message(pri, "-- Timeout occured, restarting PRI\n");
-	if (pri->debug & PRI_DEBUG_Q921_STATE && pri->q921_state != Q921_LINK_CONNECTION_RELEASED)
-		pri_message(pri, DBGHEAD "q921_state now is Q921_LINK_CONNECTION_RELEASED\n",DBGINFO);
-         pri->q921_state = Q921_LINK_CONNECTION_RELEASED;
-      	pri->t200_timer = 0;
-         q921_dchannel_down(pri);
-         q921_start(pri, 1);
-         pri->schedev = 1;
-      }
 	} else if (pri->solicitfbit) {
-         if (pri->debug & PRI_DEBUG_Q921_DUMP)
-            pri_message(pri, "-- Retrying poll with f-bit\n");
+		if (pri->debug & PRI_DEBUG_Q921_DUMP)
+			pri_message(pri, "-- Retrying poll with f-bit\n");
 		pri->retrans++;
 		if (pri->retrans < pri->timers[PRI_TIMER_N200]) {
 			pri->solicitfbit = 1;
