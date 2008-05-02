@@ -675,4 +675,7 @@ extern int pri_timer2idx(char *timer);
 #define PRI_TIMER_T321	26
 #define PRI_TIMER_T322	27
 
+/* Get PRI version */
+const char *pri_get_version(void);
+
 #endif
