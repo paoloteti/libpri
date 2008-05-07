@@ -64,7 +64,7 @@ static struct pri *first, *cur;
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
-#define TEST_CALLS 32
+#define TEST_CALLS 1
 
 static void event1(struct pri *pri, pri_event *e)
 {
@@ -232,9 +232,9 @@ static void *dchan(void *data)
 		}
 		if (e) {
 			if (first == pri) {
-				event1(pri, e);
+				event1(e->gen.pri, e);
 			} else {
-				event2(pri, e);
+				event2(e->gen.pri, e);
 			}
 		}
 		pthread_mutex_unlock(&lock);
@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
 		perror("socketpair");
 		exit(1);
 	}
-	if (!(pri = pri_new(pair[0], PRI_NETWORK, PRI_DEF_SWITCHTYPE))) {
+	if (!(pri = pri_new_bri(pair[0], 0, PRI_NETWORK, PRI_DEF_SWITCHTYPE))) {
 		perror("pri(0)");
 		exit(1);
 	}
@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
 		perror("thread(0)");
 		exit(1);
 	}
-	if (!(pri = pri_new(pair[1], PRI_CPE, PRI_DEF_SWITCHTYPE))) {
+	if (!(pri = pri_new_bri(pair[1], 0, PRI_CPE, PRI_DEF_SWITCHTYPE))) {
 		perror("pri(1)");
 		exit(1);
 	}

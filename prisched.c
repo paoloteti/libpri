@@ -35,6 +35,9 @@ int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), vo
 {
 	int x;
 	struct timeval tv;
+	/* Scheduling runs on master channels only */
+	while (pri->master)
+		pri = pri->master;
 	for (x=1;x<MAX_SCHED;x++)
 		if (!pri->pri_sched[x].callback)
 			break;
@@ -113,6 +116,8 @@ pri_event *pri_schedule_run(struct pri *pri)
 
 void pri_schedule_del(struct pri *pri,int id)
 {
+	while (pri->master)
+		pri = pri->master;
 	if ((id >= MAX_SCHED) || (id < 0)) 
 		pri_error(pri, "Asked to delete sched id %d???\n", id);
 	pri->pri_sched[id].callback = NULL;

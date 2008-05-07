@@ -34,14 +34,19 @@ AWK=awk
 OSARCH=$(shell uname -s)
 PROC?=$(shell uname -m)
 
+# SONAME version; should be changed on every ABI change
+# please don't change it needlessly; it's perfectly fine to have a SONAME
+# of 1.2 and a version of 1.4.x
+SONAME:=1.4
+
 STATIC_LIBRARY=libpri.a
-DYNAMIC_LIBRARY=libpri.so.1.0
+DYNAMIC_LIBRARY:=libpri.so.$(SONAME)
 STATIC_OBJS=copy_string.o pri.o q921.o prisched.o q931.o pri_facility.o version.o
 DYNAMIC_OBJS=copy_string.lo pri.lo q921.lo prisched.lo q931.lo pri_facility.lo version.lo
 CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g -fPIC $(ALERTING) $(LIBPRI_COUNTERS)
 INSTALL_PREFIX=$(DESTDIR)
 INSTALL_BASE=/usr
-SOFLAGS = -Wl,-hlibpri.so.1.0
+SOFLAGS:=-Wl,-h$(DYNAMIC_LIBRARY)
 LDCONFIG = /sbin/ldconfig
 ifneq (,$(findstring X$(OSARCH)X, XLinuxX XGNU/kFreeBSDX))
 LDCONFIG_FLAGS=-n
@@ -56,7 +61,6 @@ ifeq (${OSARCH},SunOS)
 CFLAGS += -DSOLARIS -I../zaptel-solaris
 LDCONFIG = 
 LDCONFIG_FLAGS = \# # Trick to comment out the period in the command below
-SOSLINK = ln -sf libpri.so.1.0 libpri.so.1
 #INSTALL_PREFIX = /opt/asterisk  # Uncomment out to install in standard Solaris location for 3rd party code
 endif
 
@@ -77,7 +81,16 @@ all: depend $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 update:
 	@if [ -d .svn ]; then \
 		echo "Updating from Subversion..." ; \
-		svn update -q; \
+		fromrev="`svn info | $(AWK) '/Revision: / {print $$2}'`"; \
+		svn update | tee update.out; \
+		torev="`svn info | $(AWK) '/Revision: / {print $$2}'`"; \
+		echo "`date`  Updated from revision $${fromrev} to $${torev}." >> update.log; \
+		rm -f .version; \
+		if [ `grep -c ^C update.out` -gt 0 ]; then \
+			echo ; echo "The following files have conflicts:" ; \
+			grep ^C update.out | cut -b4- ; \
+		fi ; \
+		rm -f update.out; \
 	else \
 		echo "Not under version control";  \
 	fi
@@ -89,20 +102,19 @@ ifneq (${OSARCH},SunOS)
 	install -m 644 libpri.h $(INSTALL_PREFIX)$(INSTALL_BASE)/include
 	install -m 755 $(DYNAMIC_LIBRARY) $(INSTALL_PREFIX)$(INSTALL_BASE)/lib
 	if [ -x /usr/sbin/sestatus ] && ( /usr/sbin/sestatus | grep "SELinux status:" | grep -q "enabled"); then /sbin/restorecon -v $(INSTALL_PREFIX)$(INSTALL_BASE)/lib/$(DYNAMIC_LIBRARY); fi
-	( cd $(INSTALL_PREFIX)$(INSTALL_BASE)/lib ; ln -sf libpri.so.1.0 libpri.so ; ln -sf libpri.so.1.0 libpri.so.1 )
+	( cd $(INSTALL_PREFIX)$(INSTALL_BASE)/lib ; ln -sf libpri.so.$(SONAME) libpri.so)
 	install -m 644 $(STATIC_LIBRARY) $(INSTALL_PREFIX)$(INSTALL_BASE)/lib
 	if test $$(id -u) = 0; then $(LDCONFIG) $(LDCONFIG_FLAGS) $(INSTALL_PREFIX)$(INSTALL_BASE)/lib; fi
 else
 	install -f $(INSTALL_PREFIX)$(INSTALL_BASE)/include -m 644 libpri.h
 	install -f $(INSTALL_PREFIX)$(INSTALL_BASE)/lib -m 755 $(DYNAMIC_LIBRARY)
-	( cd $(INSTALL_PREFIX)$(INSTALL_BASE)/lib ; ln -sf libpri.so.1.0 libpri.so ; $(SOSLINK) )
+	( cd $(INSTALL_PREFIX)$(INSTALL_BASE)/lib ; ln -sf libpri.so.$(SONAME) libpri.so)
 	install -f $(INSTALL_PREFIX)$(INSTALL_BASE)/lib -m 644 $(STATIC_LIBRARY)
 endif
 
 uninstall:
 	@echo "Removing Libpri"
-	rm -f $(INSTALL_PREFIX)$(INSTALL_BASE)/lib/libpri.so.1.0
-	rm -f $(INSTALL_PREFIX)$(INSTALL_BASE)/lib/libpri.so.1
+	rm -f $(INSTALL_PREFIX)$(INSTALL_BASE)/lib/libpri.so.$(SONAME)
 	rm -f $(INSTALL_PREFIX)$(INSTALL_BASE)/lib/libpri.so
 	rm -f $(INSTALL_PREFIX)$(INSTALL_BASE)/lib/libpri.a
 	rm -f $(INSTALL_PREFIX)$(INSTALL_BASE)/include/libpri.h
@@ -133,9 +145,7 @@ $(STATIC_LIBRARY): $(STATIC_OBJS)
 $(DYNAMIC_LIBRARY): $(DYNAMIC_OBJS)
 	$(CC) -shared $(SOFLAGS) -o $@ $(DYNAMIC_OBJS)
 	$(LDCONFIG) $(LDCONFIG_FLAGS) .
-	ln -sf libpri.so.1.0 libpri.so
-	ln -sf libpri.so.1.0 libpri.so.1
-	$(SOSLINK)
+	ln -sf libpri.so.$(SONAME) libpri.so
 
 version.c:
 	@build_tools/make_version_c > $@.tmp
@@ -143,7 +153,7 @@ version.c:
 	@rm -f $@.tmp
 
 clean:
-	rm -f *.o *.so *.lo *.so.1 *.so.1.0
+	rm -f *.o *.so *.lo *.so.$(SONAME)
 	rm -f testprilib $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
 	rm -f pritest pridump
 	rm -f .depend

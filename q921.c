@@ -51,6 +51,8 @@
 } while(0)
 
 static void reschedule_t203(struct pri *pri);
+static void q921_restart(struct pri *pri, int now);
+static void q921_tei_release_and_reacquire(struct pri *master);
 
 static void q921_discard_retransmissions(struct pri *pri)
 {
@@ -68,8 +70,10 @@ static void q921_discard_retransmissions(struct pri *pri)
 static int q921_transmit(struct pri *pri, q921_h *h, int len) 
 {
 	int res;
+
 	if (pri->master)
-		return q921_transmit(pri->master, h, len);
+		pri = pri->master;
+
 #ifdef RANDOM_DROPS
    if (!(random() % 3)) {
          pri_message(pri, " === Dropping Packet ===\n");
@@ -90,6 +94,49 @@ static int q921_transmit(struct pri *pri, q921_h *h, int len)
 	}
 	reschedule_t203(pri);
 	return 0;
+}
+
+static void q921_send_tei(struct pri *pri, int message, int ri, int ai, int iscommand)
+{
+	q921_u *f;
+
+	if (!(f = calloc(1, sizeof(*f) + 5)))
+		return;
+
+	Q921_INIT(pri, *f);
+	f->h.c_r = (pri->localtype == PRI_NETWORK) ? iscommand : !iscommand;
+	f->ft = Q921_FRAMETYPE_U;
+	f->data[0] = 0x0f;	/* Management entity */
+	f->data[1] = (ri >> 8) & 0xff;
+	f->data[2] = ri & 0xff;
+	f->data[3] = message;
+	f->data[4] = (ai << 1) | 1;
+	if (pri->debug & PRI_DEBUG_Q921_STATE)
+		pri_message(pri, "Sending TEI management message %d, TEI=%d\n", message, ai);
+	q921_transmit(pri, (q921_h *)f, 8);
+	free(f);
+}
+
+static void q921_tei_request(void *vpri)
+{
+	struct pri *pri = (struct pri *)vpri;
+
+	if (pri->subchannel) {
+		pri_error(pri, "Cannot request TEI while its already assigned\n");
+		return;
+	}
+	pri->n202_counter++;
+#if 0
+	if (pri->n202_counter > pri->timers[PRI_TIMER_N202]) {
+		pri_error(pri, "Unable to assign TEI from network\n");
+		return;
+	}
+#endif
+	pri->ri = random() % 65535;
+	q921_send_tei(pri, Q921_TEI_IDENTITY_REQUEST, pri->ri, Q921_TEI_GROUP, 1);
+	if (pri->t202_timer)
+		pri_schedule_del(pri, pri->t202_timer);
+	pri->t202_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T202], q921_tei_request, pri);
 }
 
 static void q921_send_ua(struct pri *pri, int pfbit)
@@ -142,6 +189,15 @@ static void q921_send_sabme(void *vpri, int now)
 	default:
 		pri_error(pri, "Don't know how to U/A on a type %d node\n", pri->localtype);
 		return;
+	}
+	if (pri->bri && (pri->state == Q921_AWAITING_ESTABLISH)) {
+		if (pri->sabme_count >= pri->timers[PRI_TIMER_N200]) {
+			pri_schedule_del(pri, pri->sabme_timer);
+			pri->sabme_timer = 0;
+			q921_tei_release_and_reacquire(pri->master);
+		} else {
+			pri->sabme_count++;
+		}
 	}
 	if (pri->debug & (PRI_DEBUG_Q921_STATE | PRI_DEBUG_Q921_DUMP))
 		pri_message(pri, "Sending Set Asynchronous Balanced Mode Extended\n");
@@ -348,15 +404,15 @@ static void t200_expire(void *vpri)
 				q921_transmit(pri, (q921_h *)&pri->txqueue->h, pri->txqueue->len);
 			}
 			if (pri->debug & PRI_DEBUG_Q921_DUMP)
-				pri_message(pri, "-- Rescheduling retransmission (%d)\n", pri->retrans);
+			      pri_message(pri, "-- Rescheduling retransmission (%d)\n", pri->retrans);
 			pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
 		} else {
 			if (pri->debug & PRI_DEBUG_Q921_STATE)
-				pri_message(pri, "-- Timeout occured, restarting PRI\n");
+			      pri_message(pri, "-- Timeout occured, restarting PRI\n");
 			if (pri->debug & PRI_DEBUG_Q921_STATE && pri->q921_state != Q921_LINK_CONNECTION_RELEASED)
-				pri_message(pri, DBGHEAD "q921_state now is Q921_LINK_CONNECTION_RELEASED\n",DBGINFO);
+			     pri_message(pri, DBGHEAD "q921_state now is Q921_LINK_CONNECTION_RELEASED\n",DBGINFO);
 			pri->q921_state = Q921_LINK_CONNECTION_RELEASED;
-			pri->t200_timer = 0;
+			     pri->t200_timer = 0;
 			q921_dchannel_down(pri);
 			q921_start(pri, 1);
 			pri->schedev = 1;
@@ -376,9 +432,14 @@ static void t200_expire(void *vpri)
 				pri_message(pri, DBGHEAD "q921_state now is Q921_LINK_CONNECTION_RELEASED\n", DBGINFO);
 			pri->q921_state = Q921_LINK_CONNECTION_RELEASED;
 			pri->t200_timer = 0;
-			q921_dchannel_down(pri);
-			q921_start(pri, 1);
-			pri->schedev = 1;
+			if (pri->bri && pri->master) {
+				q921_tei_release_and_reacquire(pri->master);
+				return;
+			} else {
+				q921_dchannel_down(pri);
+				q921_start(pri, 1);
+				pri->schedev = 1;
+			}
 		}
 	} else {
 		pri_error(pri, "T200 counter expired, nothing to send...\n");
@@ -389,10 +450,10 @@ static void t200_expire(void *vpri)
 int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 {
 	q921_frame *f, *prev=NULL;
+
 	for (f=pri->txqueue; f; f = f->next) prev = f;
-	f = malloc(sizeof(q921_frame) + len + 2);
+	f = calloc(1, sizeof(q921_frame) + len + 2);
 	if (f) {
-		memset(f,0,sizeof(q921_frame) + len + 2);
 		Q921_INIT(pri, f->h);
 		switch(pri->localtype) {
 		case PRI_NETWORK:
@@ -654,8 +715,10 @@ static pri_event *q921_dchannel_up(struct pri *pri)
 	q921_reset(pri);
 	
 	/* Stop any SABME retransmissions */
-	pri_schedule_del(pri, pri->sabme_timer);
-	pri->sabme_timer = 0;
+	if (pri->sabme_timer) {
+		pri_schedule_del(pri, pri->sabme_timer);
+		pri->sabme_timer = 0;
+	}
 	
 	/* Reset any rejects */
 	pri->sentrej = 0;
@@ -698,10 +761,14 @@ void q921_reset(struct pri *pri)
 	pri->v_na = 0;
 	pri->window = pri->timers[PRI_TIMER_K];
 	pri->windowlen = 0;
-	pri_schedule_del(pri, pri->sabme_timer);
-	pri_schedule_del(pri, pri->t203_timer);
-	pri_schedule_del(pri, pri->t200_timer);
+	if (pri->sabme_timer)
+		pri_schedule_del(pri, pri->sabme_timer);
+	if (pri->t203_timer)
+		pri_schedule_del(pri, pri->t203_timer);
+	if (pri->t200_timer)
+		pri_schedule_del(pri, pri->t200_timer);
 	pri->sabme_timer = 0;
+	pri->sabme_count = 0;
 	pri->t203_timer = 0;
 	pri->t200_timer = 0;
 	pri->busy = 0;
@@ -714,6 +781,101 @@ void q921_reset(struct pri *pri)
 	
 	/* Discard anything waiting to go out */
 	q921_discard_retransmissions(pri);
+}
+
+static void q921_tei_release_and_reacquire(struct pri *master)
+{
+	/* Make sure the master is passed into this function */
+	q921_dchannel_down(master->subchannel);
+	__pri_free_tei(master->subchannel);
+	master->subchannel = NULL;
+	master->ev.gen.e = PRI_EVENT_DCHAN_DOWN;
+	master->schedev = 1;
+	q921_start(master, master->localtype == PRI_CPE);
+}
+
+static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
+{
+	int ri;
+	struct pri *sub;
+	int tei;
+	if (pri->debug & PRI_DEBUG_Q921_STATE)
+		pri_message(pri, "Received MDL message\n");
+	if (h->data[0] != 0x0f) {
+		pri_error(pri, "Received MDL with unsupported management entity %02x\n", h->data[0]);
+		return NULL;
+	}
+	if (!(h->data[4] & 0x01)) {
+		pri_error(pri, "Received MDL with multibyte TEI identifier\n");
+		return NULL;
+	}
+	ri = (h->data[1] << 8) | h->data[2];
+	tei = (h->data[4] >> 1);
+	switch(h->data[3]) {
+	case Q921_TEI_IDENTITY_REQUEST:
+		if (tei != 127) {
+			pri_error(pri, "Received TEI identity request with invalid TEI %d\n", tei);
+			q921_send_tei(pri, Q921_TEI_IDENTITY_DENIED, ri, tei, 1);
+		}
+		/* Go to master */
+		for (sub = pri; sub->master; sub = sub->master);
+		tei = 64;
+		while(sub->subchannel) {
+			if(sub->subchannel->tei == tei)
+				++tei;
+		}
+		sub->subchannel = __pri_new_tei(-1, pri->localtype, pri->switchtype, pri, NULL, NULL, NULL, tei, 1);
+		if (!sub->subchannel) {
+			pri_error(pri, "Unable to allocate D-channel for new TEI %d\n", tei);
+			return NULL;
+		}
+		q921_send_tei(pri, Q921_TEI_IDENTITY_ASSIGNED, ri, tei, 1);
+		break;
+	case Q921_TEI_IDENTITY_ASSIGNED:
+		if (ri != pri->ri) {
+			pri_message(pri, "TEI assignment received for invalid Ri %02x (our is %02x)\n", ri, pri->ri);
+			return NULL;
+		}
+		if (pri->t202_timer) {
+			pri_schedule_del(pri, pri->t202_timer);
+			pri->t202_timer = 0;
+		}
+		if (pri->subchannel && (pri->subchannel->tei == tei)) {
+			pri_error(pri, "TEI already assigned (new is %d, current is %d)\n", tei, pri->subchannel->tei);
+			q921_tei_release_and_reacquire(pri);
+			return NULL;
+		}
+
+		pri_message(pri, "TEI assiged to %d\n", tei);
+		pri->subchannel = __pri_new_tei(-1, pri->localtype, pri->switchtype, pri, NULL, NULL, NULL, tei, 1);
+		if (!pri->subchannel) {
+			pri_error(pri, "Unable to allocate D-channel for new TEI %d\n", tei);
+			return NULL;
+		}
+		pri->q921_state = Q921_TEI_ASSIGNED;
+		break;
+	case Q921_TEI_IDENTITY_CHECK_REQUEST:
+		/* We're assuming one TEI per PRI in TE PTMP mode */
+
+		/* If no subchannel (TEI) ignore */
+		if (!pri->subchannel)
+			return NULL;
+
+		/* If it's addressed to the group TEI or to our TEI specifically, we respond */
+		if ((tei == Q921_TEI_GROUP) || (tei == pri->subchannel->tei))
+			q921_send_tei(pri, Q921_TEI_IDENTITY_CHECK_RESPONSE, random() % 65535, pri->subchannel->tei, 1);
+
+		break;
+	case Q921_TEI_IDENTITY_REMOVE:
+		/* XXX: Assuming multiframe mode has been disconnected already */
+		if (!pri->subchannel)
+			return NULL;
+
+		if ((tei == Q921_TEI_GROUP) || (tei == pri->subchannel->tei)) {
+			q921_tei_release_and_reacquire(pri);
+		}
+	}
+	return NULL;	/* Do we need to return something??? */
 }
 
 static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
@@ -766,59 +928,59 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 				pri->solicitfbit = 0;
 			}
 			break;
-      case 1:
-         /* Receiver not ready */
-         if (pri->debug & PRI_DEBUG_Q921_DUMP)
-            pri_message(pri, "-- Got receiver not ready\n");
-	 if(h->s.p_f) {
-		/* Send RR if poll bit set */
-		q921_rr(pri, h->s.p_f, 0);
-	 }
-         pri->busy = 1;
-         break;   
-      case 2:
-         /* Just retransmit */
-         if (pri->debug & PRI_DEBUG_Q921_DUMP)
-            pri_message(pri, "-- Got reject requesting packet %d...  Retransmitting.\n", h->s.n_r);
-         if (h->s.p_f) {
-            /* If it has the poll bit set, send an appropriate supervisory response */
-            q921_rr(pri, 1, 0);
-         }
-		 sendnow = 0;
-         /* Resend the proper I-frame */
-         for(f=pri->txqueue;f;f=f->next) {
-               if ((sendnow || (f->h.n_s == h->s.n_r)) && f->transmitted) {
-                     /* Matches the request, or follows in our window, and has
-					    already been transmitted. */
-					 sendnow = 1;
-					 pri_error(pri, "!! Got reject for frame %d, retransmitting frame %d now, updating n_r!\n", h->s.n_r, f->h.n_s);
-				     f->h.n_r = pri->v_r;
-                     q921_transmit(pri, (q921_h *)(&f->h), f->len);
-               }
-         }
-         if (!sendnow) {
-               if (pri->txqueue) {
-                     /* This should never happen */
-		     if (!h->s.p_f || h->s.n_r) {
-			pri_error(pri, "!! Got reject for frame %d, but we only have others!\n", h->s.n_r);
-		     }
-               } else {
-                     /* Hrm, we have nothing to send, but have been REJ'd.  Reset v_a, v_s, etc */
-				pri_error(pri, "!! Got reject for frame %d, but we have nothing -- resetting!\n", h->s.n_r);
-                     pri->v_a = h->s.n_r;
-                     pri->v_s = h->s.n_r;
-                     /* Reset t200 timer if it was somehow going */
-                     if (pri->t200_timer) {
-                           pri_schedule_del(pri, pri->t200_timer);
-                           pri->t200_timer = 0;
-                     }
-                     /* Reset and restart t203 timer */
-                     if (pri->t203_timer)
-                           pri_schedule_del(pri, pri->t203_timer);
-                     pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
-               }
-         }
-         break;
+ 		case 1:
+ 			/* Receiver not ready */
+ 			if (pri->debug & PRI_DEBUG_Q921_STATE)
+ 				pri_message(pri, "-- Got receiver not ready\n");
+ 			if(h->s.p_f) {
+ 				/* Send RR if poll bit set */
+ 				q921_rr(pri, h->s.p_f, 0);
+ 			}
+ 			pri->busy = 1;
+ 			break;   
+ 		case 2:
+ 			/* Just retransmit */
+ 			if (pri->debug & PRI_DEBUG_Q921_STATE)
+ 				pri_message(pri, "-- Got reject requesting packet %d...  Retransmitting.\n", h->s.n_r);
+ 			if (h->s.p_f) {
+ 				/* If it has the poll bit set, send an appropriate supervisory response */
+ 				q921_rr(pri, 1, 0);
+ 			}
+ 			sendnow = 0;
+ 			/* Resend the proper I-frame */
+ 			for(f=pri->txqueue;f;f=f->next) {
+ 				if ((sendnow || (f->h.n_s == h->s.n_r)) && f->transmitted) {
+ 					/* Matches the request, or follows in our window, and has
+ 					   already been transmitted. */
+ 					sendnow = 1;
+ 					pri_error(pri, "!! Got reject for frame %d, retransmitting frame %d now, updating n_r!\n", h->s.n_r, f->h.n_s);
+ 					f->h.n_r = pri->v_r;
+ 					q921_transmit(pri, (q921_h *)(&f->h), f->len);
+ 				}
+ 			}
+ 			if (!sendnow) {
+ 				if (pri->txqueue) {
+ 					/* This should never happen */
+ 					if (!h->s.p_f || h->s.n_r) {
+ 						pri_error(pri, "!! Got reject for frame %d, but we only have others!\n", h->s.n_r);
+ 					}
+ 				} else {
+ 					/* Hrm, we have nothing to send, but have been REJ'd.  Reset v_a, v_s, etc */
+ 					pri_error(pri, "!! Got reject for frame %d, but we have nothing -- resetting!\n", h->s.n_r);
+ 					pri->v_a = h->s.n_r;
+ 					pri->v_s = h->s.n_r;
+ 					/* Reset t200 timer if it was somehow going */
+ 					if (pri->t200_timer) {
+ 						pri_schedule_del(pri, pri->t200_timer);
+ 						pri->t200_timer = 0;
+ 					}
+ 					/* Reset and restart t203 timer */
+ 					if (pri->t203_timer)
+ 						pri_schedule_del(pri, pri->t203_timer);
+ 					pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
+ 				}
+ 			}
+ 			break;
 		default:
 			pri_error(pri, "!! XXX Unknown Supervisory frame ss=0x%02x,pf=%02xnr=%02x vs=%02x, va=%02x XXX\n", h->s.ss, h->s.p_f, h->s.n_r,
 					pri->v_s, pri->v_a);
@@ -839,7 +1001,7 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 						pri_message(pri, "-- Got DM Mode from peer.\n");
 					/* Disconnected mode, try again after T200 */
 					ev = q921_dchannel_down(pri);
-					q921_start(pri, 0);
+					q921_restart(pri, 0);
 					return ev;
 						
 				} else {
@@ -847,12 +1009,23 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 						pri_message(pri, "-- Ignoring unsolicited DM with p/f set to 0\n");
 #if 0
 					/* Requesting that we start */
-					q921_start(pri, 0);
+					q921_restart(pri, 0);
 #endif					
 				}
 				break;
 			} else if (!h->u.m2) {
-				pri_message(pri, "XXX Unnumbered Information not implemented XXX\n");
+				if ((pri->sapi == Q921_SAPI_LAYER2_MANAGEMENT) && (pri->tei == Q921_TEI_GROUP))
+					q921_receive_MDL(pri, (q921_u *)h, len);
+				else {
+					int res;
+
+					res = q931_receive(pri, (q931_h *) h->u.data, len - 3);
+					if (res == -1) {
+						return NULL;
+					}
+					if (res & Q931_RES_HAVEEVENT)
+						return &pri->ev;
+				}
 			}
 			break;
 		case 2:
@@ -861,7 +1034,7 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 			/* Acknowledge */
 			q921_send_ua(pri, h->u.p_f);
 			ev = q921_dchannel_down(pri);
-			q921_start(pri, 0);
+			q921_restart(pri, 0);
 			return ev;
 		case 3:
 			if (h->u.m2 == 3) {
@@ -892,8 +1065,17 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 						pri_message(pri, "-- Got UA from %s peer  Link up.\n", h->h.c_r ? "cpe" : "network");
 					}
 					return q921_dchannel_up(pri);
-				} else 
+				} else if ((pri->q921_state >= Q921_TEI_ASSIGNED) && pri->bri) {
+					/* Possible duplicate TEI assignment */
+					if (pri->master)
+						q921_tei_release_and_reacquire(pri->master);
+					else
+						pri_error(pri, "Huh!? no master found\n");
+				} else {
+					/* Since we're not in the AWAITING_ESTABLISH STATE, it's unsolicited */
 					pri_error(pri, "!! Got a UA, but i'm in state %d\n", pri->q921_state);
+
+				}
 			} else 
 				pri_error(pri, "!! Weird frame received (m3=3, m2 = %d)\n", h->u.m2);
 			break;
@@ -925,21 +1107,24 @@ static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 	if (h->h.ea1 || !(h->h.ea2))
 		return NULL;
 
+#if 0 /* Will be rejected by subchannel analyzis */
 	/* Check for broadcasts - not yet handled */
 	if (h->h.tei == Q921_TEI_GROUP)
 		return NULL;
+#endif
 
-	/* Check for SAPIs we don't yet handle */
-	if ((h->h.sapi != pri->sapi) || (h->h.tei != pri->tei)) {
-#ifdef PROCESS_SUBCHANNELS
+	if (!((h->h.sapi == pri->sapi) && ((h->h.tei == pri->tei) || (h->h.tei == Q921_TEI_GROUP)))) {
+		/* Check for SAPIs we don't yet handle */
 		/* If it's not us, try any subchannels we have */
 		if (pri->subchannel)
 			return q921_receive(pri->subchannel, h, len + 2);
-		else 
-#endif
+		else {
 			return NULL;
+		}
 
 	}
+	if (pri->debug & PRI_DEBUG_Q921_DUMP)
+		pri_message(pri, "Handling message for SAPI/TEI=%d/%d\n", h->h.sapi, h->h.tei);
 	ev = __q921_receive_qualified(pri, h, len);
 	reschedule_t203(pri);
 	return ev;
@@ -955,7 +1140,7 @@ pri_event *q921_receive(struct pri *pri, q921_h *h, int len)
 	return e;
 }
 
-void q921_start(struct pri *pri, int now)
+static void q921_restart(struct pri *pri, int now)
 {
 	if (pri->q921_state != Q921_LINK_CONNECTION_RELEASED) {
 		pri_error(pri, "!! q921_start: Not in 'Link Connection Released' state\n");
@@ -965,4 +1150,16 @@ void q921_start(struct pri *pri, int now)
 	q921_reset(pri);
 	/* Do the SABME XXX Maybe we should implement T_WAIT? XXX */
 	q921_send_sabme(pri, now);
+}
+
+void q921_start(struct pri *pri, int isCPE)
+{
+	q921_reset(pri);
+	if ((pri->sapi == Q921_SAPI_LAYER2_MANAGEMENT) && (pri->tei == Q921_TEI_GROUP)) {
+		pri->q921_state = Q921_DOWN;
+		if (isCPE)
+			q921_tei_request(pri);
+	} else {
+		q921_send_sabme(pri, isCPE);
+	}
 }

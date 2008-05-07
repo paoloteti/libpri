@@ -9,6 +9,7 @@
 
 #ifndef _PRI_FACILITY_H
 #define _PRI_FACILITY_H
+#include "pri_q931.h"
 
 /* Protocol Profile field */
 #define Q932_PROTOCOL_ROSE			0x11	/* X.219 & X.229 */
@@ -32,6 +33,15 @@
 #define COMP_TYPE_NFE						0xAA
 
 /* Operation ID values */
+/* Q.952.7 (ECMA-178) ROSE operations (Transfer) */
+#define ROSE_CALL_TRANSFER_IDENTIFY			7
+#define ROSE_CALL_TRANSFER_ABANDON			8
+#define ROSE_CALL_TRANSFER_INITIATE			9
+#define ROSE_CALL_TRANSFER_SETUP			10
+#define ROSE_CALL_TRANSFER_ACTIVE			11
+#define ROSE_CALL_TRANSFER_COMPLETE			12
+#define ROSE_CALL_TRANSFER_UPDATE			13
+#define ROSE_SUBADDRESS_TRANSFER 			14
 /* Q.952 ROSE operations (Diverting) */
 #define ROSE_DIVERTING_LEG_INFORMATION1		18
 #define ROSE_DIVERTING_LEG_INFORMATION2		0x15
@@ -48,6 +58,7 @@
 #define ROSE_AOC_IDENTIFICATION_OF_CHARGE	37
 /* Q.SIG operations */
 #define SS_CNID_CALLINGNAME					0
+#define SS_ANFPR_PATHREPLACEMENT                                4
 #define SS_DIVERTING_LEG_INFORMATION2		21
 #define SS_MWI_ACTIVATE						80
 #define SS_MWI_DEACTIVATE					81
@@ -146,7 +157,8 @@ struct rose_component {
 	u_int8_t data[0];
 };
 
-#define GET_COMPONENT(component, idx, ptr, length) \
+#if 1
+	#define GET_COMPONENT(component, idx, ptr, length) \
 	if ((idx)+2 > (length)) \
 		break; \
 	(component) = (struct rose_component*)&((ptr)[idx]); \
@@ -154,16 +166,24 @@ struct rose_component {
 		if ((component)->len != ASN1_LEN_INDEF) \
 			pri_message(pri, "Length (%d) of 0x%X component is too long\n", (component)->len, (component)->type); \
 	}
-/*
-	pri_message("XX Got component %d (0x%02X), length %d\n", (component)->type, (component)->type, (component)->len); \
+#else /* Debugging */
+	#define GET_COMPONENT(component, idx, ptr, length) \
+	if ((idx)+2 > (length)) \
+		break; \
+	(component) = (struct rose_component*)&((ptr)[idx]); \
+	if ((idx)+(component)->len+2 > (length)) { \
+		if ((component)->len != 128) \
+			pri_message(pri, "Length (%d) of 0x%X component is too long\n", (component)->len, (component)->type); \
+	} \
+	pri_message(pri, "XX  %s:%d  Got component %d (0x%02X), length %d\n", __FUNCTION__, __LINE__, (component)->type, (component)->type, (component)->len); \
 	if ((component)->len > 0) { \
 		int zzz; \
-		pri_message("XX  Data:"); \
+		pri_message(pri, "XX  Data:"); \
 		for (zzz = 0; zzz < (component)->len; ++zzz) \
-			pri_message(" %02X", (component)->data[zzz]); \
-		pri_message("\n"); \
+			pri_message(pri, " %02X", (component)->data[zzz]); \
+		pri_message(pri, "\n"); \
 	}
-*/
+#endif
 
 #define NEXT_COMPONENT(component, idx) \
 	(idx) += (component)->len + 2
@@ -236,16 +256,16 @@ struct rose_component {
 	} while (0)
 
 /* Decoder for the invoke ROSE component */
-int rose_invoke_decode(struct pri *pri, struct q931_call *call, unsigned char *data, int len);
+int rose_invoke_decode(struct pri *pri, struct q931_call *call, q931_ie *ie, unsigned char *data, int len);
 
 /* Decoder for the return result ROSE component */
-int rose_return_result_decode(struct pri *pri, struct q931_call *call, unsigned char *data, int len);
+int rose_return_result_decode(struct pri *pri, struct q931_call *call, q931_ie *ie, unsigned char *data, int len);
 
 /* Decoder for the return error ROSE component */
-int rose_return_error_decode(struct pri *pri, struct q931_call *call, unsigned char *data, int len);
+int rose_return_error_decode(struct pri *pri, struct q931_call *call, q931_ie *ie, unsigned char *data, int len);
 
 /* Decoder for the reject ROSE component */
-int rose_reject_decode(struct pri *pri, struct q931_call *call, unsigned char *data, int len);
+int rose_reject_decode(struct pri *pri, struct q931_call *call, q931_ie *ie, unsigned char *data, int len);
 
 int asn1_copy_string(char * buf, int buflen, struct rose_component *comp);
 
@@ -265,6 +285,9 @@ int mwi_message_send(struct pri *pri, q931_call *call, struct pri_sr *req, int a
 int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
 
 int rlt_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
+
+/* starts a QSIG Path Replacement */
+extern int anfpr_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
 
 /* Use this function to queue a facility-IE born APDU onto a call
  * call is the call to use, messagetype is any one of the Q931 messages,

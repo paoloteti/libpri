@@ -255,18 +255,10 @@ static char *code2str(int code, struct msgtype *codes, int max)
 
 static void call_init(struct q931_call *c)
 {
-	memset(c, 0, sizeof(*c));
-	c->alive = 0;
-	c->sendhangupack = 0;
 	c->forceinvert = -1;	
 	c->cr = -1;
 	c->slotmap = -1;
 	c->channelno = -1;
-	c->ds1no = 0;
-	c->ds1explicit = 0;
-	c->chanflags = 0;
-	c->next = NULL;
-	c->sentchannel = 0;
 	c->newcall = 1;
 	c->ourcallstate = Q931_CALL_STATE_NULL;
 	c->peercallstate = Q931_CALL_STATE_NULL;
@@ -294,15 +286,22 @@ static FUNC_RECV(receive_channel_id)
  	}
 #endif
 #ifndef NOAUTO_CHANNEL_SELECTION_SUPPORT
-	switch (ie->data[0] & 3) {
-		case 0:
+	if (pri->bri) {
+		if (!(ie->data[0] & 3))
 			call->justsignalling = 1;
-			break;
-		case 1:
-			break;
-		default:
-			pri_error(pri, "!! Unexpected Channel selection %d\n", ie->data[0] & 3);
-			return -1;
+		else
+			call->channelno = ie->data[0] & 3;
+	} else {
+		switch (ie->data[0] & 3) {
+			case 0:
+				call->justsignalling = 1;
+				break;
+			case 1:
+				break;
+			default:
+				pri_error(pri, "!! Unexpected Channel selection %d\n", ie->data[0] & 3);
+				return -1;
+		}
 	}
 #endif
 	if (ie->data[0] & 0x08)
@@ -366,7 +365,11 @@ static FUNC_SEND(transmit_channel_id)
 	/* Start with standard stuff */
 	if (pri->switchtype == PRI_SWITCH_GR303_TMC)
 		ie->data[pos] = 0x69;
-	else
+	else if (pri->bri) {
+		ie->data[pos] = 0x80;
+		if (call->channelno > -1)
+			ie->data[pos] |= (call->channelno & 0x3);
+	} else
 		ie->data[pos] = 0xa1;
 	/* Add exclusive flag if necessary */
 	if (call->chanflags & FLAG_EXCLUSIVE)
@@ -383,6 +386,10 @@ static FUNC_SEND(transmit_channel_id)
 		ie->data[pos++] = 0x80 | call->ds1no;
 	} else
 		pos++;
+
+	if (pri->bri)
+		return pos + 2;
+
 	if ((call->channelno > -1) || (call->slotmap != -1)) {
 		/* We'll have the octet 8.2 and 8.3's present */
 		ie->data[pos++] = 0x83;
@@ -781,7 +788,7 @@ static FUNC_SEND(transmit_bearer_capability)
 		return 0;
 
 	tc = call->transcapability;
-	if (pri->subchannel) {
+	if (pri->subchannel && !pri->bri) {
 		/* Bearer capability is *hard coded* in GR-303 */
 		ie->data[0] = 0x88;
 		ie->data[1] = 0x90;
@@ -1326,7 +1333,7 @@ static FUNC_RECV(receive_facility)
 					state = my_state; \
 					if (pri->debug) \
 						pri_message(pri, "Handle Q.932 %s component\n", name); \
-					(handler)(pri, call, comp->data, comp->len); \
+					(handler)(pri, call, ie, comp->data, comp->len); \
 					break;
 #define Q932_HANDLE_NULL(component, my_state, name, handle) \
 				case component: \
@@ -1421,7 +1428,7 @@ static FUNC_SEND(transmit_progress_indicator)
 {
 	int code, mask;
 	/* Can't send progress indicator on GR-303 -- EVER! */
-	if (pri->subchannel)
+	if (pri->subchannel && !pri->bri)
 		return 0;
 	if (call->progressmask > 0) {
 		if (call->progressmask & (mask = PRI_PROG_CALL_NOT_E2E_ISDN))
@@ -2313,10 +2320,18 @@ static inline void q931_dumpie(struct pri *pri, int codeset, q931_ie *ie, char p
 	pri_error(pri, "!! %c Unknown IE %d (cs%d, len = %d)\n", prefix, Q931_IE_IE(base_ie), Q931_IE_CODESET(base_ie), ielen(ie));
 }
 
-static q931_call *q931_getcall(struct pri *pri, int cr)
+static q931_call *q931_getcall(struct pri *pri, int cr, int outboundnew)
 {
 	q931_call *cur, *prev;
-	cur = *pri->callpool;
+	struct pri *master;
+
+	/* Find the master  - He has the call pool */
+	if (pri->master)
+		master = pri->master;
+	else
+		master = pri;
+	
+	cur = *master->callpool;
 	prev = NULL;
 	while(cur) {
 		if (cur->cr == cr)
@@ -2327,41 +2342,59 @@ static q931_call *q931_getcall(struct pri *pri, int cr)
 	/* No call exists, make a new one */
 	if (pri->debug & PRI_DEBUG_Q931_STATE)
 		pri_message(pri, "-- Making new call for cr %d\n", cr);
-	cur = malloc(sizeof(struct q931_call));
-	if (cur) {
-		call_init(cur);
-		/* Call reference */
-		cur->cr = cr;
+	
+	if (!(cur = calloc(1, sizeof(*cur))))
+		return NULL;
+
+	call_init(cur);
+	/* Call reference */
+	cur->cr = cr;
+	/* PRI is set to whoever called us */
+	if (pri->bri && (pri->localtype == PRI_CPE) && pri->subchannel && outboundnew)
+		cur->pri = pri->subchannel;
+	else
 		cur->pri = pri;
-		/* Append to end of list */
-		if (prev)
-			prev->next = cur;
-		else
-			*pri->callpool = cur;
-	}
+
+	/* Append to end of list */
+	if (prev)
+		prev->next = cur;
+	else
+		*master->callpool = cur;
+	
 	return cur;
 }
 
 q931_call *q931_new_call(struct pri *pri)
 {
 	q931_call *cur;
+
 	do {
 		cur = *pri->callpool;
 		pri->cref++;
-		if (pri->cref > 32767)
-			pri->cref = 1;
+		if (!pri->bri) {
+			if (pri->cref > 32767)
+				pri->cref = 1;
+		} else {
+			if (pri->cref > 127)
+				pri->cref = 1;
+		}
 		while(cur) {
 			if (cur->cr == (0x8000 | pri->cref))
 				break;
 			cur = cur->next;
 		}
 	} while(cur);
-	return q931_getcall(pri, pri->cref | 0x8000);
+
+	return q931_getcall(pri, pri->cref | 0x8000, 1);
 }
 
 static void q931_destroy(struct pri *pri, int cr, q931_call *c)
 {
 	q931_call *cur, *prev;
+
+	/* For destroying, make sure we are using the master span, since it maintains the call pool */
+	for (;pri->master; pri = pri->master);
+
 	prev = NULL;
 	cur = *pri->callpool;
 	while(cur) {
@@ -2526,26 +2559,40 @@ static void init_header(struct pri *pri, q931_call *call, unsigned char *buf, q9
 {
 	/* Returns header and message header and modifies length in place */
 	q931_h *h = (q931_h *)buf;
-	q931_mh * mh = (q931_mh *)(h->contents + 2);
+	q931_mh * mh;
 	h->pd = pri->protodisc;
 	h->x0 = 0;		/* Reserved 0 */
-	h->crlen = 2;	/* Two bytes of Call Reference.  Invert the top bit to make it from our sense */
-	if (call->cr || call->forceinvert) {
-		h->crv[0] = ((call->cr ^ 0x8000) & 0xff00) >> 8;
-		h->crv[1] = (call->cr & 0xff);
+	if (!pri->bri) {
+		h->crlen = 2;	/* Two bytes of Call Reference.  Invert the top bit to make it from our sense */
+		if (call->cr || call->forceinvert) {
+			h->crv[0] = ((call->cr ^ 0x8000) & 0xff00) >> 8;
+			h->crv[1] = (call->cr & 0xff);
+		} else {
+			/* Unless of course this has no call reference */
+			h->crv[0] = 0;
+			h->crv[1] = 0;
+		}
+		if (pri->subchannel && !pri->bri) {
+			/* On GR-303, top bit is always 0 */
+			h->crv[0] &= 0x7f;
+		}
 	} else {
-		/* Unless of course this has no call reference */
-		h->crv[0] = 0;
-		h->crv[1] = 0;
+		h->crlen = 1;
+		if (call->cr || call->forceinvert) {
+			h->crv[0] = (((call->cr ^ 0x8000) & 0x8000) >> 8) | (call->cr & 0x7f);
+		} else {
+			/* Unless of course this has no call reference */
+			h->crv[0] = 0;
+		}
 	}
-	if (pri->subchannel) {
-		/* On GR-303, top bit is always 0 */
-		h->crv[0] &= 0x7f;
-	}
+	mh = (q931_mh *)(h->contents + h->crlen);
 	mh->f = 0;
 	*hb = h;
 	*mhb = mh;
-	*len -= 5;
+	if (h->crlen == 2)
+		*len -= 5;
+	else
+		*len -= 4;
 	
 }
 
@@ -2594,7 +2641,7 @@ static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
 	}
 	/* Invert the logic */
 	len = sizeof(buf) - len;
-	q931_xmit(pri, h, len, 1);
+	q931_xmit(c->pri, h, len, 1);
 	c->acked = 1;
 	return 0;
 }
@@ -2777,6 +2824,7 @@ int q931_setup_ack(struct pri *pri, q931_call *c, int channel, int nonisdn)
 	return send_message(pri, c, Q931_SETUP_ACKNOWLEDGE, connect_ies);
 }
 
+/* T313 expiry, first time */
 static void pri_connect_timeout(void *data)
 {
 	struct q931_call *c = data;
@@ -2787,6 +2835,7 @@ static void pri_connect_timeout(void *data)
 	
 }
 
+/* T308 expiry, first time */
 static void pri_release_timeout(void *data)
 {
 	struct q931_call *c = data;
@@ -2795,9 +2844,12 @@ static void pri_release_timeout(void *data)
 		pri_message(pri, "Timed out looking for release complete\n");
 	c->t308_timedout++;
 	c->alive = 1;
-	q931_release(pri, c, PRI_CAUSE_NORMAL_CLEARING);
+
+	/* The call to q931_release will re-schedule T308 */
+	q931_release(pri, c, c->cause);
 }
 
+/* T308 expiry, second time */
 static void pri_release_finaltimeout(void *data)
 {
 	struct q931_call *c = data;
@@ -2819,6 +2871,7 @@ static void pri_release_finaltimeout(void *data)
 	q931_hangup(pri, c, c->cause);
 }
 
+/* T305 expiry, first time */
 static void pri_disconnect_timeout(void *data)
 {
 	struct q931_call *c = data;
@@ -2855,7 +2908,7 @@ int q931_connect(struct pri *pri, q931_call *c, int channel, int nonisdn)
 	if (c->retranstimer)
 		pri_schedule_del(pri, c->retranstimer);
 	c->retranstimer = 0;
-	if ((c->ourcallstate == Q931_CALL_STATE_CONNECT_REQUEST) && (!pri->subchannel))
+	if ((c->ourcallstate == Q931_CALL_STATE_CONNECT_REQUEST) && (pri->bri || (!pri->subchannel)))
 		c->retranstimer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T313], pri_connect_timeout, c);
 	return send_message(pri, c, Q931_CONNECT, connect_ies);
 }
@@ -2891,7 +2944,7 @@ static int restart_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
 int q931_restart(struct pri *pri, int channel)
 {
 	struct q931_call *c;
-	c = q931_getcall(pri, 0 | 0x8000);
+	c = q931_getcall(pri, 0 | 0x8000, 0);
 	if (!c)
 		return -1;
 	if (!channel)
@@ -2951,7 +3004,7 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 	c->ds1no = (req->channel & 0xff00) >> 8;
 	c->ds1explicit = (req->channel & 0x10000) >> 16;
 	req->channel &= 0xff;
-	if ((pri->localtype == PRI_CPE) && pri->subchannel) {
+	if ((pri->localtype == PRI_CPE) && pri->subchannel && !pri->bri) {
 		req->channel = 0;
 		req->exclusive = 0;
 	}
@@ -3021,7 +3074,7 @@ int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 
 	pri_call_add_standard_apdus(pri, c);
 
-	if (pri->subchannel)
+	if (pri->subchannel && !pri->bri)
 		res = send_message(pri, c, Q931_SETUP, gr303_setup_ies);
 	else if (c->justsignalling)
 		res = send_message(pri, c, Q931_SETUP, cis_setup_ies);
@@ -3065,7 +3118,7 @@ static int gr303_connect_acknowledge_ies[] = { Q931_CHANNEL_IDENT, -1 };
 
 static int q931_connect_acknowledge(struct pri *pri, q931_call *c)
 {
-	if (pri->subchannel) {
+	if (pri->subchannel && !pri->bri) {
 		if (pri->localtype == PRI_CPE)
 			return send_message(pri, c, Q931_CONNECT_ACKNOWLEDGE, gr303_connect_acknowledge_ies);
 	} else
@@ -3199,7 +3252,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		pri_error(pri, "Warning: unknown/inappropriate protocol discriminator received (%02x/%d)\n", h->pd, h->pd);
 		return 0;
 	}
-	c = q931_getcall(pri, q931_cr(h));
+	c = q931_getcall(pri, q931_cr(h), 0);
 	if (!c) {
 		pri_error(pri, "Unable to locate call %d\n", q931_cr(h));
 		return -1;
@@ -3548,6 +3601,8 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		libpri_copy_string(pri->ev.facname.callingname, c->callername, sizeof(pri->ev.facname.callingname));
 		libpri_copy_string(pri->ev.facname.callingnum, c->callernum, sizeof(pri->ev.facname.callingnum));
 		pri->ev.facname.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		pri->ev.facname.callingpres = c->callerpres;
+		pri->ev.facname.callingplan = c->callerplan;
 		pri->ev.facname.cref = c->cr;
 		pri->ev.facname.call = c;
 #if 0
@@ -3626,7 +3681,15 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		    (c->cause != PRI_CAUSE_INTERWORKING)) 
 			pri_error(pri, "Received unsolicited status: %s\n", pri_cause2str(c->cause));
 		/* Workaround for S-12 ver 7.3 - it responds for invalid/non-implemented IEs at SETUP with null call state */
+#if 0
 		if (!c->sugcallstate && (c->ourcallstate != Q931_CALL_STATE_CALL_INITIATED)) {
+#else
+		/* Remove "workaround" since it breaks certification testing.  If we receive a STATUS message of call state
+		 * NULL and we are not in the call state NULL we must clear resources and return to the call state to pass
+		 * testing.  See section 5.8.11 of Q.931 */
+
+		if (!c->sugcallstate) {
+#endif
 			pri->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
 			pri->ev.hangup.cause = c->cause;
 			pri->ev.hangup.cref = c->cr;
