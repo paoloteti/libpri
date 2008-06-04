@@ -421,7 +421,7 @@ static FUNC_DUMP(dump_channel_id)
 	int x;
 	int res = 0;
 	static const char*	msg_chan_sel[] = {
-		"No channel selected", "B1 channel", "B2 channel","Any channel selected" 
+		"No channel selected", "B1 channel", "B2 channel","Any channel selected",  
 		"No channel selected", "As indicated in following octets", "Reserved","Any channel selected"
 	};
 
