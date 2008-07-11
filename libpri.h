@@ -624,6 +624,9 @@ int pri_progress(struct pri *pri, q931_call *c, int channel, int info);
 /* Send call proceeding */
 int pri_proceeding(struct pri *pri, q931_call *c, int channel, int info);
 
+/* Enable inband progress when a RELEASE is received */
+void pri_set_inbandrelease(struct pri *pri, unsigned int enable);
+
 /* Enslave a PRI to another, so they share the same call list
    (and maybe some timers) */
 void pri_enslave(struct pri *master, struct pri *slave);

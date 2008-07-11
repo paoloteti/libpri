@@ -61,10 +61,11 @@ struct pri {
 	int localtype;		/* Local network type (unknown, network, cpe) */
 	int remotetype;		/* Remote network type (unknown, network, cpe) */
 
-	int bri;
 	int sapi;
 	int tei;
 	int protodisc;
+	unsigned int bri:1;
+	unsigned int acceptinbandrelease:1;	/* Should we allow inband progress after RELEASE? */
 	
 	/* Q.921 State */
 	int q921_state;	
