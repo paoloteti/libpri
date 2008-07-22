@@ -65,7 +65,7 @@ struct pri {
 	int tei;
 	int protodisc;
 	unsigned int bri:1;
-	unsigned int acceptinbanddisconnect:1;	/* Should we allow inband progress after RELEASE? */
+	unsigned int acceptinbanddisconnect:1;	/* Should we allow inband progress after DISCONNECT? */
 	
 	/* Q.921 State */
 	int q921_state;	
