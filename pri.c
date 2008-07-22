@@ -782,9 +782,9 @@ void pri_set_overlapdial(struct pri *pri,int state)
 	pri->overlapdial = state;
 }
 
-void pri_set_inbandrelease(struct pri *pri, unsigned int enable)
+void pri_set_inbanddisconnect(struct pri *pri, unsigned int enable)
 {
-	pri->acceptinbandrelease = (enable != 0);
+	pri->acceptinbanddisconnect = (enable != 0);
 }
 
 int pri_fd(struct pri *pri)

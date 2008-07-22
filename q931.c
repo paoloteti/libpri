@@ -3782,7 +3782,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 
 		/* wait for a RELEASE so that sufficient time has passed
 		   for the inband audio to be heard */
-		if (pri->acceptinbandrelease && (c->progressmask & PRI_PROG_INBAND_AVAILABLE))
+		if (pri->acceptinbanddisconnect && (c->progressmask & PRI_PROG_INBAND_AVAILABLE))
 			break;
 
 		/* Return such an event */
