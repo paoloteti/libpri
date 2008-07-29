@@ -64,7 +64,7 @@ elif [ -d .svn ]; then
       fi
     done
 
- 	RESULT="libss7"
+ 	RESULT="libpri"
 
     if [ ${TAG} != 0 ] ; then
 	echo ${RESULT}
