@@ -256,6 +256,8 @@ extern int q931_receive(struct pri *pri, q931_h *h, int len);
 
 extern int q931_alerting(struct pri *pri, q931_call *call, int channel, int info);
 
+extern int q931_call_progress_with_cause(struct pri *pri, q931_call *call, int channel, int info, int cause);
+
 extern int q931_call_progress(struct pri *pri, q931_call *call, int channel, int info);
 
 extern int q931_notify(struct pri *pri, q931_call *call, int channel, int info);

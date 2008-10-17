@@ -41,7 +41,10 @@
 /* Argument values */
 #define ROSE_NAME_PRESENTATION_ALLOWED_SIMPLE	0x80
 #define ROSE_NAME_PRESENTATION_RESTRICTED_NULL	0x87
-#define ROSE_NAME_NOT_AVAIL						0x84
+#define ROSE_NAME_PRESENTATION_ALLOWED_EXTENDED    0xA1
+#define ROSE_NAME_PRESENTATION_RESTRICTED_SIMPLE   0xA2
+#define ROSE_NAME_PRESENTATION_RESTRICTED_EXTENDED 0xA3
+#define ROSE_NAME_NOT_AVAIL			0x84
 
 /* Component types */
 #define COMP_TYPE_INTERPRETATION			0x8B
@@ -306,8 +309,10 @@ int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
 
 int rlt_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
 
+int qsig_cf_callrerouting(struct pri *pri, q931_call *c, const char* dest, const char* original, const char* reason);
+
 /* starts a QSIG Path Replacement */
-extern int anfpr_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
+int anfpr_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
 
 /* Use this function to queue a facility-IE born APDU onto a call
  * call is the call to use, messagetype is any one of the Q931 messages,

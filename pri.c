@@ -483,10 +483,19 @@ int pri_proceeding(struct pri *pri, q931_call *call, int channel, int info)
 	return q931_call_proceeding(pri, call, channel, info);
 }
 
+int pri_progress_with_cause(struct pri *pri, q931_call *call, int channel, int info, int cause)
+{
+	if (!pri || !call)
+		return -1;
+
+	return q931_call_progress_with_cause(pri, call, channel, info, cause);
+}
+
 int pri_progress(struct pri *pri, q931_call *call, int channel, int info)
 {
 	if (!pri || !call)
 		return -1;
+
 	return q931_call_progress(pri, call, channel, info);
 }
 
@@ -503,6 +512,15 @@ int pri_keypad_facility(struct pri *pri, q931_call *call, char *digits)
 		return -1;
 
 	return q931_keypad_facility(pri, call, digits);
+}
+
+
+int pri_callrerouting_facility(struct pri *pri, q931_call *call, const char *dest, const char* original, const char* reason)
+{
+	if (!pri || !call)
+		return -1;
+
+	return qsig_cf_callrerouting(pri, call, dest, original, reason);
 }
 
 int pri_notify(struct pri *pri, q931_call *call, int channel, int info)
@@ -787,6 +805,12 @@ void pri_set_overlapdial(struct pri *pri,int state)
 	pri->overlapdial = state;
 }
 
+void pri_set_chan_mapping_logical(struct pri *pri, int state)
+{
+	if (pri->switchtype == PRI_SWITCH_QSIG)
+		pri->chan_mapping_logical = state;
+}
+
 void pri_set_inbanddisconnect(struct pri *pri, unsigned int enable)
 {
 	pri->acceptinbanddisconnect = (enable != 0);
@@ -830,6 +854,7 @@ char *pri_dump_info_str(struct pri *pri)
 	len += sprintf(buf + len, "Retrans: %d\n", pri->retrans);
 	len += sprintf(buf + len, "Busy: %d\n", pri->busy);
 	len += sprintf(buf + len, "Overlap Dial: %d\n", pri->overlapdial);
+	len += sprintf(buf + len, "Logical Channel Mapping: %d\n", pri->chan_mapping_logical);
 	len += sprintf(buf + len, "T200 Timer: %d\n", pri->timers[PRI_TIMER_T200]);
 	len += sprintf(buf + len, "T203 Timer: %d\n", pri->timers[PRI_TIMER_T203]);
 	len += sprintf(buf + len, "T305 Timer: %d\n", pri->timers[PRI_TIMER_T305]);

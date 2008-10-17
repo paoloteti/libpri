@@ -1186,6 +1186,198 @@ int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
 }
 /* End EECT */
 
+/* QSIG CF CallRerouting */
+int qsig_cf_callrerouting(struct pri *pri, q931_call *c, const char* dest, const char* original, const char* reason)
+{
+/*CallRerouting ::= OPERATION
+    -- Sent from the Served User PINX to the Rerouting PINX
+    ARGUMENT SEQUENCE
+    { reroutingReason DiversionReason,
+    originalReroutingReason [0] IMPLICIT DiversionReason OPTIONAL,
+    calledAddress Address,
+    diversionCounter INTEGER (1..15),
+    pSS1InfoElement PSS1InformationElement,
+    -- The basic call information elements Bearer capability, High layer compatibility, Low
+    -- layer compatibity, Progress indicator and Party category can be embedded in the
+    -- pSS1InfoElement in accordance with 6.5.3.1.5
+    lastReroutingNr [1] PresentedNumberUnscreened,
+    subscriptionOption [2] IMPLICIT SubscriptionOption,
+
+    callingPartySubaddress [3] PartySubaddress OPTIONAL,
+
+    callingNumber [4] PresentedNumberScreened,
+
+    callingName [5] Name OPTIONAL,
+    originalCalledNr [6] PresentedNumberUnscreened OPTIONAL,
+    redirectingName [7] Name OPTIONAL,
+    originalCalledName [8] Name OPTIONAL,
+    extension CHOICE {
+      [9] IMPLICIT Extension ,
+      [10] IMPLICIT SEQUENCE OF Extension } OPTIONAL }
+*/
+
+	int i = 0, j;
+	int res = 0;
+	unsigned char buffer[255] = "";
+	int len = 253;
+	struct rose_component *comp = NULL, *compstk[10];
+	int compsp = 0;
+	static unsigned char op_tag[] = {
+		0x13,
+	};
+
+	buffer[i++] = (ASN1_CONTEXT_SPECIFIC | Q932_PROTOCOL_EXTENSIONS);
+	/* Interpretation component */
+
+	ASN1_ADD_SIMPLE(comp, COMP_TYPE_NFE, buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_0), buffer, i, 0);
+	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2), buffer, i, 0);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+
+	ASN1_ADD_BYTECOMP(comp, COMP_TYPE_INTERPRETATION, buffer, i, 2);    /* reject - to get feedback from QSIG switch */
+
+	ASN1_ADD_SIMPLE(comp, COMP_TYPE_INVOKE, buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+
+	ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, buffer, i, get_invokeid(pri));
+
+	res = asn1_string_encode(ASN1_INTEGER, &buffer[i], sizeof(buffer)-i, sizeof(op_tag), op_tag, sizeof(op_tag));
+	if (res < 0)
+		return -1;
+	i += res;
+
+	/* call rerouting argument */
+	ASN1_ADD_SIMPLE(comp, (ASN1_CONSTRUCTOR | ASN1_SEQUENCE), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+
+	/* reroutingReason DiversionReason */
+
+	if (reason) {
+		if (!strcasecmp(reason, "cfu"))
+			ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, buffer, i, 1); /* cfu */
+		else if (!strcasecmp(reason, "cfb"))
+			 ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, buffer, i, 2); /* cfb */
+		else if (!strcasecmp(reason, "cfnr"))
+			ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, buffer, i, 3); /* cfnr */
+	} else {
+		ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, buffer, i, 0); /* unknown */
+	}
+
+
+	/* calledAddress Address */
+	/* explicit sequence tag for Address */
+	ASN1_ADD_SIMPLE(comp, (ASN1_CONSTRUCTOR | ASN1_SEQUENCE), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	/* implicit choice public party number tag */
+	ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_1), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	/* type of public party number = unknown */
+	ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, buffer, i, 0);
+	/* NumberDigits of public party number */
+	j = asn1_string_encode(ASN1_NUMERICSTRING, &buffer[i], len - i, 20, (char*)dest, strlen(dest));
+	if (j < 0)
+		return -1;
+
+	i += j;
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+
+	/* diversionCounter INTEGER (1..15) */
+	ASN1_ADD_BYTECOMP(comp, ASN1_INTEGER, buffer, i, 1);
+
+	/* pSS1InfoElement */
+	ASN1_ADD_SIMPLE(comp, (ASN1_APPLICATION | ASN1_TAG_0 ), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	buffer[i++] = (0x04); /*  add BC */
+	buffer[i++] = (0x03);
+	buffer[i++] = (0x80);
+	buffer[i++] = (0x90);
+	buffer[i++] = (0xa3);
+	buffer[i++] = (0x95);
+	buffer[i++] = (0x32);
+	buffer[i++] = (0x01);
+	buffer[i++] = (0x81);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+
+	/* lastReroutingNr [1]*/
+	/* implicit optional lastReroutingNr tag */
+	ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_1), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+
+	/* implicit choice presented number unscreened tag */
+	ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_0), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+
+	/* implicit choice public party number  tag */
+	ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_1), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	/* type of public party number = unknown */
+	ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, buffer, i, 0);
+	j = asn1_string_encode(ASN1_NUMERICSTRING, &buffer[i], len - i, 20, original?(char*)original:c->callednum, original?strlen(original):strlen(c->callednum));
+	if (j < 0)
+		return -1;
+
+	i += j;
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+
+	/* subscriptionOption [2]*/
+	/* implicit optional lastReroutingNr tag */
+	ASN1_ADD_BYTECOMP(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_TAG_2), buffer, i, 0);	 /* noNotification */
+
+	/* callingNumber [4]*/
+	/* implicit optional callingNumber tag */
+	ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_4), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+
+	/* implicit choice presented number screened tag */
+	ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_0), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+
+	/* implicit choice presentationAllowedAddress tag */
+	ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_1), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	/* type of public party number = subscriber number */
+	ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, buffer, i, 4);
+	j = asn1_string_encode(ASN1_NUMERICSTRING, &buffer[i], len - i, 20, c->callernum, strlen(c->callernum));
+	if (j < 0)
+		return -1;
+
+	i += j;
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+
+	/* Screeening Indicator network provided */
+	ASN1_ADD_BYTECOMP(comp, ASN1_ENUMERATED, buffer, i, 3);
+
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+
+	/**/
+
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+
+	res = pri_call_apdu_queue(c, Q931_FACILITY, buffer, i, NULL, NULL);
+	if (res) {
+		pri_message(pri, "Could not queue ADPU in facility message\n");
+		return -1;
+	}
+
+	/* Remember that if we queue a facility IE for a facility message we
+	 * have to explicitly send the facility message ourselves */
+
+	res = q931_facility(c->pri, c);
+	if (res) {
+		pri_message(pri, "Could not schedule facility message for call %d\n", c->cr);
+		return -1;
+	}
+
+	return 0;
+}
+/* End QSIG CC-CallRerouting */
+
 static int anfpr_pathreplacement_respond(struct pri *pri, q931_call *call, q931_ie *ie)
 {
 	int res;
@@ -1215,7 +1407,7 @@ static int anfpr_pathreplacement_respond(struct pri *pri, q931_call *call, q931_
 	return 0;
 }
 /* AFN-PR */
-extern int anfpr_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
+int anfpr_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2)
 {
 	/* Did all the tests to see if we're on the same PRI and
 	 * are on a compatible switchtype */
@@ -1548,6 +1740,47 @@ static int aoc_aoce_charging_unit_encode(struct pri *pri, q931_call *c, long cha
 }
 /* End AOC */
 
+static int rose_calling_name_decode(struct pri *pri, q931_call *call, struct rose_component *choice, int len)
+{
+	int i = 0;
+	struct rose_component *comp = NULL;
+	unsigned char *vdata = choice->data;
+	int characterSet = 1;
+	switch (choice->type) {
+		case ROSE_NAME_PRESENTATION_ALLOWED_SIMPLE:
+			memcpy(call->callername, choice->data, choice->len);
+			call->callername[choice->len] = 0;
+			if (pri->debug & PRI_DEBUG_APDU)
+				pri_message(pri, "    Received simple calling name '%s'\n", call->callername);
+			return 0;
+
+		case ROSE_NAME_PRESENTATION_ALLOWED_EXTENDED:
+			do {
+				GET_COMPONENT(comp, i, vdata, len);
+				CHECK_COMPONENT(comp, ASN1_OCTETSTRING, "Don't know what to do if nameData is of type 0x%x\n");
+				memcpy(call->callername, comp->data, comp->len);
+				call->callername[comp->len] = 0;
+				NEXT_COMPONENT(comp, i);
+
+				GET_COMPONENT(comp, i, vdata, len);
+				CHECK_COMPONENT(comp, ASN1_INTEGER, "Don't know what to do if CharacterSet is of type 0x%x\n");
+				ASN1_GET_INTEGER(comp, characterSet);
+			}
+			while (0);
+
+			if (pri->debug & PRI_DEBUG_APDU)
+				pri_message(pri, "    Received extended calling name '%s', characterset %d\n", call->callername, characterSet);
+			return 0;
+		case ROSE_NAME_PRESENTATION_RESTRICTED_SIMPLE:
+		case ROSE_NAME_PRESENTATION_RESTRICTED_EXTENDED:
+		case ROSE_NAME_PRESENTATION_RESTRICTED_NULL:
+		case ROSE_NAME_NOT_AVAIL:
+		default:
+			if (pri->debug & PRI_DEBUG_APDU)
+				pri_message(pri, "Do not handle argument of type 0x%X\n", choice->type);
+			return -1;
+	}
+}
 /* ===== Call Transfer Supplementary Service (ECMA-178) ===== */
 
 static int rose_party_number_decode(struct pri *pri, q931_call *call, unsigned char *data, int len, struct addressingdataelements_presentednumberunscreened *value)
@@ -2158,6 +2391,12 @@ int rose_return_result_decode(struct pri *pri, q931_call *call, q931_ie *ie, uns
 				pri_message(pri, "Could not parse invoke of type 0x%x!\n", invokeidvalue);
 				return -1;
 			}
+		} else if (pri->switchtype == PRI_SWITCH_QSIG) {
+			switch (invokeidvalue) {
+			case 0x13:
+				if (pri->debug & PRI_DEBUG_APDU) pri_message(pri, "Successfully completed QSIG CF callRerouting!\n");
+				return 0;
+			}
 		} else {
 			pri_message(pri, "Unable to handle return result on switchtype %d!\n", pri->switchtype);
 			return -1;
@@ -2209,19 +2448,7 @@ int rose_invoke_decode(struct pri *pri, q931_call *call, q931_ie *ie, unsigned c
 		case SS_CNID_CALLINGNAME:
 			if (pri->debug & PRI_DEBUG_APDU)
 				pri_message(pri, "  Handle Name display operation\n");
-			switch (comp->type) {
-				case ROSE_NAME_PRESENTATION_ALLOWED_SIMPLE:
-					memcpy(call->callername, comp->data, comp->len);
-					call->callername[comp->len] = 0;
-					if (pri->debug & PRI_DEBUG_APDU)
-						pri_message(pri, "    Received caller name '%s'\n", call->callername);
-					return 0;
-				default:
-					if (pri->debug & PRI_DEBUG_APDU)
-						pri_message(pri, "Do not handle argument of type 0x%X\n", comp->type);
-					return -1;
-			}
-			break;
+ 			return rose_calling_name_decode(pri, call, comp, len-i);
 		case ROSE_CALL_TRANSFER_IDENTIFY:
 			if (pri->debug & PRI_DEBUG_APDU)
 				pri_message(pri, "ROSE %i:   CallTransferIdentify - not handled!\n", operation_tag);
@@ -2267,8 +2494,10 @@ int rose_invoke_decode(struct pri *pri, q931_call *call, q931_ie *ie, unsigned c
 			dump_apdu (pri, (u_int8_t *)comp, comp->len + 2);
 			return -1;
 		case ROSE_DIVERTING_LEG_INFORMATION2:
-			if (pri->debug & PRI_DEBUG_APDU)
-				pri_message(pri, "  Handle DivertingLegInformation2\n");
+			if (pri->debug & PRI_DEBUG_APDU) {
+ 				pri_message(pri, "ROSE %i:   Handle CallingName\n", operation_tag);
+ 				dump_apdu (pri, (u_int8_t *)comp, comp->len + 2);
+  			}
 			return rose_diverting_leg_information2_decode(pri, call, comp, len-i);
 		case ROSE_AOC_NO_CHARGING_INFO_AVAILABLE:
 			if (pri->debug & PRI_DEBUG_APDU) {

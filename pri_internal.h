@@ -114,6 +114,9 @@ struct pri {
 	/* do we do overlap dialing */
 	int overlapdial;
 
+	/* do not skip channel 16 */
+	int chan_mapping_logical;
+
 #ifdef LIBPRI_COUNTERS
 	/* q921/q931 packet counters */
 	unsigned int q921_txcount;

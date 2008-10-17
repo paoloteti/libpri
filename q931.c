@@ -345,6 +345,8 @@ static FUNC_RECV(receive_channel_id)
 			pos++;
 			/* Only expect a particular channel */
 			call->channelno = ie->data[pos] & 0x7f;
+			if (pri->chan_mapping_logical && call->channelno > 15)
+				call->channelno++;
 			return 0;
 		}
 	} else
@@ -400,7 +402,10 @@ static FUNC_SEND(transmit_channel_id)
 		ie->data[pos++] = 0x83;
 		if (call->channelno > -1) {
 			/* Channel number specified */
-			ie->data[pos++] = 0x80 | call->channelno;
+			if (pri->chan_mapping_logical && call->channelno > 16)
+				ie->data[pos++] = 0x80 | (call->channelno - 1);
+			else
+				ie->data[pos++] = 0x80 | call->channelno;
 			return pos + 2;
 		}
 		/* We have to send a channel map */
@@ -2731,6 +2736,8 @@ int q931_notify(struct pri *pri, q931_call *c, int channel, int info)
 #ifdef ALERTING_NO_PROGRESS
 static int call_progress_ies[] = { -1 };
 #else
+static int call_progress_with_cause_ies[] = { Q931_PROGRESS_INDICATOR, Q931_CAUSE, -1 };
+
 static int call_progress_ies[] = { Q931_PROGRESS_INDICATOR, -1 };
 #endif
 
@@ -2742,6 +2749,7 @@ int q931_call_progress(struct pri *pri, q931_call *c, int channel, int info)
 		channel &= 0xff;
 		c->channelno = channel;		
 	}
+
 	if (info) {
 		c->progloc = LOC_PRIV_NET_LOCAL_USER;
 		c->progcode = CODE_CCITT;
@@ -2751,8 +2759,36 @@ int q931_call_progress(struct pri *pri, q931_call *c, int channel, int info)
 		pri_error(pri, "XXX Progress message requested but no information is provided\n");
 		c->progressmask = 0;
 	}
+
 	c->alive = 1;
 	return send_message(pri, c, Q931_PROGRESS, call_progress_ies);
+}
+
+int q931_call_progress_with_cause(struct pri *pri, q931_call *c, int channel, int info, int cause)
+{
+	if (channel) { 
+		c->ds1no = (channel & 0xff00) >> 8;
+		c->ds1explicit = (channel & 0x10000) >> 16;
+		channel &= 0xff;
+		c->channelno = channel;		
+	}
+
+	if (info) {
+		c->progloc = LOC_PRIV_NET_LOCAL_USER;
+		c->progcode = CODE_CCITT;
+		c->progressmask = PRI_PROG_INBAND_AVAILABLE;
+	} else {
+		/* PI is mandatory IE for PROGRESS message - Q.931 3.1.8 */
+		pri_error(pri, "XXX Progress message requested but no information is provided\n");
+		c->progressmask = 0;
+	}
+
+	c->cause = cause;
+	c->causecode = CODE_CCITT;
+	c->causeloc = LOC_PRIV_NET_LOCAL_USER;
+
+	c->alive = 1;
+	return send_message(pri, c, Q931_PROGRESS, call_progress_with_cause_ies);
 }
 
 #ifdef ALERTING_NO_PROGRESS

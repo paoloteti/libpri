@@ -615,6 +615,10 @@ void pri_set_error(void (*__pri_error)(struct pri *pri, char *));
 #define PRI_SET_OVERLAPDIAL
 void pri_set_overlapdial(struct pri *pri,int state);
 
+/* QSIG logical channel mapping option, do not skip channel 16 */
+#define PRI_SET_CHAN_MAPPING_LOGICAL
+void pri_set_chan_mapping_logical(struct pri *pri, int state);
+
 #define PRI_DUMP_INFO_STR
 char *pri_dump_info_str(struct pri *pri);
 
@@ -622,8 +626,11 @@ char *pri_dump_info_str(struct pri *pri);
 int pri_fd(struct pri *pri);
 
 #define PRI_PROGRESS
-/* Send call proceeding */
+/* Send progress */
 int pri_progress(struct pri *pri, q931_call *c, int channel, int info);
+
+/* Send progress with cause IE */
+int pri_progress_with_cause(struct pri *pri, q931_call *c, int channel, int info, int cause);
 
 #define PRI_PROCEEDING_FULL
 /* Send call proceeding */
@@ -646,6 +653,8 @@ void pri_enslave(struct pri *master, struct pri *slave);
 
 /* Send notification */
 int pri_notify(struct pri *pri, q931_call *c, int channel, int info);
+
+int pri_callrerouting_facility(struct pri *pri, q931_call *call, const char *dest, const char* original, const char* reason);
 
 /* Get/Set PRI Timers  */
 #define PRI_GETSET_TIMERS
