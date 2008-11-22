@@ -56,6 +56,7 @@
 } while(0)
 
 static void reschedule_t203(struct pri *pri);
+static void reschedule_t200(struct pri *pri);
 static void q921_restart(struct pri *pri, int now);
 static void q921_tei_release_and_reacquire(struct pri *master);
 
@@ -97,7 +98,6 @@ static int q921_transmit(struct pri *pri, q921_h *h, int len)
 		pri_error(pri, "Short write: %d/%d (%s)\n", res, len + 2, strerror(errno));
 		return -1;
 	}
-	reschedule_t203(pri);
 	return 0;
 }
 
@@ -238,21 +238,6 @@ static int q921_ack_packet(struct pri *pri, int num)
 			pri->retrans = 0;
 			/* Decrement window size */
 			pri->windowlen--;
-			/* Search for something to send */
-			f = pri->txqueue;
-			while(f) {
-				if (!f->transmitted) {
-					/* Send it now... */
-					if (pri->debug & PRI_DEBUG_Q921_DUMP)
-						pri_message(pri, "-- Finally transmitting %d, since window opened up\n", f->h.n_s);
-					f->transmitted++;
-					pri->windowlen++;
-					f->h.n_r = pri->v_r;
-					q921_transmit(pri, (q921_h *)(&f->h), f->len);
-					break;
-				}
-				f = f->next;
-			}
 			return 1;
 		}
 		prev = f;
@@ -265,22 +250,30 @@ static void t203_expire(void *);
 static void t200_expire(void *);
 static pri_event *q921_dchannel_down(struct pri *pri);
 
-static void reschedule_t203(struct pri *pri)
+static void reschedule_t200(struct pri *pri)
 {
-	if (pri->t203_timer) {
-		pri_schedule_del(pri, pri->t203_timer);
-		if (pri->debug & PRI_DEBUG_Q921_DUMP)
-			pri_message(pri, "-- Restarting T203 counter\n");
-		/* Nothing to transmit, start the T203 counter instead */
-		pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
-	}
+	if (pri->debug & PRI_DEBUG_Q921_DUMP)
+		pri_message(pri, "-- Restarting T200 timer\n");
+	if (pri->t200_timer)
+		pri_schedule_del(pri, pri->t200_timer);
+	pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
 }
 
-static pri_event *q921_ack_rx(struct pri *pri, int ack)
+static void reschedule_t203(struct pri *pri)
+{
+	if (pri->debug & PRI_DEBUG_Q921_DUMP)
+		pri_message(pri, "-- Restarting T203 timer\n");
+	if (pri->t203_timer) 
+		pri_schedule_del(pri, pri->t203_timer);
+	pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
+}
+
+static pri_event *q921_ack_rx(struct pri *pri, int ack, int send_untransmitted_frames)
 {
 	int x;
 	int cnt=0;
 	pri_event *ev;
+	struct q921_frame *f;
 	/* Make sure the ACK was within our window */
 	for (x=pri->v_a; (x != pri->v_s) && (x != ack); Q921_INC(x));
 	if (x != ack) {
@@ -300,8 +293,10 @@ static pri_event *q921_ack_rx(struct pri *pri, int ack)
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
 			pri_message(pri, "-- Since there was nothing left, stopping T200 counter\n");
 		/* Something was ACK'd.  Stop T200 counter */
-		pri_schedule_del(pri, pri->t200_timer);
-		pri->t200_timer = 0;
+		if (pri->t200_timer) {
+			pri_schedule_del(pri, pri->t200_timer);
+			pri->t200_timer = 0;
+		}
 	}
 	if (pri->t203_timer) {
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
@@ -311,10 +306,27 @@ static pri_event *q921_ack_rx(struct pri *pri, int ack)
 	}
 	if (pri->txqueue) {
 		/* Something left to transmit, Start the T200 counter again if we stopped it */
+		if (!pri->busy && send_untransmitted_frames) {
+			pri->retrans = 0;
+			/* Search for something to send */
+			f = pri->txqueue;
+			while(f && (pri->windowlen < pri->window)) {
+				if (!f->transmitted) {
+					/* Send it now... */
+					if (pri->debug & PRI_DEBUG_Q921_DUMP)
+						pri_message(pri, "-- Finally transmitting %d, since window opened up (%d)\n", f->h.n_s, pri->windowlen);
+					f->transmitted++;
+					pri->windowlen++;
+					f->h.n_r = pri->v_r;
+					f->h.p_f = 0;
+					q921_transmit(pri, (q921_h *)(&f->h), f->len);
+				}
+				f = f->next;
+			}
+		}
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
-			pri_message(pri, "-- Something left to transmit (%d), restarting T200 counter\n", pri->txqueue->h.n_s);
-		if (!pri->t200_timer)
-			pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
+			pri_message(pri, "-- Waiting for acknowledge, restarting T200 counter\n");		
+		reschedule_t200(pri);
 	} else {
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
 			pri_message(pri, "-- Nothing left, starting T203 counter\n");
@@ -384,20 +396,16 @@ static void q921_rr(struct pri *pri, int pbit, int cmd) {
 static void t200_expire(void *vpri)
 {
 	struct pri *pri = vpri;
+	q921_frame *f, *lastframe=NULL;
 
 	if (pri->txqueue) {
 		/* Retransmit first packet in the queue, setting the poll bit */
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
 			pri_message(pri, "-- T200 counter expired, What to do...\n");
-		/* Force Poll bit */
-		pri->txqueue->h.p_f = 1;	
-		/* Update nr */
-		pri->txqueue->h.n_r = pri->v_r;
-		pri->v_na = pri->v_r;
 		pri->solicitfbit = 1;
-		pri->retrans++;
 		/* Up to three retransmissions */
 		if (pri->retrans < pri->timers[PRI_TIMER_N200]) {
+			pri->retrans++;
 			/* Reschedule t200_timer */
 			if (pri->debug & PRI_DEBUG_Q921_DUMP)
 				pri_message(pri, "-- Retransmitting %d bytes\n", pri->txqueue->len);
@@ -406,7 +414,19 @@ static void t200_expire(void *vpri)
 			else {
 				if (!pri->txqueue->transmitted) 
 					pri_error(pri, "!! Not good - head of queue has not been transmitted yet\n");
-				q921_transmit(pri, (q921_h *)&pri->txqueue->h, pri->txqueue->len);
+				/*Actually we need to retransmit the last transmitted packet, setting the poll bit */
+				for (f=pri->txqueue; f; f = f->next) {
+					if (f->transmitted)
+						lastframe = f;
+				}
+				if (lastframe) {
+					/* Force Poll bit */
+					lastframe->h.p_f = 1;
+					/* Update nr */
+					lastframe->h.n_r = pri->v_r;
+					pri->v_na = pri->v_r;
+					q921_transmit(pri, (q921_h *)&lastframe->h, lastframe->len);
+				}
 			}
 			if (pri->debug & PRI_DEBUG_Q921_DUMP)
 			      pri_message(pri, "-- Rescheduling retransmission (%d)\n", pri->retrans);
@@ -425,8 +445,8 @@ static void t200_expire(void *vpri)
 	} else if (pri->solicitfbit) {
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
 			pri_message(pri, "-- Retrying poll with f-bit\n");
-		pri->retrans++;
 		if (pri->retrans < pri->timers[PRI_TIMER_N200]) {
+			pri->retrans++;
 			pri->solicitfbit = 1;
 			q921_rr(pri, 1, 1);
 			pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
@@ -507,14 +527,9 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 			pri_schedule_del(pri, pri->t203_timer);
 			pri->t203_timer = 0;
 		}
-		if (!pri->t200_timer) {
-			if (pri->debug & PRI_DEBUG_Q921_DUMP)
-				pri_message(pri, "Starting T_200 timer\n");
-			pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
-		} else
-			if (pri->debug & PRI_DEBUG_Q921_DUMP)
-				pri_message(pri, "T_200 timer already going (%d)\n", pri->t200_timer);
-		
+		if (pri->debug & PRI_DEBUG_Q921_DUMP)
+			pri_message(pri, "Starting T_200 timer\n");
+		reschedule_t200(pri);		
 	} else {
 		pri_error(pri, "!! Out of memory for Q.921 transmit\n");
 		return -1;
@@ -540,25 +555,26 @@ static void t203_expire(void *vpri)
 		pri->t203_timer = 0;
 	}
 }
-
 static pri_event *q921_handle_iframe(struct pri *pri, q921_i *i, int len)
 {
 	int res;
 	pri_event *ev;
+
+	pri->solicitfbit = 0;
 	/* Make sure this is a valid packet */
 	if (i->n_s == pri->v_r) {
 		/* Increment next expected I-frame */
 		Q921_INC(pri->v_r);
 		/* Handle their ACK */
 		pri->sentrej = 0;
-		ev = q921_ack_rx(pri, i->n_r);
+		ev = q921_ack_rx(pri, i->n_r, 0);
 		if (ev)
 			return ev;
 		if (i->p_f) {
 			/* If the Poll/Final bit is set, immediate send the RR */
 			q921_rr(pri, 1, 0);
-		} else if (pri->busy) {
-			q921_rr(pri, 0, 0);
+		} else if (pri->busy || pri->retrans) {
+			q921_rr(pri, 0, 0); 
 		}
 		/* Receive Q.931 data */
 		res = q931_receive(pri, (q931_h *)i->data, len - 4);
@@ -883,6 +899,18 @@ static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
 	return NULL;	/* Do we need to return something??? */
 }
 
+static int is_command(struct pri *pri, q921_h *h)
+{
+	int	command =0;
+	int c_r = h->s.h.c_r;
+
+	if ((pri->localtype == PRI_NETWORK && c_r == 0) ||
+		(pri->localtype == PRI_CPE && c_r == 1))
+		command = 1;
+
+	return( command );
+}
+
 static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 {
 	q921_frame *f;
@@ -917,74 +945,98 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 			/* Receiver Ready */
 			pri->busy = 0;
 			/* Acknowledge frames as necessary */
-			ev = q921_ack_rx(pri, h->s.n_r);
+			ev = q921_ack_rx(pri, h->s.n_r, 1);
 			if (ev)
 				return ev;
+			if (is_command(pri, h))
+				pri->solicitfbit = 0;
 			if (h->s.p_f) {
 				/* If it's a p/f one then send back a RR in return with the p/f bit set */
-				if (pri->solicitfbit) {
+				if (!is_command(pri, h)) {
 					if (pri->debug & PRI_DEBUG_Q921_DUMP)
 						pri_message(pri, "-- Got RR response to our frame\n");
+					pri->retrans = 0;
 				} else {
 					if (pri->debug & PRI_DEBUG_Q921_DUMP)
 						pri_message(pri, "-- Unsolicited RR with P/F bit, responding\n");
 						q921_rr(pri, 1, 0);
 				}
-				pri->solicitfbit = 0;
 			}
 			break;
  		case 1:
  			/* Receiver not ready */
  			if (pri->debug & PRI_DEBUG_Q921_STATE)
  				pri_message(pri, "-- Got receiver not ready\n");
- 			if(h->s.p_f) {
- 				/* Send RR if poll bit set */
- 				q921_rr(pri, h->s.p_f, 0);
- 			}
  			pri->busy = 1;
+			ev = q921_ack_rx(pri, h->s.n_r, 0);
+			if (ev)
+				return ev;
+			if (h->s.p_f && is_command(pri, h))
+				q921_rr(pri, 1, 0);
+			pri->solicitfbit = 1;
+			pri->retrans = 0;
+			if (pri->t203_timer) {
+				if (pri->debug & PRI_DEBUG_Q921_DUMP)
+					pri_message(pri, "Stopping T_203 timer\n");
+				pri_schedule_del(pri, pri->t203_timer);
+				pri->t203_timer = 0;
+			}
+			if (pri->debug & PRI_DEBUG_Q921_DUMP)
+				pri_message(pri, "Restarting T_200 timer\n");
+			reschedule_t200(pri);			
  			break;   
  		case 2:
  			/* Just retransmit */
  			if (pri->debug & PRI_DEBUG_Q921_STATE)
  				pri_message(pri, "-- Got reject requesting packet %d...  Retransmitting.\n", h->s.n_r);
- 			if (h->s.p_f) {
- 				/* If it has the poll bit set, send an appropriate supervisory response */
- 				q921_rr(pri, 1, 0);
- 			}
- 			sendnow = 0;
- 			/* Resend the proper I-frame */
- 			for(f=pri->txqueue;f;f=f->next) {
- 				if ((sendnow || (f->h.n_s == h->s.n_r)) && f->transmitted) {
- 					/* Matches the request, or follows in our window, and has
- 					   already been transmitted. */
- 					sendnow = 1;
- 					pri_error(pri, "!! Got reject for frame %d, retransmitting frame %d now, updating n_r!\n", h->s.n_r, f->h.n_s);
- 					f->h.n_r = pri->v_r;
- 					q921_transmit(pri, (q921_h *)(&f->h), f->len);
- 				}
- 			}
- 			if (!sendnow) {
- 				if (pri->txqueue) {
- 					/* This should never happen */
- 					if (!h->s.p_f || h->s.n_r) {
- 						pri_error(pri, "!! Got reject for frame %d, but we only have others!\n", h->s.n_r);
- 					}
- 				} else {
- 					/* Hrm, we have nothing to send, but have been REJ'd.  Reset v_a, v_s, etc */
- 					pri_error(pri, "!! Got reject for frame %d, but we have nothing -- resetting!\n", h->s.n_r);
- 					pri->v_a = h->s.n_r;
- 					pri->v_s = h->s.n_r;
- 					/* Reset t200 timer if it was somehow going */
- 					if (pri->t200_timer) {
- 						pri_schedule_del(pri, pri->t200_timer);
- 						pri->t200_timer = 0;
- 					}
- 					/* Reset and restart t203 timer */
- 					if (pri->t203_timer)
- 						pri_schedule_del(pri, pri->t203_timer);
- 					pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
- 				}
- 			}
+			if (pri->busy && !is_command(pri, h))
+				pri->solicitfbit = 0;
+			pri->busy = 0;
+			if (is_command(pri, h) && h->s.p_f)
+					q921_rr(pri, 1, 0);
+			q921_ack_rx(pri, h->s.n_r, 0);
+			/*Resend only if we are in the Multiple Frame Established state or when
+			  we are in the Time Recovery state and received responce with bit F=1*/
+			if ((pri->solicitfbit == 0) || (pri->solicitfbit && !is_command(pri, h) && h->s.p_f)) {
+				pri->solicitfbit = 0;
+				pri->retrans = 0;
+				sendnow = 0;
+				/* Resend I-frames starting from frame where f->h.n_s == h->s.n_r */
+				for (f = pri->txqueue; f && (f->h.n_s != h->s.n_r); f = f->next);
+				while (f) {
+					sendnow = 1;
+					if (f->transmitted || (!f->transmitted && (pri->windowlen < pri->window))) {
+			 			if (pri->debug & PRI_DEBUG_Q921_STATE)
+							pri_error(pri, "!! Got reject for frame %d, retransmitting frame %d now, updating n_r!\n", h->s.n_r, f->h.n_s);
+						f->h.n_r = pri->v_r;
+						f->h.p_f = 0;
+						if (!f->transmitted && (pri->windowlen < pri->window))
+							pri->windowlen++;
+						q921_transmit(pri, (q921_h *)(&f->h), f->len);
+					}
+					f = f->next; 
+				} 
+				if (!sendnow) {
+					if (pri->txqueue) {
+						/* This should never happen */
+						if (!h->s.p_f || h->s.n_r) {
+							pri_error(pri, "!! Got reject for frame %d, but we only have others!\n", h->s.n_r);
+						}
+					} else {
+						/* Hrm, we have nothing to send, but have been REJ'd.  Reset v_a, v_s, etc */
+						pri_error(pri, "!! Got reject for frame %d, but we have nothing -- resetting!\n", h->s.n_r);
+						pri->v_a = h->s.n_r;
+						pri->v_s = h->s.n_r;
+					}
+				}
+				/* Reset t200 timer if it was somehow going */
+				if (pri->t200_timer) {
+					pri_schedule_del(pri, pri->t200_timer);
+					pri->t200_timer = 0;
+				}
+				/* Reset and restart t203 timer */
+				reschedule_t203(pri);
+			}
  			break;
 		default:
 			pri_error(pri, "!! XXX Unknown Supervisory frame ss=0x%02x,pf=%02xnr=%02x vs=%02x, va=%02x XXX\n", h->s.ss, h->s.p_f, h->s.n_r,
