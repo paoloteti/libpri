@@ -2985,7 +2985,7 @@ static int restart_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
 int q931_restart(struct pri *pri, int channel)
 {
 	struct q931_call *c;
-	c = q931_getcall(pri, 0 | 0x8000, 0);
+	c = q931_getcall(pri, 0 | 0x8000, 1);
 	if (!c)
 		return -1;
 	if (!channel)

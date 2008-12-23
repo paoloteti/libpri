@@ -638,6 +638,7 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
     	direction_tag,
 	h->h.tei,
 	h->h.ea2);
+
 	switch (h->h.data[0] & Q921_FRAMETYPE_MASK) {
 	case 0:
 	case 2:
@@ -728,6 +729,44 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 	len - 3);
 		break;
 	};
+
+	if ((h->u.ft == 3) && (h->u.m3 == 0) && (h->u.m2 == 0) && (h->u.data[0] == 0x0f)) {
+		int ri;
+		int tei;
+
+		ri = (h->u.data[1] << 8) | h->u.data[2];
+		tei = (h->u.data[4] >> 1);
+		/* TEI assignment related */
+		switch (h->u.data[3]) {
+		case Q921_TEI_IDENTITY_REQUEST:
+			type = "TEI Identity Request";
+			break;
+		case Q921_TEI_IDENTITY_ASSIGNED:
+			type = "TEI Identity Assigned";
+			break;
+		case Q921_TEI_IDENTITY_CHECK_REQUEST:
+			type = "TEI Identity Check Request";
+			break;
+		case Q921_TEI_IDENTITY_REMOVE:
+			type = "TEI Identity Remove";
+			break;
+		case Q921_TEI_IDENTITY_DENIED:
+			type = "TEI Identity Denied";
+			break;
+		case Q921_TEI_IDENTITY_CHECK_RESPONSE:
+			type = "TEI Identity Check Response";
+			break;
+		case Q921_TEI_IDENTITY_VERIFY:
+			type = "TEI Identity Verify";
+			break;
+		default:
+			type = "Unknown";
+			break;
+		}
+		pri_message(pri, "%c MDL Message: %s (%d)\n", direction_tag, type, h->u.data[3]);
+		pri_message(pri, "%c RI: %d\n", direction_tag, ri);
+		pri_message(pri, "%c Ai: %d E:%d\n", direction_tag, (h->u.data[4] >> 1) & 0x7f, h->u.data[4] & 1);
+	}
 }
 
 static pri_event *q921_dchannel_up(struct pri *pri)
