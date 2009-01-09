@@ -438,9 +438,14 @@ static void t200_expire(void *vpri)
 			     pri_message(pri, DBGHEAD "q921_state now is Q921_LINK_CONNECTION_RELEASED\n",DBGINFO);
 			pri->q921_state = Q921_LINK_CONNECTION_RELEASED;
 			     pri->t200_timer = 0;
-			q921_dchannel_down(pri);
-			q921_start(pri, 1);
-			pri->schedev = 1;
+			if (pri->bri && pri->master) {
+				q921_tei_release_and_reacquire(pri->master);
+				return;
+			} else {
+				q921_dchannel_down(pri);
+				q921_start(pri, 1);
+				pri->schedev = 1;
+			}
 		}
 	} else if (pri->solicitfbit) {
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
