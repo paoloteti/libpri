@@ -268,12 +268,31 @@ static void reschedule_t203(struct pri *pri)
 	pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
 }
 
+static void q921_send_queued_iframes(struct pri *pri)
+{
+	struct q921_frame *f;
+
+	f = pri->txqueue;
+	while(f && (pri->windowlen < pri->window)) {
+		if (!f->transmitted) {
+			/* Send it now... */
+			if (pri->debug & PRI_DEBUG_Q921_DUMP)
+				pri_message(pri, "-- Finally transmitting %d, since window opened up (%d)\n", f->h.n_s, pri->windowlen);
+			f->transmitted++;
+			pri->windowlen++;
+			f->h.n_r = pri->v_r;
+			f->h.p_f = 0;
+			q921_transmit(pri, (q921_h *)(&f->h), f->len);
+		}
+		f = f->next;
+	}
+}
+
 static pri_event *q921_ack_rx(struct pri *pri, int ack, int send_untransmitted_frames)
 {
 	int x;
 	int cnt=0;
 	pri_event *ev;
-	struct q921_frame *f;
 	/* Make sure the ACK was within our window */
 	for (x=pri->v_a; (x != pri->v_s) && (x != ack); Q921_INC(x));
 	if (x != ack) {
@@ -309,20 +328,7 @@ static pri_event *q921_ack_rx(struct pri *pri, int ack, int send_untransmitted_f
 		if (!pri->busy && send_untransmitted_frames) {
 			pri->retrans = 0;
 			/* Search for something to send */
-			f = pri->txqueue;
-			while(f && (pri->windowlen < pri->window)) {
-				if (!f->transmitted) {
-					/* Send it now... */
-					if (pri->debug & PRI_DEBUG_Q921_DUMP)
-						pri_message(pri, "-- Finally transmitting %d, since window opened up (%d)\n", f->h.n_s, pri->windowlen);
-					f->transmitted++;
-					pri->windowlen++;
-					f->h.n_r = pri->v_r;
-					f->h.p_f = 0;
-					q921_transmit(pri, (q921_h *)(&f->h), f->len);
-				}
-				f = f->next;
-			}
+			q921_send_queued_iframes(pri);
 		}
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
 			pri_message(pri, "-- Waiting for acknowledge, restarting T200 counter\n");		
@@ -515,7 +521,7 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 			pri->txqueue = f;
 		/* Immediately transmit unless we're in a recovery state, or the window
 		   size is too big */
-		if (!pri->retrans && !pri->busy) {
+		if ((pri->q921_state != Q921_LINK_CONNECTION_ESTABLISHED) || (!pri->retrans && !pri->busy)) {
 			if (pri->windowlen < pri->window) {
 				pri->windowlen++;
 				q921_transmit(pri, (q921_h *)(&f->h), f->len);
@@ -534,7 +540,9 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 		}
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
 			pri_message(pri, "Starting T_200 timer\n");
-		reschedule_t200(pri);		
+		/* Check this so that we don't try to send frames while multi frame mode is down */
+		if (pri->q921_state == Q921_LINK_CONNECTION_ESTABLISHED)
+			reschedule_t200(pri);		
 	} else {
 		pri_error(pri, "!! Out of memory for Q.921 transmit\n");
 		return -1;
@@ -798,6 +806,8 @@ static pri_event *q921_dchannel_up(struct pri *pri)
 	
 	/* Notify Layer 3 */
 	q931_dl_indication(pri, PRI_EVENT_DCHAN_UP);
+
+	q921_send_queued_iframes(pri);
 
 	/* Report event that D-Channel is now up */
 	pri->ev.gen.e = PRI_EVENT_DCHAN_UP;
