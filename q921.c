@@ -521,7 +521,7 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 			pri->txqueue = f;
 		/* Immediately transmit unless we're in a recovery state, or the window
 		   size is too big */
-		if ((pri->q921_state != Q921_LINK_CONNECTION_ESTABLISHED) || (!pri->retrans && !pri->busy)) {
+		if ((pri->q921_state == Q921_LINK_CONNECTION_ESTABLISHED) && (!pri->retrans && !pri->busy)) {
 			if (pri->windowlen < pri->window) {
 				pri->windowlen++;
 				q921_transmit(pri, (q921_h *)(&f->h), f->len);
@@ -538,11 +538,14 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 			pri_schedule_del(pri, pri->t203_timer);
 			pri->t203_timer = 0;
 		}
-		if (pri->debug & PRI_DEBUG_Q921_DUMP)
-			pri_message(pri, "Starting T_200 timer\n");
+
 		/* Check this so that we don't try to send frames while multi frame mode is down */
-		if (pri->q921_state == Q921_LINK_CONNECTION_ESTABLISHED)
+		if (pri->q921_state == Q921_LINK_CONNECTION_ESTABLISHED) {
+			if (pri->debug & PRI_DEBUG_Q921_DUMP)
+				pri_message(pri, "Starting T_200 timer\n");
+
 			reschedule_t200(pri);		
+		}
 	} else {
 		pri_error(pri, "!! Out of memory for Q.921 transmit\n");
 		return -1;
@@ -784,9 +787,6 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 
 static pri_event *q921_dchannel_up(struct pri *pri)
 {
-	/* Reset counters, etc */
-	q921_reset(pri);
-	
 	/* Stop any SABME retransmissions */
 	if (pri->sabme_timer) {
 		pri_schedule_del(pri, pri->sabme_timer);
