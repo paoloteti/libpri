@@ -595,7 +595,7 @@ int pri_setup(struct pri *pri, q931_call *call, struct pri_sr *req);
 /* Set a call has a call indpendent signalling connection (i.e. no bchan) */
 int pri_sr_set_connection_call_independent(struct pri_sr *req);
 
-/* Send an MWI indication to a remote location.  If activate is non zero, activates, if zero, decativates */
+/* Send an MWI indication to a remote location.  If activate is non zero, activates, if zero, deactivates */
 int pri_mwi_activate(struct pri *pri, q931_call *c, char *caller, int callerplan, char *callername, int callerpres, char *called, int calledplan);
 
 /* Send an MWI deactivate request to a remote location */
