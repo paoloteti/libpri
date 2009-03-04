@@ -825,6 +825,12 @@ static FUNC_SEND(transmit_bearer_capability)
 		/* Apparently EuroISDN switches don't seem to like user layer 2/3 */
 		return 4;
 	}
+
+	if ((tc & PRI_TRANS_CAP_DIGITAL) && (call->transmoderate == TRANS_MODE_64_CIRCUIT)) {
+		/* Unrestricted digital 64k data calls don't use user layer 2/3 */
+		return 4;
+	}
+
 	if (call->transmoderate != TRANS_MODE_PACKET) {
 		/* If you have an AT&T 4ESS, you don't send any more info */
 		if ((pri->switchtype != PRI_SWITCH_ATT4ESS) && (call->userl1 > -1)) {
