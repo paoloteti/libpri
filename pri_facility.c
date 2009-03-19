@@ -1289,15 +1289,15 @@ int qsig_cf_callrerouting(struct pri *pri, q931_call *c, const char* dest, const
 	/* pSS1InfoElement */
 	ASN1_ADD_SIMPLE(comp, (ASN1_APPLICATION | ASN1_TAG_0 ), buffer, i);
 	ASN1_PUSH(compstk, compsp, comp);
-	buffer[i++] = (0x04); /*  add BC */
-	buffer[i++] = (0x03);
-	buffer[i++] = (0x80);
-	buffer[i++] = (0x90);
-	buffer[i++] = (0xa3);
-	buffer[i++] = (0x95);
-	buffer[i++] = (0x32);
-	buffer[i++] = (0x01);
-	buffer[i++] = (0x81);
+	buffer[i++] = (0x04);	/* Bearer Capability IE */
+	buffer[i++] = (0x03);	/* len */
+	buffer[i++] = (0x80);	/* ETSI Standard, Speech */
+	buffer[i++] = (0x90);	/* circuit mode, 64kbit/s */
+	buffer[i++] = (0xa3);	/* level1 protocol, a-law */
+	buffer[i++] = (0x95);	/* locking shift to codeset 5 (national use) */
+	buffer[i++] = (0x32);	/* Unknown ie */
+	buffer[i++] = (0x01);	/* Unknown ie len */
+	buffer[i++] = (0x81);	/* Unknown ie body */
 	ASN1_FIXUP(compstk, compsp, buffer, i);
 
 	/* lastReroutingNr [1]*/
