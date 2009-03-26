@@ -64,23 +64,23 @@
 
 /* PRI D-Channel Events */
 #define PRI_EVENT_DCHAN_UP		 1	/* D-channel is up */
-#define PRI_EVENT_DCHAN_DOWN 	 2	/* D-channel is down */
+#define PRI_EVENT_DCHAN_DOWN	 2	/* D-channel is down */
 #define PRI_EVENT_RESTART		 3	/* B-channel is restarted */
 #define PRI_EVENT_CONFIG_ERR 	 4	/* Configuration Error Detected */
-#define PRI_EVENT_RING			 5	/* Incoming call */
-#define PRI_EVENT_HANGUP		 6	/* Call got hung up */
-#define PRI_EVENT_RINGING		 7	/* Call is ringing (alerting) */
-#define PRI_EVENT_ANSWER		 8	/* Call has been answered */
+#define PRI_EVENT_RING			 5	/* Incoming call (SETUP) */
+#define PRI_EVENT_HANGUP		 6	/* Call got hung up (RELEASE/RELEASE_COMPLETE/other) */
+#define PRI_EVENT_RINGING		 7	/* Call is ringing (ALERTING) */
+#define PRI_EVENT_ANSWER		 8	/* Call has been answered (CONNECT) */
 #define PRI_EVENT_HANGUP_ACK	 9	/* Call hangup has been acknowledged */
-#define PRI_EVENT_RESTART_ACK	10	/* Restart complete on a given channel */
+#define PRI_EVENT_RESTART_ACK	10	/* Restart complete on a given channel (RESTART_ACKNOWLEDGE) */
 #define PRI_EVENT_FACNAME		11	/* Caller*ID Name received on Facility */
-#define PRI_EVENT_INFO_RECEIVED 12	/* Additional info (keypad) received */
-#define PRI_EVENT_PROCEEDING	13	/* When we get CALL_PROCEEDING or PROGRESS */
+#define PRI_EVENT_INFO_RECEIVED 12	/* Additional info (digits) received (INFORMATION) */
+#define PRI_EVENT_PROCEEDING	13	/* When we get CALL_PROCEEDING */
 #define PRI_EVENT_SETUP_ACK		14	/* When we get SETUP_ACKNOWLEDGE */
-#define PRI_EVENT_HANGUP_REQ	15	/* Requesting the higher layer to hangup */
-#define PRI_EVENT_NOTIFY		16	/* Notification received */
-#define PRI_EVENT_PROGRESS		17	/* When we get CALL_PROCEEDING or PROGRESS */
-#define PRI_EVENT_KEYPAD_DIGIT		18	/* When we receive during ACTIVE state */
+#define PRI_EVENT_HANGUP_REQ	15	/* Requesting the higher layer to hangup (DISCONNECT) */
+#define PRI_EVENT_NOTIFY		16	/* Notification received (NOTIFY) */
+#define PRI_EVENT_PROGRESS		17	/* When we get PROGRESS */
+#define PRI_EVENT_KEYPAD_DIGIT	18	/* When we receive during ACTIVE state (INFORMATION) */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
