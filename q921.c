@@ -248,7 +248,6 @@ static int q921_ack_packet(struct pri *pri, int num)
 
 static void t203_expire(void *);
 static void t200_expire(void *);
-static pri_event *q921_dchannel_down(struct pri *pri);
 
 static void reschedule_t200(struct pri *pri)
 {
@@ -785,7 +784,7 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 	}
 }
 
-static pri_event *q921_dchannel_up(struct pri *pri)
+pri_event *q921_dchannel_up(struct pri *pri)
 {
 	/* Stop any SABME retransmissions */
 	if (pri->sabme_timer) {
@@ -814,7 +813,7 @@ static pri_event *q921_dchannel_up(struct pri *pri)
 	return &pri->ev;
 }
 
-static pri_event *q921_dchannel_down(struct pri *pri)
+pri_event *q921_dchannel_down(struct pri *pri)
 {
 	/* Reset counters, reset sabme timer etc */
 	q921_reset(pri);

@@ -192,4 +192,8 @@ extern pri_event *q921_receive(struct pri *pri, q921_h *h, int len);
 
 extern int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr);
 
+extern pri_event *q921_dchannel_up(struct pri *pri);
+
+extern pri_event *q921_dchannel_down(struct pri *pri);
+
 #endif

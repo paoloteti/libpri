@@ -113,6 +113,8 @@ typedef struct q931_ie {
 
 #define Q931_PROTOCOL_DISCRIMINATOR 0x08
 #define GR303_PROTOCOL_DISCRIMINATOR 0x4f
+#define MAINTENANCE_PROTOCOL_DISCRIMINATOR_1 0x03
+#define MAINTENANCE_PROTOCOL_DISCRIMINATOR_2 0x43
 
 /* Q.931 / National ISDN Message Types */
 
@@ -159,6 +161,12 @@ typedef struct q931_ie {
 /* Maintenance messages (codeset 0 only) */
 #define NATIONAL_SERVICE			0x0f
 #define NATIONAL_SERVICE_ACKNOWLEDGE	0x07
+
+#define SERVICE_CHANGE_STATUS_INSERVICE           0
+#define SERVICE_CHANGE_STATUS_LOOPBACK            1  /* not supported */
+#define SERVICE_CHANGE_STATUS_OUTOFSERVICE        2
+#define SERVICE_CHANGE_STATUS_REQCONTINUITYCHECK  3  /* not supported */
+#define SERVICE_CHANGE_STATUS_SHUTDOWN            4  /* not supported */
 
 /* Special codeset 0 IE */
 #define	NATIONAL_CHANGE_STATUS		0x1
@@ -247,6 +255,10 @@ typedef struct q931_ie {
 
 /* EuroISDN  */
 #define Q931_SENDING_COMPLETE		0xa1
+
+extern int maintenance_service(struct pri *pri, int span, int channel, int changestatus);
+
+extern int maintenance_service_ack(struct pri *pri, q931_call *call);
 
 
 /* Q.SIG specific */

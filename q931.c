@@ -89,11 +89,14 @@ static struct msgtype msgs[] = {
 	{ Q931_SUSPEND, "SUSPEND" },
 	{ Q931_SUSPEND_ACKNOWLEDGE, "SUSPEND ACKNOWLEDGE" },
 	{ Q931_SUSPEND_REJECT, "SUSPEND REJECT" },
-
-	/* Maintenance */
-	{ NATIONAL_SERVICE, "SERVICE" },
-	{ NATIONAL_SERVICE_ACKNOWLEDGE, "SERVICE ACKNOWLEDGE" },
 };
+static int post_handle_q931_message(struct pri *pri, struct q931_mh *mh, struct q931_call *c, int missingmand);
+
+struct msgtype maintenance_msgs[] = {
+	{ NATIONAL_SERVICE, "SERVICE", { Q931_CHANNEL_IDENT } },
+	{ NATIONAL_SERVICE_ACKNOWLEDGE, "SERVICE ACKNOWLEDGE", { Q931_CHANNEL_IDENT } },
+};
+static int post_handle_maintenance_message(struct pri *pri, struct q931_mh *mh, struct q931_call *c);
 
 static struct msgtype causes[] = {
 	{ PRI_CAUSE_UNALLOCATED, "Unallocated (unassigned) number" },
@@ -256,6 +259,20 @@ static char *code2str(int code, struct msgtype *codes, int max)
 		if (codes[x].msgnum == code)
 			return codes[x].name;
 	return "Unknown";
+}
+
+static char *pritype(int type)
+{
+	switch (type) {
+	case PRI_CPE:
+		return "CPE";
+		break;
+	case PRI_NETWORK:
+		return "NET";
+		break;
+	default:
+		return "UNKNOWN";
+	}
 }
 
 static void call_init(struct q931_call *c)
@@ -458,8 +475,8 @@ static FUNC_DUMP(dump_channel_id)
 		if (!(ie->data[pos] & 0x10)) {
 			/* Number specified */
 			pos++;
-			pri_message(pri, "%c                       Ext: %d  Channel: %d ]\n", prefix, (ie->data[pos] & 0x80) >> 7, 
-				(ie->data[pos]) & 0x7f);
+			pri_message(pri, "%c                       Ext: %d  Channel: %d Type: %s]\n", prefix, (ie->data[pos] & 0x80) >> 7, 
+				(ie->data[pos]) & 0x7f, pritype(pri->localtype));
 		} else {
 			pos++;
 			/* Map specified */
@@ -1178,6 +1195,29 @@ static FUNC_SEND(transmit_user_user)
 	}
 
 	return 0;
+}
+
+static FUNC_DUMP(dump_change_status)
+{
+	int x;
+	
+	pri_message(pri, "%c Change Status Information (len=%2d) [", prefix, len);
+	for (x=0; x<ie->len; x++) {
+		pri_message(pri, " %02x", ie->data[x] & 0x7f);
+	}
+	pri_message(pri, " ]\n");
+}
+
+static FUNC_RECV(receive_change_status)
+{
+	call->changestatus = ie->data[0] & 0x0f;
+	return 0;
+}
+
+static FUNC_SEND(transmit_change_status)
+{
+	ie->data[0] = 0xc0 | call->changestatus;
+	return 3;
 }
 
 static char *prog2str(int prog)
@@ -2143,7 +2183,7 @@ static FUNC_DUMP(dump_transit_count)
 
 static struct ie ies[] = {
 	/* Codeset 0 - Common */
-	{ 1, NATIONAL_CHANGE_STATUS, "Change Status" },
+	{ 1, NATIONAL_CHANGE_STATUS, "Change Status", dump_change_status, receive_change_status, transmit_change_status },
 	{ 0, Q931_LOCKING_SHIFT, "Locking Shift", dump_shift },
 	{ 0, Q931_BEARER_CAPABILITY, "Bearer Capability", dump_bearer_capability, receive_bearer_capability, transmit_bearer_capability },
 	{ 0, Q931_CAUSE, "Cause", dump_cause, receive_cause, transmit_cause },
@@ -2187,7 +2227,7 @@ static struct ie ies[] = {
 	{ 1, Q931_IE_USER_USER, "User-User", dump_user_user, receive_user_user, transmit_user_user },
 	{ 1, Q931_IE_ESCAPE_FOR_EXT, "Escape for Extension" },
 	{ 1, Q931_IE_CALL_STATUS, "Call Status" },
-	{ 1, Q931_IE_CHANGE_STATUS, "Change Status" },
+	{ 1, Q931_IE_CHANGE_STATUS, "Change Status", dump_change_status, receive_change_status, transmit_change_status },
 	{ 1, Q931_IE_CONNECTED_ADDR, "Connected Number", dump_connected_number },
 	{ 1, Q931_IE_CONNECTED_NUM, "Connected Number", dump_connected_number },
 	{ 1, Q931_IE_ORIGINAL_CALLED_NUMBER, "Original Called Number", dump_redirecting_number, receive_redirecting_number, transmit_redirecting_number },
@@ -2270,6 +2310,16 @@ static char *msg2str(int msg)
 	for (x=0;x<sizeof(msgs) / sizeof(msgs[0]); x++) 
 		if (msgs[x].msgnum == msg)
 			return msgs[x].name;
+	return "Unknown Message Type";
+}
+
+static char *maintenance_msg2str(int msg)
+{
+	unsigned int x;
+	for (x=0; x<sizeof(maintenance_msgs)/sizeof(maintenance_msgs[0]); x++) {
+		if (maintenance_msgs[x].msgnum == msg)
+			return maintenance_msgs[x].name;
+	}
 	return "Unknown Message Type";
 }
 
@@ -2525,7 +2575,11 @@ void q931_dump(struct pri *pri, q931_h *h, int len, int txrx)
 	pri_message(pri, "%c Call Ref: len=%2d (reference %d/0x%X) (%s)\n", c, h->crlen, q931_cr(h) & 0x7FFF, q931_cr(h) & 0x7FFF, (h->crv[0] & 0x80) ? "Terminator" : "Originator");
 	/* Message header begins at the end of the call reference number */
 	mh = (q931_mh *)(h->contents + h->crlen);
-	pri_message(pri, "%c Message type: %s (%d)\n", c, msg2str(mh->msg), mh->msg);
+	if ((h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) || (h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_2)) {
+		pri_message(pri, "%c Message Type: %s (%d)\n", c, maintenance_msg2str(mh->msg), mh->msg);
+	} else {
+		pri_message(pri, "%c Message Type: %s (%d)\n", c, msg2str(mh->msg), mh->msg);
+	}
 	/* Drop length of header, including call reference */
 	len -= (h->crlen + 3);
 	codeset = cur_codeset = 0;
@@ -2571,12 +2625,16 @@ static int q931_handle_ie(int codeset, struct pri *pri, q931_call *c, int msg, q
 	return -1;
 }
 
-static void init_header(struct pri *pri, q931_call *call, unsigned char *buf, q931_h **hb, q931_mh **mhb, int *len)
+static void init_header(struct pri *pri, q931_call *call, unsigned char *buf, q931_h **hb, q931_mh **mhb, int *len, int protodisc)
 {
 	/* Returns header and message header and modifies length in place */
 	q931_h *h = (q931_h *)buf;
 	q931_mh * mh;
-	h->pd = pri->protodisc;
+	if (protodisc) {
+		h->pd = protodisc;
+	} else {
+		h->pd = pri->protodisc;
+	}
 	h->x0 = 0;		/* Reserved 0 */
 	if (!pri->bri) {
 		h->crlen = 2;	/* Two bytes of Call Reference.  Invert the top bit to make it from our sense */
@@ -2639,8 +2697,8 @@ static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
 	
 	memset(buf, 0, sizeof(buf));
 	len = sizeof(buf);
-	init_header(pri, c, buf, &h, &mh, &len);
-	mh->msg = msgtype;
+	init_header(pri, c, buf, &h, &mh, &len, (msgtype >> 8));
+	mh->msg = msgtype & 0x00ff;
 	x=0;
 	codeset = 0;
 	while(ies[x] > -1) {
@@ -2660,6 +2718,30 @@ static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
 	q931_xmit(c->pri, h, len, 1);
 	c->acked = 1;
 	return 0;
+}
+
+static int maintenance_service_ies[] = { Q931_IE_CHANGE_STATUS, Q931_CHANNEL_IDENT, -1 };
+
+int maintenance_service_ack(struct pri *pri, q931_call *c)
+{
+	return send_message(pri, c, (MAINTENANCE_PROTOCOL_DISCRIMINATOR_1 << 8) | NATIONAL_SERVICE_ACKNOWLEDGE, maintenance_service_ies);
+}
+
+int maintenance_service(struct pri *pri, int span, int channel, int changestatus)
+{
+	struct q931_call *c;
+	c = q931_getcall(pri, 0x8000, 0);
+	if (!c) {
+		return -1;
+	}
+	if (channel > -1) {
+		channel &= 0xff;
+	}
+	c->ds1no = span;
+	c->channelno = channel;
+	c->chanflags |= FLAG_EXCLUSIVE;
+	c->changestatus = changestatus;
+	return send_message(pri, c, (MAINTENANCE_PROTOCOL_DISCRIMINATOR_1 << 8) | NATIONAL_SERVICE, maintenance_service_ies);
 }
 
 static int status_ies[] = { Q931_CAUSE, Q931_CALL_STATE, -1 };
@@ -3266,45 +3348,36 @@ int q931_hangup(struct pri *pri, q931_call *c, int cause)
 	return 0;
 }
 
-int q931_receive(struct pri *pri, q931_h *h, int len)
+static int prepare_to_handle_maintenance_message(struct pri *pri, q931_mh *mh, q931_call *c)
 {
-	q931_mh *mh;
-	q931_call *c;
-	q931_ie *ie;
-	unsigned int x;
-	int y;
-	int res;
-	int r;
-	int mandies[MAX_MAND_IES];
-	int missingmand;
-	int codeset, cur_codeset;
-	int last_ie[8];
-	struct apdu_event *cur = NULL;
-
-	memset(last_ie, 0, sizeof(last_ie));
-	if (pri->debug & PRI_DEBUG_Q931_DUMP)
-		q931_dump(pri, h, len, 0);
-#ifdef LIBPRI_COUNTERS
-	pri->q931_rxcount++;
-#endif
-	mh = (q931_mh *)(h->contents + h->crlen);
-	if ((h->pd == 0x3) || (h->pd == 0x43)) {
-		/* This is the weird maintenance stuff.  We majorly
-		   KLUDGE this by changing byte 4 from a 0xf (SERVICE) 
-		   to a 0x7 (SERVICE ACKNOWLEDGE) */
-		h->raw[h->crlen + 2] -= 0x8;
-		q931_xmit(pri, h, len, 1);
-		return 0;
-	} else if (h->pd != pri->protodisc) {
-		pri_error(pri, "Warning: unknown/inappropriate protocol discriminator received (%02x/%d)\n", h->pd, h->pd);
-		return 0;
-	}
-	c = q931_getcall(pri, q931_cr(h), 0);
-	if (!c) {
-		pri_error(pri, "Unable to locate call %d\n", q931_cr(h));
+	if ((!pri) || (!mh) || (!c)) {
 		return -1;
 	}
-	/* Preliminary handling */
+	/* SERVICE messages are a superset of messages that can take b-channels
+ 	 * or entire d-channels in and out of service */
+	switch(mh->msg) {
+		case NATIONAL_SERVICE:
+		case NATIONAL_SERVICE_ACKNOWLEDGE:
+			c->channelno = -1;
+			c->slotmap = -1;
+			c->chanflags = 0;
+			c->ds1no = 0;
+			c->ri = -1;
+			c->changestatus = -1;
+			break;
+		default:
+			pri_error(pri, "!! Don't know how to pre-handle maintenance message type '%s' (%d)\n", maintenance_msg2str(mh->msg), mh->msg);
+			return -1;
+	}
+	return 0;
+}
+
+static int prepare_to_handle_q931_message(struct pri *pri, q931_mh *mh, q931_call *c)
+{
+	if ((!pri) || (!mh) || (!c)) {
+		return -1;
+	}
+	
 	switch(mh->msg) {
 	case Q931_RESTART:
 		if (pri->debug & PRI_DEBUG_Q931_STATE)
@@ -3433,6 +3506,57 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 			q931_destroycall(pri,c->cr);
 		return -1;
 	}
+	return 0;
+}
+
+int q931_receive(struct pri *pri, q931_h *h, int len)
+{
+	q931_mh *mh;
+	q931_call *c;
+	q931_ie *ie;
+	unsigned int x;
+	int y;
+	int res;
+	int r;
+	int mandies[MAX_MAND_IES];
+	int missingmand;
+	int codeset, cur_codeset;
+	int last_ie[8];
+
+	memset(last_ie, 0, sizeof(last_ie));
+	if (pri->debug & PRI_DEBUG_Q931_DUMP)
+		q931_dump(pri, h, len, 0);
+#ifdef LIBPRI_COUNTERS
+	pri->q931_rxcount++;
+#endif
+	mh = (q931_mh *)(h->contents + h->crlen);
+	if ((h->pd != pri->protodisc) && (h->pd != MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) && (h->pd != MAINTENANCE_PROTOCOL_DISCRIMINATOR_2)) {
+		pri_error(pri, "Warning: unknown/inappropriate protocol discriminator received (%02x/%d)\n", h->pd, h->pd);
+		return 0;
+	}
+	if (((h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) || (h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_2)) && (!pri->service_message_support)) {
+		/* Real service message support has not been enabled (and is OFF in libpri by default),
+ 		 * so we have to revert to the 'traditional' KLUDGE of changing byte 4 from a 0xf (SERVICE)
+ 		 * to a 0x7 (SERVICE ACKNOWLEDGE) */
+		/* This is the weird maintenance stuff.  We majorly
+		   KLUDGE this by changing byte 4 from a 0xf (SERVICE) 
+		   to a 0x7 (SERVICE ACKNOWLEDGE) */
+		h->raw[h->crlen + 2] -= 0x8;
+		q931_xmit(pri, h, len, 1);
+		return 0;
+	}
+	c = q931_getcall(pri, q931_cr(h), 0);
+	if (!c) {
+		pri_error(pri, "Unable to locate call %d\n", q931_cr(h));
+		return -1;
+	}
+	/* Preliminary handling */
+	if ((h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) || (h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_2)) {
+		prepare_to_handle_maintenance_message(pri, mh, c);
+	} else {
+		prepare_to_handle_q931_message(pri, mh, c);
+	}
+	
 	/* Handle IEs */
 	memset(mandies, 0, sizeof(mandies));
 	missingmand = 0;
@@ -3521,6 +3645,72 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	}
 	
 	/* Post handling */
+	if ((h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) || (h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_2)) {
+		res = post_handle_maintenance_message(pri, mh, c);
+	} else {
+		res = post_handle_q931_message(pri, mh, c, missingmand);
+	}
+	return res;
+}
+
+static int post_handle_maintenance_message(struct pri *pri, struct q931_mh *mh, struct q931_call *c)
+{
+	/* Do some maintenance stuff */
+	switch (mh->msg) {
+	case NATIONAL_SERVICE:	
+		if (c->channelno > 0) {
+			pri->ev.e = PRI_EVENT_SERVICE;
+			pri->ev.service.channel = c->channelno | (c->ds1no << 8);
+			pri->ev.service.changestatus = 0x0f & c->changestatus;
+		} else {
+			switch (0x0f & c->changestatus) {
+			case SERVICE_CHANGE_STATUS_INSERVICE:
+				pri->ev.e = PRI_EVENT_DCHAN_UP;
+				q921_dchannel_up(pri);
+				break;
+			case SERVICE_CHANGE_STATUS_OUTOFSERVICE:
+				pri->ev.e = PRI_EVENT_DCHAN_DOWN;
+				q921_dchannel_down(pri);
+				break;
+			default:
+				pri_error(pri, "!! Don't know how to handle span service change status '%d'\n", (0x0f & c->changestatus));
+				return -1;
+			}
+		}
+		maintenance_service_ack(pri, c);
+		return Q931_RES_HAVEEVENT;
+	case NATIONAL_SERVICE_ACKNOWLEDGE:
+		if (c->channelno > 0) {
+			pri->ev.e = PRI_EVENT_SERVICE_ACK;
+			pri->ev.service_ack.channel = c->channelno | (c->ds1no << 8);
+			pri->ev.service_ack.changestatus = 0x0f & c->changestatus;
+		} else {
+			switch (0x0f & c->changestatus) {
+			case SERVICE_CHANGE_STATUS_INSERVICE:
+				pri->ev.e = PRI_EVENT_DCHAN_UP;
+				q921_dchannel_up(pri);
+				break;
+			case SERVICE_CHANGE_STATUS_OUTOFSERVICE:
+				pri->ev.e = PRI_EVENT_DCHAN_DOWN;
+				q921_dchannel_down(pri);
+				break;
+			default:
+				pri_error(pri, "!! Don't know how to handle span service change status '%d'\n", (0x0f & c->changestatus));
+				return -1;
+			}
+		}
+		return Q931_RES_HAVEEVENT;
+	default:
+		pri_error(pri, "!! Don't know how to post-handle maintenance message type %s (%d)\n", maintenance_msg2str(mh->msg), mh->msg);
+	}
+	return -1;
+}
+
+static int post_handle_q931_message(struct pri *pri, struct q931_mh *mh, struct q931_call *c, int missingmand)
+{
+	int res;
+	struct apdu_event *cur = NULL;
+
 	switch(mh->msg) {
 	case Q931_RESTART:
 		if (missingmand) {

@@ -110,6 +110,15 @@ int pri_get_timer(struct pri *pri, int timer)
 	return pri->timers[timer];
 }
 
+int pri_set_service_message_support(struct pri *pri, int supportflag)
+{
+	if (!pri) {
+		return -1;
+	}
+	pri->service_message_support = supportflag;
+	return 0;
+}
+
 int pri_timer2idx(char *timer)
 {
 	if (!strcasecmp(timer, "N200"))
@@ -628,6 +637,14 @@ int pri_reset(struct pri *pri, int channel)
 	if (!pri)
 		return -1;
 	return q931_restart(pri, channel);
+}
+
+int pri_maintenance_service(struct pri *pri, int span, int channel, int changestatus)
+{
+	if (!pri) {
+		return -1;
+	}
+	return maintenance_service(pri, span, channel, changestatus);
 }
 
 q931_call *pri_new_call(struct pri *pri)

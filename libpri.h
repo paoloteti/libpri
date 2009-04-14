@@ -81,6 +81,8 @@
 #define PRI_EVENT_NOTIFY		16	/* Notification received (NOTIFY) */
 #define PRI_EVENT_PROGRESS		17	/* When we get PROGRESS */
 #define PRI_EVENT_KEYPAD_DIGIT	18	/* When we receive during ACTIVE state (INFORMATION) */
+#define PRI_EVENT_SERVICE       19	/* SERVICE maintenance message */
+#define PRI_EVENT_SERVICE_ACK   20	/* SERVICE maintenance acknowledgement message */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
@@ -430,6 +432,18 @@ typedef struct pri_event_keypad_digit {
 	char digits[64];
 } pri_event_keypad_digit;
 
+typedef struct pri_event_service {
+	int e;
+	int channel;
+	int changestatus;
+} pri_event_service;
+
+typedef struct pri_event_service_ack {
+	int e;
+	int channel;
+	int changestatus;
+} pri_event_service_ack;
+
 typedef union {
 	int e;
 	pri_event_generic gen;		/* Generic view */
@@ -445,6 +459,8 @@ typedef union {
 	pri_event_setup_ack   setup_ack;	/* SETUP_ACKNOWLEDGE structure */
 	pri_event_notify notify;		/* Notification */
 	pri_event_keypad_digit digit;			/* Digits that come during a call */
+	pri_event_service service;				/* service message */
+	pri_event_service_ack service_ack;		/* service acknowledgement message */
 } pri_event;
 
 struct pri;
@@ -556,6 +572,9 @@ int pri_restart(struct pri *pri);
 
 int pri_reset(struct pri *pri, int channel);
 
+/* handle b-channel maintenance messages */
+extern int pri_maintenance_service(struct pri *pri, int span, int channel, int changestatus);
+
 /* Create a new call */
 q931_call *pri_new_call(struct pri *pri);
 
@@ -600,6 +619,9 @@ int pri_mwi_activate(struct pri *pri, q931_call *c, char *caller, int callerplan
 
 /* Send an MWI deactivate request to a remote location */
 int pri_mwi_deactivate(struct pri *pri, q931_call *c, char *caller, int callerplan, char *callername, int callerpres, char *called, int calledplan);
+
+/* Set service message support flag */
+int pri_set_service_message_support(struct pri *pri, int supportflag);
 
 #define PRI_2BCT
 /* Attempt to pass the channels back to the NET side if compatable and
