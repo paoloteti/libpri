@@ -344,6 +344,46 @@ static const struct rose_convert_msg rose_qsig_msgs[] = {
 	},
 
 	/*
+	 * localValue's from Q.SIG SS-AOC-Operations
+	 * { iso(1) standard(0) pss1-advice-of-charge(15050) advice-of-charge-operations(0) }
+	 */
+	{
+		ROSE_QSIG_ChargeRequest,					NULL, 59,
+			rose_enc_qsig_ChargeRequest_ARG,		rose_enc_qsig_ChargeRequest_RES,
+			rose_dec_qsig_ChargeRequest_ARG,		rose_dec_qsig_ChargeRequest_RES
+	},
+	{
+		ROSE_QSIG_GetFinalCharge,					NULL, 60,
+			rose_enc_qsig_DummyArg_ARG,				NULL,
+			rose_dec_qsig_DummyArg_ARG,				NULL
+	},
+	{
+		ROSE_QSIG_AocFinal,							NULL, 61,
+			rose_enc_qsig_AocFinal_ARG,				NULL,
+			rose_dec_qsig_AocFinal_ARG,				NULL
+	},
+	{
+		ROSE_QSIG_AocInterim,						NULL, 62,
+			rose_enc_qsig_AocInterim_ARG,			NULL,
+			rose_dec_qsig_AocInterim_ARG,			NULL
+	},
+	{
+		ROSE_QSIG_AocRate,							NULL, 63,
+			rose_enc_qsig_AocRate_ARG,				NULL,
+			rose_dec_qsig_AocRate_ARG,				NULL
+	},
+	{
+		ROSE_QSIG_AocComplete,						NULL, 64,
+			rose_enc_qsig_AocComplete_ARG,			rose_enc_qsig_AocComplete_RES,
+			rose_dec_qsig_AocComplete_ARG,			rose_dec_qsig_AocComplete_RES
+	},
+	{
+		ROSE_QSIG_AocDivChargeReq,					NULL, 65,
+			rose_enc_qsig_AocDivChargeReq_ARG,		NULL,
+			rose_dec_qsig_AocDivChargeReq_ARG,		NULL
+	},
+
+	/*
 	 * localValue's from Q.SIG Call-Transfer-Operations
 	 * { iso(1) standard(0) pss1-call-transfer(13869) call-transfer-operations(0) }
 	 */
@@ -542,6 +582,15 @@ static const struct rose_convert_error rose_qsig_errors[] = {
 	 */
 	{
 		ROSE_ERROR_QSIG_Unspecified,				NULL, 1008,
+			NULL,									NULL
+	},
+
+	/*
+	 * localValue Errors from Q.SIG SS-AOC-Operations
+	 * { iso(1) standard(0) pss1-advice-of-charge(15050) advice-of-charge-operations(0) }
+	 */
+	{
+		ROSE_ERROR_QSIG_AOC_FreeOfCharge,			NULL, 1016,
 			NULL,									NULL
 	},
 
@@ -844,6 +893,14 @@ const char *rose_operation2str(enum rose_operation operation)
 		{ ROSE_QSIG_ConnectedName,                  "ROSE_QSIG_ConnectedName" },
 		{ ROSE_QSIG_BusyName,                       "ROSE_QSIG_BusyName" },
 
+		{ ROSE_QSIG_ChargeRequest,                  "ROSE_QSIG_ChargeRequest" },
+		{ ROSE_QSIG_GetFinalCharge,                 "ROSE_QSIG_GetFinalCharge" },
+		{ ROSE_QSIG_AocFinal,                       "ROSE_QSIG_AocFinal" },
+		{ ROSE_QSIG_AocInterim,                     "ROSE_QSIG_AocInterim" },
+		{ ROSE_QSIG_AocRate,                        "ROSE_QSIG_AocRate" },
+		{ ROSE_QSIG_AocComplete,                    "ROSE_QSIG_AocComplete" },
+		{ ROSE_QSIG_AocDivChargeReq,                "ROSE_QSIG_AocDivChargeReq" },
+
 		{ ROSE_QSIG_CallTransferIdentify,           "ROSE_QSIG_CallTransferIdentify" },
 		{ ROSE_QSIG_CallTransferAbandon,            "ROSE_QSIG_CallTransferAbandon" },
 		{ ROSE_QSIG_CallTransferInitiate,           "ROSE_QSIG_CallTransferInitiate" },
@@ -920,6 +977,8 @@ const char *rose_error2str(enum rose_error_code code)
 
 		/* Q.SIG specific errors */
 		{ ROSE_ERROR_QSIG_Unspecified,                "Unspecified" },
+
+		{ ROSE_ERROR_QSIG_AOC_FreeOfCharge,           "AOC: FreeOfCharge" },
 
 		{ ROSE_ERROR_QSIG_CT_InvalidReroutingNumber,  "CT: Invalid Rerouting Number" },
 		{ ROSE_ERROR_QSIG_CT_UnrecognizedCallIdentity,"CT: Unrecognized Call Identity" },

@@ -169,9 +169,10 @@ const unsigned char *rose_dec_qsig_BusyName_ARG(struct pri *ctrl, unsigned tag,
 
 /*
  * Q.SIG Dummy invoke/result argument used by:
+ * SS-AOC-Operations,
  * Call-Transfer-Operations,
- * Call-Diversion-Operations, 
- * and SS-MWI-Operations 
+ * Call-Diversion-Operations,
+ * and SS-MWI-Operations.
  */
 unsigned char *rose_enc_qsig_DummyArg_ARG(struct pri *ctrl, unsigned char *pos,
 	unsigned char *end, const union rose_msg_invoke_args *args);
@@ -184,6 +185,49 @@ const unsigned char *rose_dec_qsig_DummyArg_ARG(struct pri *ctrl, unsigned tag,
 const unsigned char *rose_dec_qsig_DummyRes_RES(struct pri *ctrl, unsigned tag,
 	const unsigned char *pos, const unsigned char *end,
 	union rose_msg_result_args *args);
+
+/* Q.SIG SS-AOC-Operations */
+unsigned char *rose_enc_qsig_ChargeRequest_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_qsig_ChargeRequest_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_qsig_AocFinal_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_qsig_AocInterim_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_qsig_AocRate_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_qsig_AocComplete_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_qsig_AocComplete_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_qsig_AocDivChargeReq_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+
+const unsigned char *rose_dec_qsig_ChargeRequest_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_ChargeRequest_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_qsig_AocFinal_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_AocInterim_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_AocRate_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_AocComplete_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_AocComplete_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_qsig_AocDivChargeReq_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
 
 /* Q.SIG Call-Diversion-Operations */
 unsigned char *rose_enc_qsig_ActivateDiversionQ_ARG(struct pri *ctrl, unsigned char *pos,

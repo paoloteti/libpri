@@ -86,6 +86,15 @@ enum rose_operation {
 	ROSE_QSIG_ConnectedName,                /*!< Invoke only */
 	ROSE_QSIG_BusyName,                     /*!< Invoke only */
 
+	/* Q.SIG SS-AOC-Operations */
+	ROSE_QSIG_ChargeRequest,                /*!< Invoke/Result */
+	ROSE_QSIG_GetFinalCharge,               /*!< Invoke only */
+	ROSE_QSIG_AocFinal,                     /*!< Invoke only */
+	ROSE_QSIG_AocInterim,                   /*!< Invoke only */
+	ROSE_QSIG_AocRate,                      /*!< Invoke only */
+	ROSE_QSIG_AocComplete,                  /*!< Invoke/Result */
+	ROSE_QSIG_AocDivChargeReq,              /*!< Invoke only */
+
 	/* Q.SIG Call-Transfer-Operations (CT) */
 	ROSE_QSIG_CallTransferIdentify,         /*!< Invoke/Result */
 	ROSE_QSIG_CallTransferAbandon,          /*!< Invoke only */
@@ -162,6 +171,9 @@ enum rose_error_code {
 
 	/* Q.SIG from various specifications */
 	ROSE_ERROR_QSIG_Unspecified,
+
+	/* Q.SIG SS-AOC-Operations */
+	ROSE_ERROR_QSIG_AOC_FreeOfCharge,
 
 	/* Q.SIG Call-Transfer-Operations (CT) */
 	ROSE_ERROR_QSIG_CT_InvalidReroutingNumber,
@@ -1116,6 +1128,455 @@ struct roseQsigName {
  */
 struct roseQsigPartyName_ARG {
 	struct roseQsigName name;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * Time ::= SEQUENCE {
+ *     lengthOfTimeUnit [1] IMPLICIT LengthOfTimeUnit,
+ *     scale            [2] IMPLICIT Scale
+ * }
+ */
+struct roseQsigAOCTime {
+	/*! LengthOfTimeUnit ::= INTEGER (0..16777215) -- 24 bit number */
+	u_int32_t length;
+	/*!
+	 * \details
+	 * oneHundredthSecond(0),
+	 * oneTenthSecond(1),
+	 * oneSecond(2),
+	 * tenSeconds(3),
+	 * oneMinute(4),
+	 * oneHour(5),
+	 * twentyFourHours(6)
+	 */
+	u_int8_t scale;
+};
+
+/*
+ * Amount ::= SEQUENCE {
+ *     currencyAmount [1] IMPLICIT CurrencyAmount,
+ *     multiplier     [2] IMPLICIT Multiplier
+ * }
+ */
+struct roseQsigAOCAmount {
+	/*! CurrencyAmount ::= INTEGER (0..16777215) -- 24 bit number */
+	u_int32_t currency;
+	/*!
+	 * \details
+	 * oneThousandth(0),
+	 * oneHundredth(1),
+	 * oneTenth(2),
+	 * one(3),
+	 * ten(4),
+	 * hundred(5),
+	 * thousand(6)
+	 */
+	u_int8_t multiplier;
+};
+
+/*
+ * DurationCurrency ::= SEQUENCE {
+ *     dCurrency       [1] IMPLICIT Currency,
+ *     dAmount         [2] IMPLICIT Amount,
+ *     dChargingType   [3] IMPLICIT ChargingType,
+ *     dTime           [4] IMPLICIT Time,
+ *     dGranularity    [5] IMPLICIT Time OPTIONAL
+ * }
+ */
+struct roseQsigAOCDurationCurrency {
+	struct roseQsigAOCAmount amount;
+	struct roseQsigAOCTime time;
+	/*! \brief dGranularity (optional) */
+	struct roseQsigAOCTime granularity;
+	/*!
+	 * \brief Name of currency
+	 * \details
+	 * Currency ::= IA5String (SIZE (0..10))
+	 * \note The empty string is the default currency for the network.
+	 */
+	unsigned char currency[10 + 1];
+	/*!
+	 * \details
+	 * continuousCharging(0),
+	 * stepFunction(1)
+	 */
+	u_int8_t charging_type;
+	/*! TRUE if granularity time is present */
+	u_int8_t granularity_present;
+};
+
+/*
+ * FlatRateCurrency ::= SEQUENCE {
+ *     fRCurrency      [1] IMPLICIT Currency,
+ *     fRAmount        [2] IMPLICIT Amount
+ * }
+ */
+struct roseQsigAOCFlatRateCurrency {
+	struct roseQsigAOCAmount amount;
+	/*!
+	 * \brief Name of currency
+	 * \details
+	 * Currency ::= IA5String (SIZE (0..10))
+	 * \note The empty string is the default currency for the network.
+	 */
+	unsigned char currency[10 + 1];
+};
+
+/*
+ * VolumeRateCurrency ::= SEQUENCE {
+ *     vRCurrency      [1] IMPLICIT Currency,
+ *     vRAmount        [2] IMPLICIT Amount,
+ *     vRVolumeUnit    [3] IMPLICIT VolumeUnit
+ * }
+ */
+struct roseQsigAOCVolumeRateCurrency {
+	struct roseQsigAOCAmount amount;
+	/*!
+	 * \brief Name of currency
+	 * \details
+	 * Currency ::= IA5String (SIZE (0..10))
+	 * \note The empty string is the default currency for the network.
+	 */
+	unsigned char currency[10 + 1];
+	/*!
+	 * \brief Volume rate volume unit
+	 * \details
+	 * octet(0),
+	 * segment(1),
+	 * message(2)
+	 */
+	u_int8_t unit;
+};
+
+/*
+ * AOCSCurrencyInfo ::= SEQUENCE {
+ *     chargedItem                     ChargedItem,
+ *     rateType CHOICE {
+ *         durationCurrency            [1] IMPLICIT DurationCurrency,
+ *         flatRateCurrency            [2] IMPLICIT FlatRateCurrency,
+ *         volumeRateCurrency          [3] IMPLICIT VolumeRateCurrency,
+ *         specialChargingCode         SpecialChargingCode,
+ *         freeOfCharge                [4] IMPLICIT NULL,
+ *         currencyInfoNotAvailable    [5] IMPLICIT NULL,
+ *         freeOfChargefromBeginning   [6] IMPLICIT NULL
+ *     }
+ * }
+ */
+struct roseQsigAOCSCurrencyInfo {
+	union {
+		struct roseQsigAOCDurationCurrency duration;
+		struct roseQsigAOCFlatRateCurrency flat_rate;
+		struct roseQsigAOCVolumeRateCurrency volume_rate;
+		/*! SpecialChargingCode ::= INTEGER (1..10) */
+		u_int8_t special_charging_code;
+	} u;
+	/*!
+	 * \brief Determine what is stored in the union.
+	 * \details
+	 * specialChargingCode(0),
+	 * durationCurrency(1),
+	 * flatRateCurrency(2),
+	 * volumeRateCurrency(3),
+	 * freeOfCharge(4),
+	 * currencyInfoNotAvailable(5),
+	 * freeOfChargeFromBeginning(6)
+	 */
+	u_int8_t currency_type;
+	/*!
+	 * \brief What service is being billed.
+	 * \details
+	 * basicCommunication(0),
+	 * callAttempt(1),
+	 * callSetup(2),
+	 * userToUserInfo(3),
+	 * operationOfSupplementaryServ(4)
+	 */
+	u_int8_t charged_item;
+};
+
+/*
+ * AOCSCurrencyInfoList ::= SEQUENCE SIZE (1..10) OF AOCSCurrencyInfo
+ */
+struct roseQsigAOCSCurrencyInfoList {
+	/*! \brief SEQUENCE SIZE (1..10) OF AOCSCurrencyInfo */
+	struct roseQsigAOCSCurrencyInfo list[10];
+
+	/*! \brief Number of AOCSCurrencyInfo records present */
+	u_int8_t num_records;
+};
+
+/*
+ * RecordedCurrency ::= SEQUENCE {
+ *     rCurrency       [1] IMPLICIT Currency,
+ *     rAmount         [2] IMPLICIT Amount
+ * }
+ */
+struct roseQsigAOCRecordedCurrency {
+	/*! Amount of currency involved. */
+	struct roseQsigAOCAmount amount;
+	/*!
+	 * \brief Name of currency
+	 * \details
+	 * Currency ::= IA5String (SIZE (0..10))
+	 * \note The empty string is the default currency for the network.
+	 */
+	unsigned char currency[10 + 1];
+};
+
+/*
+ * ChargingAssociation ::= CHOICE {
+ *     chargedNumber     [0] EXPLICIT PartyNumber,
+ *     chargeIdentifier  ChargeIdentifier
+ * }
+ */
+struct roseQsigAOCChargingAssociation {
+	/*! chargeIdentifier: INTEGER (-32768..32767) -- 16 bit number */
+	int16_t id;
+	/*! chargedNumber */
+	struct rosePartyNumber number;
+	/*!
+	 * \details
+	 * charge_identifier(0)
+	 * charged_number(1),
+	 */
+	u_int8_t type;
+};
+
+/*
+ * AocRateArg ::= SEQUENCE {
+ *     aocRate CHOICE
+ *     {
+ *         chargeNotAvailable      NULL,
+ *         aocSCurrencyInfoList    AOCSCurrencyInfoList
+ *     },
+ *     rateArgExtension CHOICE {
+ *         extension               [1] IMPLICIT Extension,
+ *         multipleExtension       [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigAocRateArg_ARG {
+	struct roseQsigAOCSCurrencyInfoList currency_info;
+	/*!
+	 * \details
+	 * charge_not_available(0),
+	 * currency_info_list(1)
+	 */
+	u_int8_t type;
+};
+
+/*
+ * AocInterimArg ::= SEQUENCE {
+ *     interimCharge CHOICE {
+ *         chargeNotAvailable      [0] IMPLICIT NULL,
+ *         freeOfCharge            [1] IMPLICIT NULL,
+ *         specificCurrency        SEQUENCE {
+ *             recordedCurrency    [1] IMPLICIT RecordedCurrency,
+ *             interimBillingId    [2] IMPLICIT InterimBillingId OPTIONAL
+ *         }
+ *     },
+ *     interimArgExtension CHOICE {
+ *         extension           [1] IMPLICIT Extension,
+ *         multipleExtension   [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigAocInterimArg_ARG {
+	struct {
+		/*! \brief recorded currency */
+		struct roseQsigAOCRecordedCurrency recorded;
+		/*!
+		 * \brief InterimBillingId (optional)
+		 * \details
+		 * normalCharging(0),
+		 * creditCardCharging(2)
+		 */
+		u_int8_t billing_id;
+		/*! \brief TRUE if billing id is present */
+		u_int8_t billing_id_present;
+	} specific;
+	/*!
+	 * \details
+	 * charge_not_available(0),
+	 * free_of_charge(1),
+	 * specific_currency(2)
+	 */
+	u_int8_t type;
+};
+
+/*
+ * AocFinalArg ::= SEQUENCE {
+ *     finalCharge CHOICE {
+ *         chargeNotAvailable      [0] IMPLICIT NULL,
+ *         freeOfCharge            [1] IMPLICIT NULL,
+ *         specificCurrency        SEQUENCE {
+ *             recordedCurrency    [1] IMPLICIT RecordedCurrency,
+ *             finalBillingId      [2] IMPLICIT FinalBillingId OPTIONAL
+ *         }
+ *     },
+ *     chargingAssociation ChargingAssociation OPTIONAL,
+ *     finalArgExtension   CHOICE {
+ *         extension           [1] IMPLICIT Extension,
+ *         multipleExtension   [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigAocFinalArg_ARG {
+	struct {
+		/*! \brief recorded currency */
+		struct roseQsigAOCRecordedCurrency recorded;
+		/*!
+		 * \brief FinalBillingId (optional)
+		 * \details
+		 * normalCharging(0),
+		 * creditCardCharging(2),
+		 * callForwardingUnconditional(3),
+		 * callForwardingBusy(4),
+		 * callForwardingNoReply(5),
+		 * callDeflection(6),
+		 * callTransfer(7)
+		 */
+		u_int8_t billing_id;
+		/*! \brief TRUE if billing id is present */
+		u_int8_t billing_id_present;
+	} specific;
+
+	/*! \brief chargingAssociation (optional) */
+	struct roseQsigAOCChargingAssociation charging_association;
+
+	/*! \brief TRUE if charging_association is present */
+	u_int8_t charging_association_present;
+
+	/*!
+	 * \details
+	 * charge_not_available(0),
+	 * free_of_charge(1),
+	 * specific_currency(2)
+	 */
+	u_int8_t type;
+};
+
+/*
+ * ChargeRequestArg ::= SEQUENCE {
+ *     adviceModeCombinations  SEQUENCE SIZE(0..7) OF AdviceModeCombination,
+ *     chargeReqArgExtension   CHOICE {
+ *         extension           [1] IMPLICIT Extension,
+ *         multipleExtension   [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigChargeRequestArg_ARG {
+	/*!
+	 * \brief SEQUENCE SIZE(0..7) OF AdviceModeCombination
+	 * \details
+	 * rate(0) <charge rate provision>,
+	 * rateInterim(1) <charge rate and interim charge provision>,
+	 * rateFinal(2) <charge rate and final charge provision>,
+	 * interim(3) <interim charge provision>,
+	 * final(4) <final charge provision>,
+	 * interimFinal(5) <interim charge and final charge provision>,
+	 * rateInterimFinal(6) <charge rate, interim charge and final charge provision>
+	 */
+	u_int8_t advice_mode_combinations[7];
+
+	/*! \brief Number of AdviceModeCombination values present */
+	u_int8_t num_records;
+};
+
+/*
+ * ChargeRequestRes ::= SEQUENCE {
+ *     adviceModeCombination   AdviceModeCombination,
+ *     chargeReqResExtension   CHOICE {
+ *         extension           [1] IMPLICIT Extension,
+ *         multipleExtension   [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigChargeRequestRes_RES {
+	/*!
+	 * \details
+	 * rate(0) <charge rate provision>,
+	 * rateInterim(1) <charge rate and interim charge provision>,
+	 * rateFinal(2) <charge rate and final charge provision>,
+	 * interim(3) <interim charge provision>,
+	 * final(4) <final charge provision>,
+	 * interimFinal(5) <interim charge and final charge provision>,
+	 * rateInterimFinal(6) <charge rate, interim charge and final charge provision>
+	 */
+	u_int8_t advice_mode_combination;
+};
+
+/*
+ * AocCompleteArg ::= SEQUENCE {
+ *     chargedUser             PartyNumber,
+ *     chargingAssociation     ChargingAssociation OPTIONAL,
+ *     completeArgExtension    CHOICE {
+ *         extension           [1] IMPLICIT Extension,
+ *         multipleExtension   [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigAocCompleteArg_ARG {
+	/*! \brief chargingAssociation (optional) */
+	struct roseQsigAOCChargingAssociation charging_association;
+
+	struct rosePartyNumber charged_user_number;
+
+	/*! \brief TRUE if charging_association is present */
+	u_int8_t charging_association_present;
+};
+
+/*
+ * AocCompleteRes ::= SEQUENCE {
+ *     chargingOption          ChargingOption,
+ *     completeResExtension    CHOICE {
+ *         extension           [1] IMPLICIT Extension,
+ *         multipleExtension   [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigAocCompleteRes_RES {
+	/*!
+	 * \details
+	 * aocFreeOfCharge(0),
+	 * aocContinueCharging(1),
+	 * aocStopCharging(2)
+	 */
+	u_int8_t charging_option;
+};
+
+/*
+ * AocDivChargeReqArg ::= SEQUENCE {
+ *     divertingUser           PartyNumber,
+ *     chargingAssociation     ChargingAssociation OPTIONAL,
+ *     diversionType           DiversionType,
+ *     aocDivChargeReqArgExt   CHOICE {
+ *         extension           [1] IMPLICIT Extension,
+ *         multipleExtension   [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigAocDivChargeReqArg_ARG {
+	/*! \brief chargingAssociation (optional) */
+	struct roseQsigAOCChargingAssociation charging_association;
+
+	struct rosePartyNumber diverting_user_number;
+
+	/*! \brief TRUE if charging_association is present */
+	u_int8_t charging_association_present;
+
+	/*!
+	 * \details
+	 * callForwardingUnconditional(0),
+	 * callForwardingBusy(1),
+	 * callForwardingNoReply(2),
+	 * callDeflection(3)
+	 */
+	u_int8_t diversion_type;
 };
 
 
@@ -2193,6 +2654,14 @@ union rose_msg_invoke_qsig_args {
 	struct roseQsigPartyName_ARG ConnectedName;
 	struct roseQsigPartyName_ARG BusyName;
 
+	/* Q.SIG SS-AOC-Operations */
+	struct roseQsigChargeRequestArg_ARG ChargeRequest;
+	struct roseQsigAocFinalArg_ARG AocFinal;
+	struct roseQsigAocInterimArg_ARG AocInterim;
+	struct roseQsigAocRateArg_ARG AocRate;
+	struct roseQsigAocCompleteArg_ARG AocComplete;
+	struct roseQsigAocDivChargeReqArg_ARG AocDivChargeReq;
+
 	/* Q.SIG Call-Transfer-Operations */
 	struct roseQsigCTInitiateArg_ARG CallTransferInitiate;
 	struct roseQsigCTSetupArg_ARG CallTransferSetup;
@@ -2219,6 +2688,10 @@ union rose_msg_invoke_qsig_args {
 
 /*! \brief Facility ie result qsig messages with arguments. */
 union rose_msg_result_qsig_args {
+	/* Q.SIG SS-AOC-Operations */
+	struct roseQsigChargeRequestRes_RES ChargeRequest;
+	struct roseQsigAocCompleteRes_RES AocComplete;
+
 	/* Q.SIG Call-Transfer-Operations */
 	struct roseQsigCTIdentifyRes_RES CallTransferIdentify;
 

@@ -54,6 +54,7 @@ STATIC_OBJS= \
 	rose_etsi_aoc.o \
 	rose_other.o \
 	rose_q931.o \
+	rose_qsig_aoc.o \
 	rose_qsig_ct.o \
 	rose_qsig_diversion.o \
 	rose_qsig_mwi.o \
@@ -72,6 +73,7 @@ DYNAMIC_OBJS= \
 	rose_etsi_aoc.lo \
 	rose_other.lo \
 	rose_q931.lo \
+	rose_qsig_aoc.lo \
 	rose_qsig_ct.lo \
 	rose_qsig_diversion.lo \
 	rose_qsig_mwi.lo \
