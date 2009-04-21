@@ -41,8 +41,42 @@ SONAME:=1.4
 
 STATIC_LIBRARY=libpri.a
 DYNAMIC_LIBRARY:=libpri.so.$(SONAME)
-STATIC_OBJS=copy_string.o pri.o q921.o prisched.o q931.o pri_facility.o version.o
-DYNAMIC_OBJS=copy_string.lo pri.lo q921.lo prisched.lo q931.lo pri_facility.lo version.lo
+STATIC_OBJS= \
+	copy_string.o \
+	pri.o \
+	q921.o \
+	prisched.o \
+	q931.o \
+	pri_facility.o \
+	asn1_primitive.o \
+	rose.o \
+	rose_address.o \
+	rose_etsi_aoc.o \
+	rose_other.o \
+	rose_q931.o \
+	rose_qsig_ct.o \
+	rose_qsig_diversion.o \
+	rose_qsig_mwi.o \
+	rose_qsig_name.o \
+	version.o
+DYNAMIC_OBJS= \
+	copy_string.lo \
+	pri.lo \
+	q921.lo \
+	prisched.lo \
+	q931.lo \
+	pri_facility.lo \
+	asn1_primitive.lo \
+	rose.lo \
+	rose_address.lo \
+	rose_etsi_aoc.lo \
+	rose_other.lo \
+	rose_q931.lo \
+	rose_qsig_ct.lo \
+	rose_qsig_diversion.lo \
+	rose_qsig_mwi.lo \
+	rose_qsig_name.lo \
+	version.lo
 CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g -fPIC $(ALERTING) $(LIBPRI_COUNTERS)
 INSTALL_PREFIX=$(DESTDIR)
 INSTALL_BASE=/usr
@@ -131,6 +165,9 @@ testprilib: testprilib.o
 
 pridump: pridump.o
 	$(CC) -o pridump pridump.o -L. -lpri $(CFLAGS)
+
+rosetest: rosetest.o
+	$(CC) -o rosetest rosetest.o -L. -lpri $(CFLAGS)
 
 MAKE_DEPS= -MD -MT $@ -MF .$(subst /,_,$@).d -MP
 

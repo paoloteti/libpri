@@ -33,6 +33,7 @@
 #include "pri_q921.h"
 #include "pri_q931.h"
 #include "pri_facility.h"
+#include "rose.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -1015,8 +1016,7 @@ static FUNC_DUMP(dump_redirecting_number)
 				prefix, ie->data[2] >> 7, redirection_reason2str(ie->data[2] & 0x7f), ie->data[2] & 0x7f);
 			break;
 		}
-	}
-	while(!(ie->data[i++]& 0x80));
+	} while(!(ie->data[i++]& 0x80));
 	q931_get_number(cnum, sizeof(cnum), ie->data + i, ie->len - i);
 	pri_message(pri, "  '%s' ]\n", cnum);
 }
@@ -1038,8 +1038,7 @@ static FUNC_DUMP(dump_connected_number)
 				prefix, ie->data[1] >> 7, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f);
 			break;
 		}
-	}
-	while(!(ie->data[i++]& 0x80));
+	} while(!(ie->data[i++]& 0x80));
 	q931_get_number(cnum, sizeof(cnum), ie->data + i, ie->len - i);
 	pri_message(pri, "  '%s' ]\n", cnum);
 }
@@ -1063,8 +1062,7 @@ static FUNC_RECV(receive_redirecting_number)
 			call->redirectingreason = ie->data[i] & 0x0f;
 			break;
 		}
-	}
-	while(!(ie->data[i++] & 0x80));
+	} while(!(ie->data[i++] & 0x80));
 	q931_get_number((unsigned char *) call->redirectingnum, sizeof(call->redirectingnum), ie->data + i, ie->len - i);
 	return 0;
 }
@@ -1353,15 +1351,19 @@ static FUNC_SEND(transmit_facility)
 		if ((tmp->message == msgtype) && !tmp->sent)
 			break;
 	}
-	
 	if (!tmp)	/* No APDU found */
 		return 0;
+
+	if (pri->debug & PRI_DEBUG_APDU) {
+		pri_message(pri, "Adding facility ie contents to send message:\n");
+		facility_decode_dump(pri, tmp->apdu, tmp->apdu_len);
+	}
 
 	if (tmp->apdu_len > 235) { /* TODO: find out how much space we can use */
 		pri_message(pri, "Requested APDU (%d bytes) is too long\n", tmp->apdu_len);
 		return 0;
 	}
-	
+
 	memcpy(&ie->data[i], tmp->apdu, tmp->apdu_len);
 	i += tmp->apdu_len;
 	tmp->sent = 1;
@@ -1369,114 +1371,77 @@ static FUNC_SEND(transmit_facility)
 	return i + 2;
 }
 
-static FUNC_RECV(receive_facility)
+static int receive_facility(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
-	int i = 0;
-	int protocol, next_protocol;
-	struct rose_component *comp = NULL;
-	enum {
-		Q932_STATE_NFE,				/* Network facility extension */
-		Q932_STATE_NPP,				/* Network protocol profile */
-		Q932_STATE_INTERPRETATION,	/* Interpretation component */
-		Q932_STATE_SERVICE			/* Service component(s) */
-	} state = Q932_STATE_SERVICE;
-#define Q932_HANDLE_PROC(component, my_state, name, handler) \
-				case component: \
-					if(state > my_state) { \
-						pri_error(pri, "!! %s component received in wrong place\n"); \
-						break; \
-					} \
-					state = my_state; \
-					if (pri->debug) \
-						pri_message(pri, "Handle Q.932 %s component\n", name); \
-					(handler)(pri, call, ie, comp->data, comp->len); \
-					break;
-#define Q932_HANDLE_NULL(component, my_state, name, handle) \
-				case component: \
-					if(state > my_state) { \
-						pri_error(pri, "!! %s component received in wrong place\n"); \
-						break; \
-					} \
-					state = my_state; \
-					if (pri->debug & PRI_DEBUG_APDU) \
-						pri_message(pri, "Q.932 %s component is not handled\n", name); \
-					break;
+	struct fac_extension_header header;
+	struct rose_message rose;
+	const unsigned char *pos;
+	const unsigned char *end;
 
-	if (ie->len < 1)
-		return -1;
+	pos = ie->data;
+	end = ie->data + ie->len;
 
-	switch(next_protocol = protocol = (ie->data[i] & 0x1f)) {
-	case Q932_PROTOCOL_CMIP:
-	case Q932_PROTOCOL_ACSE:
-		if (pri->debug & PRI_DEBUG_APDU)
-			pri_message(pri, "!! Don't know how to handle Q.932 Protocol Profile of type 0x%X\n", protocol);
+	/* Make sure we have enough room for the protocol profile ie octet(s) */
+	if (end < pos + 2) {
 		return -1;
-	case Q932_PROTOCOL_EXTENSIONS:
-		state = Q932_STATE_NFE;
-		next_protocol = Q932_PROTOCOL_ROSE;
-		break;
+	}
+	switch (*pos & Q932_PROTOCOL_MASK) {
 	case Q932_PROTOCOL_ROSE:
+	case Q932_PROTOCOL_EXTENSIONS:
 		break;
 	default:
-		pri_error(pri, "!! Invalid Q.932 Protocol Profile of type 0x%X received\n", protocol);
-		return -1;
-	}
-	/* Service indicator octet - Just ignore for now */
-	if (!(ie->data[i] & 0x80))
-		i++;
-	i++;
-
-	if (ie->len < 3)
-		return -1;
-	
-	while ((i+1 < ie->len) && (&ie->data[i])) {
-		comp = (struct rose_component*)&ie->data[i];
-		if (comp->type) {
-			if (protocol == Q932_PROTOCOL_EXTENSIONS) {
-				switch (comp->type) {
-				Q932_HANDLE_NULL(COMP_TYPE_INTERPRETATION, Q932_STATE_INTERPRETATION, "Interpretation", NULL);
-				Q932_HANDLE_NULL(COMP_TYPE_NFE, Q932_STATE_NFE, "Network facility extensions", NULL);
-				Q932_HANDLE_NULL(COMP_TYPE_NETWORK_PROTOCOL_PROFILE, Q932_STATE_NPP, "Network protocol profile", NULL);
-				default:
-					protocol = next_protocol;
-					break;
-				}
-			}
-			switch (protocol) {
-			case Q932_PROTOCOL_ROSE:
-				switch (comp->type) {
-				Q932_HANDLE_PROC(COMP_TYPE_INVOKE, Q932_STATE_SERVICE, "ROSE Invoke", rose_invoke_decode);
-				Q932_HANDLE_PROC(COMP_TYPE_RETURN_RESULT, Q932_STATE_SERVICE, "ROSE return result", rose_return_result_decode);
-				Q932_HANDLE_PROC(COMP_TYPE_RETURN_ERROR, Q932_STATE_SERVICE, "ROSE return error", rose_return_error_decode);
-				Q932_HANDLE_PROC(COMP_TYPE_REJECT, Q932_STATE_SERVICE, "ROSE reject", rose_reject_decode);
-				default:
-					if (pri->debug & PRI_DEBUG_APDU)
-						pri_message(pri, "Don't know how to handle ROSE component of type 0x%X\n", comp->type);
-					break;
-				}
-				break;
-			case Q932_PROTOCOL_CMIP:
-				switch (comp->type) {
-				default:
-					if (pri->debug & PRI_DEBUG_APDU)
-						pri_message(pri, "Don't know how to handle CMIP component of type 0x%X\n", comp->type);
-					break;
-				}
-				break;
-			case Q932_PROTOCOL_ACSE:
-				switch (comp->type) {
-				default:
-					if (pri->debug & PRI_DEBUG_APDU)
-						pri_message(pri, "Don't know how to handle ACSE component of type 0x%X\n", comp->type);
-					break;
-				}
-				break;
-			}
+	case Q932_PROTOCOL_CMIP:
+	case Q932_PROTOCOL_ACSE:
+		if (ctrl->debug & PRI_DEBUG_APDU) {
+			pri_message(ctrl,
+				"!! Don't know how to handle Q.932 Protocol Profile type 0x%X\n",
+				*pos & Q932_PROTOCOL_MASK);
 		}
-		i += (comp->len + 2);
+		return -1;
 	}
-#undef Q932_HANDLE
+	if (!(*pos & 0x80)) {
+		/* DMS-100 Service indicator octet - Just ignore for now */
+		++pos;
+	}
+	++pos;
 
+	if (ctrl->debug & PRI_DEBUG_APDU) {
+		asn1_dump(ctrl, pos, end);
+	}
+
+	pos = fac_dec_extension_header(ctrl, pos, end, &header);
+	if (!pos) {
+		return -1;
+	}
+	if (header.npp_present) {
+		if (ctrl->debug & PRI_DEBUG_APDU) {
+			pri_message(ctrl,
+				"!! Don't know how to handle Network Protocol Profile type 0x%X\n",
+				header.npp);
+		}
+		return -1;
+	}
+
+	pos = rose_decode(ctrl, pos, end, &rose);
+	if (!pos) {
+		return -1;
+	}
+	switch (rose.type) {
+	case ROSE_COMP_TYPE_INVOKE:
+		rose_handle_invoke(ctrl, call, ie, &header, &rose.component.invoke);
+		break;
+	case ROSE_COMP_TYPE_RESULT:
+		rose_handle_result(ctrl, call, ie, &header, &rose.component.result);
+		break;
+	case ROSE_COMP_TYPE_ERROR:
+		rose_handle_error(ctrl, call, ie, &header, &rose.component.error);
+		break;
+	case ROSE_COMP_TYPE_REJECT:
+		rose_handle_reject(ctrl, call, ie, &header, &rose.component.reject);
+		break;
+	default:
+		return -1;
+	}
 	return 0;
 }
 
@@ -1711,12 +1676,13 @@ static void dump_ie_data(struct pri *pri, unsigned char *c, int len)
 static FUNC_DUMP(dump_facility)
 {
 	int dataat = (ie->data[0] & 0x80) ? 1 : 2;
+
 	pri_message(pri, "%c Facility (len=%2d, codeset=%d) [ ", prefix, len, Q931_IE_CODESET(full_ie));
 	dump_ie_data(pri, ie->data, ie->len);
 	pri_message(NULL, " ]\n");
 	if (ie->len > 1) {
-		pri_message(pri, "PROTOCOL %02X\n", ie->data[0] & ASN1_TYPE_MASK);
-		asn1_dump(pri, &ie->data[dataat], ie->len - dataat);
+		pri_message(pri, "PROTOCOL %02X\n", ie->data[0] & Q932_PROTOCOL_MASK);
+		asn1_dump(pri, ie->data + dataat, ie->data + ie->len);
 	}
 
 }
@@ -1725,7 +1691,7 @@ static FUNC_DUMP(dump_network_spec_fac)
 {
 	pri_message(pri, "%c Network-Specific Facilities (len=%2d) [ ", prefix, ie->len);
 	if (ie->data[0] == 0x00) {
- 		pri_message(pri, "%s", code2str(ie->data[1], facilities, sizeof(facilities) / sizeof(facilities[0])));
+ 		pri_message(pri, "%s", code2str(ie->data[1], facilities, ARRAY_LEN(facilities)));
 	}
 	else
  		dump_ie_data(pri, ie->data, ie->len);
@@ -2374,7 +2340,7 @@ static inline void q931_dumpie(struct pri *pri, int codeset, q931_ie *ie, char p
 
 	base_ie = (((full_ie & ~0x7f) == Q931_FULL_IE(0, 0x80)) && ((full_ie & 0x70) != 0x20)) ? full_ie & ~0x0f : full_ie;
 
-	for (x=0;x<sizeof(ies) / sizeof(ies[0]); x++) 
+	for (x = 0; x < ARRAY_LEN(ies); ++x)
 		if (ies[x].ie == base_ie) {
 			if (ies[x].dump)
 				ies[x].dump(full_ie, pri, ie, ielen(ie), prefix);
@@ -2534,8 +2500,7 @@ static int add_ie(struct pri *pri, q931_call *call, int msgtype, int ie, q931_ie
 						maxlen -= res;
 						iet = (q931_ie *)((char *)iet + res);
 					}
-				}
-				while (res > 0 && order < ies_count);
+				} while (res > 0 && order < ies_count);
 				if (have_shift && total_res) {
 					if (Q931_IE_CODESET(ies[x].ie))
 						*codeset = Q931_IE_CODESET(ies[x].ie);

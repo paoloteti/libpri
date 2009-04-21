@@ -1,0 +1,2454 @@
+/*
+ * libpri: An implementation of Primary Rate ISDN
+ *
+ * Copyright (C) 2009 Digium, Inc.
+ *
+ * Richard Mudgett <rmudgett@digium.com>
+ *
+ * See http://www.asterisk.org for more information about
+ * the Asterisk project. Please do not directly contact
+ * any of the maintainers of this project for assistance;
+ * the project provides a web site, mailing lists and IRC
+ * channels for your use.
+ *
+ * This program is free software, distributed under the terms of
+ * the GNU General Public License Version 2 as published by the
+ * Free Software Foundation. See the LICENSE file included with
+ * this program for more details.
+ *
+ * In addition, when this program is distributed with Asterisk in
+ * any form that would qualify as a 'combined work' or as a
+ * 'derivative work' (but not mere aggregation), you can redistribute
+ * and/or modify the combination under the terms of the license
+ * provided with that copy of Asterisk, instead of the license
+ * terms granted here.
+ */
+
+/*!
+ * \file
+ * \brief ROSE definitions and prototypes
+ *
+ * \details
+ * This file contains all of the data structures and definitions needed
+ * for ROSE component encoding and decoding.
+ *
+ * ROSE - Remote Operations Service Element
+ * ASN.1 - Abstract Syntax Notation 1
+ * APDU - Application Protocol Data Unit
+ *
+ * \author Richard Mudgett <rmudgett@digium.com>
+ */
+
+#ifndef _LIBPRI_ROSE_H
+#define _LIBPRI_ROSE_H
+
+#include <string.h>
+#include <sys/types.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* ------------------------------------------------------------------- */
+
+
+/* Northern Telecom DMS-100 RLT related operations */
+#define ROSE_DMS100_RLT_SERVICE_ID		0x3e
+#define ROSE_DMS100_RLT_OPERATION_IND	0x01
+#define ROSE_DMS100_RLT_THIRD_PARTY		0x02
+
+/*! \brief ROSE operation-value function code */
+enum rose_operation {
+	/*! \brief No ROSE operation */
+	ROSE_None,
+	/*! \brief Unknown OID/localValue operation-value code */
+	ROSE_Unknown,
+
+/* *INDENT-OFF* */
+	/*
+	 * ETSI Advice-of-Charge-Operations
+	 *
+	 * Advice-Of-Charge-at-call-Setup(AOCS)
+	 * Advice-Of-Charge-During-the-call(AOCD)
+	 * Advice-Of-Charge-at-the-End-of-the-call(AOCE)
+	 */
+	ROSE_ETSI_ChargingRequest,              /*!< Invoke/Result */
+	ROSE_ETSI_AOCSCurrency,                 /*!< Invoke only */
+	ROSE_ETSI_AOCSSpecialArr,               /*!< Invoke only */
+	ROSE_ETSI_AOCDCurrency,                 /*!< Invoke only */
+	ROSE_ETSI_AOCDChargingUnit,             /*!< Invoke only */
+	ROSE_ETSI_AOCECurrency,                 /*!< Invoke only */
+	ROSE_ETSI_AOCEChargingUnit,             /*!< Invoke only */
+
+	/* Q.SIG Name-Operations */
+	ROSE_QSIG_CallingName,                  /*!< Invoke only */
+	ROSE_QSIG_CalledName,                   /*!< Invoke only */
+	ROSE_QSIG_ConnectedName,                /*!< Invoke only */
+	ROSE_QSIG_BusyName,                     /*!< Invoke only */
+
+	/* Q.SIG Call-Transfer-Operations (CT) */
+	ROSE_QSIG_CallTransferIdentify,         /*!< Invoke/Result */
+	ROSE_QSIG_CallTransferAbandon,          /*!< Invoke only */
+	ROSE_QSIG_CallTransferInitiate,         /*!< Invoke/Result */
+	ROSE_QSIG_CallTransferSetup,            /*!< Invoke/Result */
+	ROSE_QSIG_CallTransferActive,           /*!< Invoke only */
+	ROSE_QSIG_CallTransferComplete,         /*!< Invoke only */
+	ROSE_QSIG_CallTransferUpdate,           /*!< Invoke only */
+	ROSE_QSIG_SubaddressTransfer,           /*!< Invoke only */
+
+	ROSE_QSIG_PathReplacement,              /*!< Invoke only */
+
+	/* Q.SIG Call-Diversion-Operations */
+	ROSE_QSIG_ActivateDiversionQ,           /*!< Invoke/Result */
+	ROSE_QSIG_DeactivateDiversionQ,         /*!< Invoke/Result */
+	ROSE_QSIG_InterrogateDiversionQ,        /*!< Invoke/Result */
+	ROSE_QSIG_CheckRestriction,             /*!< Invoke/Result */
+	ROSE_QSIG_CallRerouting,                /*!< Invoke/Result */
+	ROSE_QSIG_DivertingLegInformation1,     /*!< Invoke only */
+	ROSE_QSIG_DivertingLegInformation2,     /*!< Invoke only */
+	ROSE_QSIG_DivertingLegInformation3,     /*!< Invoke only */
+	ROSE_QSIG_CfnrDivertedLegFailed,        /*!< Invoke only */
+
+	/* Q.SIG SS-MWI-Operations */
+	ROSE_QSIG_MWIActivate,                  /*!< Invoke/Result */
+	ROSE_QSIG_MWIDeactivate,                /*!< Invoke/Result */
+	ROSE_QSIG_MWIInterrogate,               /*!< Invoke/Result */
+
+	/* Northern Telecom DMS-100 RLT related operations */
+	/*! Invoke/Result: Must set invokeId to ROSE_DMS100_RLT_OPERATION_IND */
+	ROSE_DMS100_RLT_OperationInd,
+	/*! Invoke/Result: Must set invokeId to ROSE_DMS100_RLT_THIRD_PARTY */
+	ROSE_DMS100_RLT_ThirdParty,
+
+	ROSE_NI2_InformationFollowing,          /*!< Invoke only? */
+	ROSE_NI2_InitiateTransfer,              /*!< Invoke only? Is this correct operation name? */
+
+	ROSE_Num_Operation_Codes                /*!< Must be last in the enumeration */
+/* *INDENT-ON* */
+};
+
+enum rose_error_code {
+	/*! \brief No error occurred */
+	ROSE_ERROR_None,
+	/*! \brief Unknown OID/localValue error-value code */
+	ROSE_ERROR_Unknown,
+
+	/* General-Errors (ETS 300 196) and General-Error-List(Q.950) */
+	ROSE_ERROR_Gen_NotSubscribed,	/*!< also: UserNotSubscribed */
+	ROSE_ERROR_Gen_NotAvailable,
+	ROSE_ERROR_Gen_NotImplemented,	/*!< Not in Q.950 */
+	ROSE_ERROR_Gen_InvalidServedUserNr,
+	ROSE_ERROR_Gen_InvalidCallState,
+	ROSE_ERROR_Gen_BasicServiceNotProvided,
+	ROSE_ERROR_Gen_NotIncomingCall,
+	ROSE_ERROR_Gen_SupplementaryServiceInteractionNotAllowed,
+	ROSE_ERROR_Gen_ResourceUnavailable,
+
+	/* Additional General-Error-List(Q.950) */
+	ROSE_ERROR_Gen_RejectedByNetwork,
+	ROSE_ERROR_Gen_RejectedByUser,
+	ROSE_ERROR_Gen_InsufficientInformation,
+	ROSE_ERROR_Gen_CallFailure,
+	ROSE_ERROR_Gen_ProceduralError,
+
+	/* ETSI Diversion-Operations */
+	ROSE_ERROR_Div_InvalidDivertedToNr,
+	ROSE_ERROR_Div_SpecialServiceNr,
+	ROSE_ERROR_Div_DiversionToServedUserNr,
+	ROSE_ERROR_Div_NumberOfDiversionsExceeded,
+
+	/* ETSI Advice-of-Charge-Operations */
+	ROSE_ERROR_AOC_NoChargingInfoAvailable,
+
+	/* Q.SIG from various specifications */
+	ROSE_ERROR_QSIG_Unspecified,
+
+	/* Q.SIG Call-Transfer-Operations (CT) */
+	ROSE_ERROR_QSIG_CT_InvalidReroutingNumber,
+	ROSE_ERROR_QSIG_CT_UnrecognizedCallIdentity,
+	ROSE_ERROR_QSIG_CT_EstablishmentFailure,
+
+	/* Q.SIG Call-Diversion-Operations (Additional Q.SIG specific errors) */
+	ROSE_ERROR_QSIG_Div_TemporarilyUnavailable,
+	ROSE_ERROR_QSIG_Div_NotAuthorized,
+
+	/* Q.SIG SS-MWI-Operations */
+	ROSE_ERROR_QSIG_InvalidMsgCentreId,
+
+	/* Northern Telecom DMS-100 RLT related operations */
+	ROSE_ERROR_DMS100_RLT_BridgeFail,
+	ROSE_ERROR_DMS100_RLT_CallIDNotFound,
+	ROSE_ERROR_DMS100_RLT_NotAllowed,
+	ROSE_ERROR_DMS100_RLT_SwitchEquipCongs,
+
+	ROSE_ERROR_Num_Codes		/*!< Must be last in the enumeration */
+};
+
+#define ROSE_REJECT_BASE(base)		((base) * 0x100)
+enum rose_reject_base {
+	ROSE_REJECT_BASE_General,
+	ROSE_REJECT_BASE_Invoke,
+	ROSE_REJECT_BASE_Result,
+	ROSE_REJECT_BASE_Error,
+
+	/*! \brief Must be last in the list */
+	ROSE_REJECT_BASE_Last
+};
+
+/*!
+ * \brief From Facility-Information-Element-Components
+ * {itu-t identified-organization etsi(0) 196 facility-information-element-component(3)}
+ */
+enum rose_reject_code {
+	/*! \brief Not rejected */
+	ROSE_REJECT_None = -1,
+	/*! \brief Unknown reject code */
+	ROSE_REJECT_Unknown = -2,
+
+/* *INDENT-OFF* */
+	ROSE_REJECT_Gen_UnrecognizedComponent       = ROSE_REJECT_BASE(ROSE_REJECT_BASE_General) + 0,
+	ROSE_REJECT_Gen_MistypedComponent           = ROSE_REJECT_BASE(ROSE_REJECT_BASE_General) + 1,
+	ROSE_REJECT_Gen_BadlyStructuredComponent    = ROSE_REJECT_BASE(ROSE_REJECT_BASE_General) + 2,
+
+	ROSE_REJECT_Inv_DuplicateInvocation         = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Invoke) + 0,
+	ROSE_REJECT_Inv_UnrecognizedOperation       = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Invoke) + 1,
+	ROSE_REJECT_Inv_MistypedArgument            = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Invoke) + 2,
+	ROSE_REJECT_Inv_ResourceLimitation          = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Invoke) + 3,
+	ROSE_REJECT_Inv_InitiatorReleasing          = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Invoke) + 4,
+	ROSE_REJECT_Inv_UnrecognizedLinkedID        = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Invoke) + 5,
+	ROSE_REJECT_Inv_LinkedResponseUnexpected    = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Invoke) + 6,
+	ROSE_REJECT_Inv_UnexpectedChildOperation    = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Invoke) + 7,
+
+	ROSE_REJECT_Res_UnrecognizedInvocation      = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Result) + 0,
+	ROSE_REJECT_Res_ResultResponseUnexpected    = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Result) + 1,
+	ROSE_REJECT_Res_MistypedResult              = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Result) + 2,
+
+	ROSE_REJECT_Err_UnrecognizedInvocation      = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Error) + 0,
+	ROSE_REJECT_Err_ErrorResponseUnexpected     = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Error) + 1,
+	ROSE_REJECT_Err_UnrecognizedError           = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Error) + 2,
+	ROSE_REJECT_Err_UnexpectedError             = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Error) + 3,
+	ROSE_REJECT_Err_MistypedParameter           = ROSE_REJECT_BASE(ROSE_REJECT_BASE_Error) + 4,
+/* *INDENT-ON* */
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * Q931InformationElement ::= [APPLICATION 0] IMPLICIT OCTET STRING
+ */
+struct roseQ931ie {
+	/*!
+	 * \brief The Q.931 ie is present if length is nonzero.
+	 * (If this field is optional in the message.)
+	 */
+	u_int8_t length;
+
+	/*!
+	 * \brief We mostly just need to store the contents so we will defer
+	 * decoding/encoding.
+	 *
+	 * \note To reduce the size of the structure, the memory for the
+	 * ie contents is "allocated" after the structure.
+	 * \note Remember the "allocated" memory needs to have room for a
+	 * null terminator.
+	 */
+	unsigned char contents[0];
+};
+
+enum {
+	/*! Bearer Capability has a max length of 12. */
+	ROSE_Q931_MAX_BC = 12,
+	/*! High Layer Compatibility has a max length of 5. */
+	ROSE_Q931_MAX_HLC = 5,
+	/*! Low Layer Compatibility has a max length of 18. */
+	ROSE_Q931_MAX_LLC = 18,
+	/*!
+	 * User-User Information has a network dependent maximum.
+	 * The network dependent maximum is either 35 or 131 octets
+	 * in non-USER-INFORMATION messages.
+	 */
+	ROSE_Q931_MAX_USER = 131,
+	/*!
+	 * Progress Indicator has a max length of 4.
+	 * There can be multiple progress indicator ies.
+	 * Q.SIG allows up to 3.
+	 * ITU-T allows up to 2.
+	 */
+	ROSE_Q931_MAX_PROGRESS = 3 * 4,
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * PartyNumber ::= CHOICE {
+ *     -- the numbering plan is the default numbering plan of
+ *     -- the network. It is recommended that this value is
+ *     -- used.
+ *     unknownPartyNumber          [0] IMPLICIT NumberDigits,
+ *
+ *     -- the numbering plan is according to
+ *     -- ITU-T Recommendation E.164.
+ *     publicPartyNumber           [1] IMPLICIT PublicPartyNumber,
+ *
+ *     -- ATM endsystem address encoded as an NSAP address.
+ *     nsapEncodedNumber           [2] IMPLICIT NsapEncodedNumber,
+ *
+ *     -- not used, value reserved.
+ *     dataPartyNumber             [3] IMPLICIT NumberDigits,
+ *
+ *     -- not used, value reserved.
+ *     telexPartyNumber            [4] IMPLICIT NumberDigits,
+ *     privatePartyNumber          [5] IMPLICIT PrivatePartyNumber,
+ *
+ *     -- not used, value reserved.
+ *     nationalStandardPartyNumber [8] IMPLICIT NumberDigits
+ * }
+ */
+struct rosePartyNumber {
+	/*!
+	 * \brief Party numbering plan
+	 * \details
+	 * unknown(0),
+	 * public(1) - The numbering plan is according to ITU-T E.164,
+	 * nsapEncoded(2),
+	 * data(3) - Reserved,
+	 * telex(4) - Reserved,
+	 * private(5),
+	 * nationalStandard(8) - Reserved
+	 */
+	u_int8_t plan;
+
+	/*!
+	 * \brief Type-Of-Number valid for public and private party number plans
+	 * \details
+	 * public:
+	 *  unknown(0),
+	 *  internationalNumber(1),
+	 *  nationalNumber(2),
+	 *  networkSpecificNumber(3) - Reserved,
+	 *  subscriberNumber(4) - Reserved,
+	 *  abbreviatedNumber(6)
+	 * \details
+	 * private:
+	 *  unknown(0),
+	 *  level2RegionalNumber(1),
+	 *  level1RegionalNumber(2),
+	 *  pTNSpecificNumber/pISNSpecificNumber(3),
+	 *  localNumber(4),
+	 *  abbreviatedNumber(6)
+	 */
+	u_int8_t ton;
+
+	/*! \brief Number present if length is nonzero. */
+	u_int8_t length;
+
+	/*! \brief Number string data. */
+	unsigned char str[20 + 1];
+};
+
+/*
+ * NumberScreened ::= SEQUENCE {
+ *     partyNumber           PartyNumber,
+ *     screeningIndicator    ScreeningIndicator
+ * }
+ */
+struct roseNumberScreened {
+	struct rosePartyNumber number;
+
+	/*!
+	 * \details
+	 * userProvidedNotScreened(0),
+	 * userProvidedVerifiedAndPassed(1),
+	 * userProvidedVerifiedAndFailed(2) (Not used, value reserved),
+	 * networkProvided(3)
+	 */
+	u_int8_t screening_indicator;
+};
+
+/*
+ * PartySubaddress ::= CHOICE {
+ *     -- not recommended
+ *     UserSpecifiedSubaddress,
+ *
+ *     -- according to ITU-T Recommendation X.213
+ *     NSAPSubaddress
+ * }
+ *
+ * UserSpecifiedSubaddress ::= SEQUENCE {
+ *     SubaddressInformation,
+ *
+ *     -- used when the coding of subaddress is BCD
+ *     oddCountIndicator BOOLEAN OPTIONAL
+ * }
+ *
+ * -- specified according to ITU-T Recommendation X.213. Some
+ * -- networks may limit the subaddress value to some other
+ * -- length, e.g. 4 octets
+ * NSAPSubaddress ::= OCTET STRING (SIZE(1..20))
+ *
+ * -- coded according to user requirements. Some networks may
+ * -- limit the subaddress value to some other length,
+ * -- e.g. 4 octets
+ * SubaddressInformation ::= OCTET STRING (SIZE(1..20))
+ */
+struct rosePartySubaddress {
+	/*! \brief Subaddress type UserSpecified(0), NSAP(1) */
+	u_int8_t type;
+
+	/*! \brief Subaddress present if length is nonzero */
+	u_int8_t length;
+
+	union {
+		/*! \brief Specified according to ITU-T Recommendation X.213 */
+		unsigned char nsap[20 + 1];
+
+		/*! \brief Use of this formatting is not recommended */
+		struct {
+			/*! \brief TRUE if OddCount present */
+			u_int8_t odd_count_present;
+
+			/*!
+			 * \brief TRUE if odd number of BCD digits (optional)
+			 * \note Used when the coding of subaddress is BCD.
+			 */
+			u_int8_t odd_count;
+			unsigned char information[20 + 1];
+		} user_specified;
+	} u;
+};
+
+/*
+ * Address ::= SEQUENCE {
+ *     PartyNumber,
+ *     PartySubaddress OPTIONAL
+ * }
+ */
+struct roseAddress {
+	struct rosePartyNumber number;
+
+	/*! \brief Subaddress (Optional) */
+	struct rosePartySubaddress subaddress;
+};
+
+/*
+ * AddressScreened ::= SEQUENCE {
+ *     PartyNumber,
+ *     ScreeningIndicator,
+ *     PartySubaddress OPTIONAL
+ * }
+ */
+struct roseAddressScreened {
+	struct rosePartyNumber number;
+
+	/*! \brief Subaddress (Optional) */
+	struct rosePartySubaddress subaddress;
+
+	/*!
+	 * \details
+	 * userProvidedNotScreened(0),
+	 * userProvidedVerifiedAndPassed(1),
+	 * userProvidedVerifiedAndFailed(2) (Not used, value reserved),
+	 * networkProvided(3)
+	 */
+	u_int8_t screening_indicator;
+};
+
+/*
+ * PresentedNumberUnscreened ::= CHOICE {
+ *     presentationAllowedNumber           [0] EXPLICIT PartyNumber,
+ *     presentationRestricted              [1] IMPLICIT NULL,
+ *     numberNotAvailableDueToInterworking [2] IMPLICIT NULL,
+ *     presentationRestrictedNumber        [3] EXPLICIT PartyNumber
+ * }
+ */
+struct rosePresentedNumberUnscreened {
+	struct rosePartyNumber number;
+	/*!
+	 * \brief Number presentation type
+	 * \details
+	 * presentationAllowedNumber(0),
+	 * presentationRestricted(1),
+	 * numberNotAvailableDueToInterworking(2),
+	 * presentationRestrictedNumber(3)
+	 */
+	u_int8_t presentation;
+};
+
+/*
+ * PresentedNumberScreened ::= CHOICE {
+ *     presentationAllowedNumber           [0] IMPLICIT NumberScreened,
+ *     presentationRestricted              [1] IMPLICIT NULL,
+ *     numberNotAvailableDueToInterworking [2] IMPLICIT NULL,
+ *     presentationRestrictedNumber        [3] IMPLICIT NumberScreened
+ * }
+ */
+struct rosePresentedNumberScreened {
+	/*! \brief Screened number */
+	struct roseNumberScreened screened;
+	/*!
+	 * \brief Number presentation type
+	 * \details
+	 * presentationAllowedNumber(0),
+	 * presentationRestricted(1),
+	 * numberNotAvailableDueToInterworking(2),
+	 * presentationRestrictedNumber(3)
+	 */
+	u_int8_t presentation;
+};
+
+/*
+ * PresentedAddressScreened ::= CHOICE {
+ *     presentationAllowedAddress          [0] IMPLICIT AddressScreened,
+ *     presentationRestricted              [1] IMPLICIT NULL,
+ *     numberNotAvailableDueToInterworking [2] IMPLICIT NULL,
+ *     presentationRestrictedAddress       [3] IMPLICIT AddressScreened
+ * }
+ */
+struct rosePresentedAddressScreened {
+	/*! \breif Screened address */
+	struct roseAddressScreened screened;
+	/*!
+	 * \brief Address presentation type
+	 * \details
+	 * presentationAllowedAddress(0),
+	 * presentationRestricted(1),
+	 * numberNotAvailableDueToInterworking(2),
+	 * presentationRestrictedAddress(3)
+	 */
+	u_int8_t presentation;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * Time ::= SEQUENCE {
+ *     lengthOfTimeUnit [1] IMPLICIT LengthOfTimeUnit,
+ *     scale            [2] IMPLICIT Scale
+ * }
+ */
+struct roseEtsiAOCTime {
+	/*! LengthOfTimeUnit ::= INTEGER (0..16777215) -- 24 bit number */
+	u_int32_t length;
+	/*!
+	 * \details
+	 * oneHundredthSecond(0),
+	 * oneTenthSecond(1),
+	 * oneSecond(2),
+	 * tenSeconds(3),
+	 * oneMinute(4),
+	 * oneHour(5),
+	 * twentyFourHours(6)
+	 */
+	u_int8_t scale;
+};
+
+/*
+ * Amount ::= SEQUENCE {
+ *     currencyAmount [1] IMPLICIT CurrencyAmount,
+ *     multiplier     [2] IMPLICIT Multiplier
+ * }
+ */
+struct roseEtsiAOCAmount {
+	/*! CurrencyAmount ::= INTEGER (0..16777215) -- 24 bit number */
+	u_int32_t currency;
+	/*!
+	 * \details
+	 * oneThousandth(0),
+	 * oneHundredth(1),
+	 * oneTenth(2),
+	 * one(3),
+	 * ten(4),
+	 * hundred(5),
+	 * thousand(6)
+	 */
+	u_int8_t multiplier;
+};
+
+/*
+ * DurationCurrency ::= SEQUENCE {
+ *     dCurrency       [1] IMPLICIT Currency,
+ *     dAmount         [2] IMPLICIT Amount,
+ *     dChargingType   [3] IMPLICIT ChargingType,
+ *     dTime           [4] IMPLICIT Time,
+ *     dGranularity    [5] IMPLICIT Time OPTIONAL
+ * }
+ */
+struct roseEtsiAOCDurationCurrency {
+	struct roseEtsiAOCAmount amount;
+	struct roseEtsiAOCTime time;
+	/*! \breif dGranularity (optional) */
+	struct roseEtsiAOCTime granularity;
+	/*! Currency ::= IA5String (SIZE (1..10)) -- Name of currency. */
+	unsigned char currency[10 + 1];
+	/*!
+	 * \details
+	 * continuousCharging(0),
+	 * stepFunction(1)
+	 */
+	u_int8_t charging_type;
+	/*! TRUE if granularity time is present */
+	u_int8_t granularity_present;
+};
+
+/*
+ * FlatRateCurrency ::= SEQUENCE {
+ *     fRCurrency      [1] IMPLICIT Currency,
+ *     fRAmount        [2] IMPLICIT Amount
+ * }
+ */
+struct roseEtsiAOCFlatRateCurrency {
+	struct roseEtsiAOCAmount amount;
+	/*! Currency ::= IA5String (SIZE (1..10)) -- Name of currency. */
+	unsigned char currency[10 + 1];
+};
+
+/*
+ * VolumeRateCurrency ::= SEQUENCE {
+ *     vRCurrency      [1] IMPLICIT Currency,
+ *     vRAmount        [2] IMPLICIT Amount,
+ *     vRVolumeUnit    [3] IMPLICIT VolumeUnit
+ * }
+ */
+struct roseEtsiAOCVolumeRateCurrency {
+	struct roseEtsiAOCAmount amount;
+	/*! Currency ::= IA5String (SIZE (1..10)) -- Name of currency. */
+	unsigned char currency[10 + 1];
+	/*!
+	 * \brief Volume rate volume unit
+	 * \details
+	 * octet(0),
+	 * segment(1),
+	 * message(2)
+	 */
+	u_int8_t unit;
+};
+
+/*
+ * AOCSCurrencyInfo ::= SEQUENCE {
+ *     chargedItem ChargedItem,
+ *     CHOICE {
+ *         specialChargingCode      SpecialChargingCode,
+ *         durationCurrency         [1] IMPLICIT DurationCurrency,
+ *         flatRateCurrency         [2] IMPLICIT FlatRateCurrency,
+ *         volumeRateCurrency       [3] IMPLICIT VolumeRateCurrency
+ *         freeOfCharge             [4] IMPLICIT NULL,
+ *         currencyInfoNotAvailable [5] IMPLICIT NULL
+ *     }
+ * }
+ */
+struct roseEtsiAOCSCurrencyInfo {
+	union {
+		struct roseEtsiAOCDurationCurrency duration;
+		struct roseEtsiAOCFlatRateCurrency flat_rate;
+		struct roseEtsiAOCVolumeRateCurrency volume_rate;
+		/*! SpecialChargingCode ::= INTEGER (1..10) */
+		u_int8_t special_charging_code;
+	} u;
+	/*!
+	 * \brief Determine what is stored in the union.
+	 * \details
+	 * specialChargingCode(0),
+	 * durationCurrency(1),
+	 * flatRateCurrency(2),
+	 * volumeRateCurrency(3),
+	 * freeOfCharge(4),
+	 * currencyInfoNotAvailable(5),
+	 */
+	u_int8_t currency_type;
+	/*!
+	 * \brief What service is being billed.
+	 * \details
+	 * basicCommunication(0),
+	 * callAttempt(1),
+	 * callSetup(2),
+	 * userToUserInfo(3),
+	 * operationOfSupplementaryServ(4)
+	 */
+	u_int8_t charged_item;
+};
+
+/*
+ * AOCSCurrencyInfoList ::= SEQUENCE SIZE (1..10) OF AOCSCurrencyInfo
+ */
+struct roseEtsiAOCSCurrencyInfoList {
+	/*! \brief SEQUENCE SIZE (1..10) OF AOCSCurrencyInfo */
+	struct roseEtsiAOCSCurrencyInfo list[10];
+
+	/*! \brief Number of AOCSCurrencyInfo records present */
+	u_int8_t num_records;
+};
+
+/*
+ * RecordedCurrency ::= SEQUENCE {
+ *     rCurrency       [1] IMPLICIT Currency,
+ *     rAmount         [2] IMPLICIT Amount
+ * }
+ */
+struct roseEtsiAOCRecordedCurrency {
+	/*! Amount of currency involved. */
+	struct roseEtsiAOCAmount amount;
+	/*! Currency ::= IA5String (SIZE (1..10)) -- Name of currency. */
+	unsigned char currency[10 + 1];
+};
+
+/*
+ * RecordedUnits ::= SEQUENCE {
+ *     CHOICE {
+ *         recordedNumberOfUnits NumberOfUnits,
+ *         notAvailable          NULL
+ *     },
+ *     recordedTypeOfUnits TypeOfUnit OPTIONAL
+ * }
+ */
+struct roseEtsiAOCRecordedUnits {
+	/*! \brief recordedNumberOfUnits INTEGER (0..16777215) -- 24 bit number */
+	u_int32_t number_of_units;
+	/*! \brief TRUE if number_of_units is not available (not present) */
+	u_int8_t not_available;
+	/*! \brief recordedTypeOfUnits INTEGER (1..16) (optional) */
+	u_int8_t type_of_unit;
+	/*! \brief TRUE if type_of_unit is present */
+	u_int8_t type_of_unit_present;
+};
+
+/*
+ * RecordedUnitsList ::= SEQUENCE SIZE (1..32) OF RecordedUnits
+ */
+struct roseEtsiAOCRecordedUnitsList {
+	/*! \brief SEQUENCE SIZE (1..32) OF RecordedUnits */
+	struct roseEtsiAOCRecordedUnits list[32];
+
+	/*! \brief Number of RecordedUnits records present */
+	u_int8_t num_records;
+};
+
+/*
+ * ChargingAssociation ::= CHOICE {
+ *     chargedNumber     [0] EXPLICIT PartyNumber,
+ *     chargeIdentifier  ChargeIdentifier
+ * }
+ */
+struct roseEtsiAOCChargingAssociation {
+	/*! chargeIdentifier: INTEGER (-32768..32767) -- 16 bit number */
+	int16_t id;
+	/*! chargedNumber */
+	struct rosePartyNumber number;
+	/*!
+	 * \details
+	 * charge_identifier(0),
+	 * charged_number(1)
+	 */
+	u_int8_t type;
+};
+
+/*
+ * AOCECurrencyInfo ::= SEQUENCE {
+ *     CHOICE {
+ *         freeOfCharge [1] IMPLICIT NULL,
+ *         specificCurrency SEQUENCE {
+ *             recordedCurrency    [1] IMPLICIT RecordedCurrency,
+ *             aOCEBillingId       [2] IMPLICIT AOCEBillingId OPTIONAL
+ *         }
+ *     },
+ *     chargingAssociation ChargingAssociation OPTIONAL
+ * }
+ */
+struct roseEtsiAOCECurrencyInfo {
+	struct {
+		/*! \brief recorded currency */
+		struct roseEtsiAOCRecordedCurrency recorded;
+		/*!
+		 * \brief AOCEBillingId (optional)
+		 * \details
+		 * normalCharging(0),
+		 * reverseCharging(1),
+		 * creditCardCharging(2),
+		 * callForwardingUnconditional(3),
+		 * callForwardingBusy(4),
+		 * callForwardingNoReply(5),
+		 * callDeflection(6),
+		 * callTransfer(7)
+		 */
+		u_int8_t billing_id;
+		/*! \brief TRUE if billing id is present */
+		u_int8_t billing_id_present;
+	} specific;
+
+	/*! \brief chargingAssociation (optional) */
+	struct roseEtsiAOCChargingAssociation charging_association;
+
+	/*! \brief TRUE if charging_association is present */
+	u_int8_t charging_association_present;
+
+	/*!
+	 * \brief TRUE if this is free of charge.
+	 * \note When TRUE, the contents of specific are not valid.
+	 */
+	u_int8_t free_of_charge;
+};
+
+/*
+ * AOCEChargingUnitInfo ::= SEQUENCE {
+ *     CHOICE {
+ *         freeOfCharge [1] IMPLICIT NULL,
+ *         specificChargingUnits SEQUENCE
+ *         {
+ *             recordedUnitsList [1] IMPLICIT RecordedUnitsList,
+ *             aOCEBillingId     [2] IMPLICIT AOCEBillingId OPTIONAL
+ *         }
+ *     },
+ *     chargingAssociation ChargingAssociation OPTIONAL
+ * }
+ */
+struct roseEtsiAOCEChargingUnitInfo {
+	/*! \brief Not valid if free_of_charge is TRUE */
+	struct {
+		/*! \brief RecordedUnitsList */
+		struct roseEtsiAOCRecordedUnitsList recorded;
+		/*!
+		 * \brief AOCEBillingId (optional)
+		 * \details
+		 * normalCharging(0),
+		 * reverseCharging(1),
+		 * creditCardCharging(2),
+		 * callForwardingUnconditional(3),
+		 * callForwardingBusy(4),
+		 * callForwardingNoReply(5),
+		 * callDeflection(6),
+		 * callTransfer(7)
+		 */
+		u_int8_t billing_id;
+		/*! \brief TRUE if billing id is present */
+		u_int8_t billing_id_present;
+	} specific;
+
+	/*! \brief chargingAssociation (optional) */
+	struct roseEtsiAOCChargingAssociation charging_association;
+
+	/*! \brief TRUE if charging_association is present */
+	u_int8_t charging_association_present;
+
+	/*!
+	 * \brief TRUE if this is free of charge.
+	 * \note When TRUE, the contents of specific are not valid.
+	 */
+	u_int8_t free_of_charge;
+};
+
+/*
+ * ARGUMENT ChargingCase
+ */
+struct roseEtsiChargingRequest_ARG {
+	/*!
+	 * \details
+	 * chargingInformationAtCallSetup(0),
+	 * chargingDuringACall(1),
+	 * chargingAtTheEndOfACall(2)
+	 */
+	u_int8_t charging_case;
+};
+
+/*
+ * RESULT CHOICE {
+ *     AOCSCurrencyInfoList,
+ *     AOCSSpecialArrInfo,
+ *     chargingInfoFollows NULL
+ * }
+ */
+struct roseEtsiChargingRequest_RES {
+	union {
+		struct roseEtsiAOCSCurrencyInfoList currency_info;
+
+		/*! AOCSSpecialArrInfo ::= INTEGER (1..10) */
+		u_int8_t special_arrangement;
+	} u;
+	/*!
+	 * \details
+	 * currency_info_list(0),
+	 * special_arrangement_info(1),
+	 * charging_info_follows(2)
+	 */
+	u_int8_t type;
+};
+
+/*
+ * ARGUMENT CHOICE {
+ *     chargeNotAvailable NULL,
+ *     AOCSCurrencyInfoList
+ * }
+ */
+struct roseEtsiAOCSCurrency_ARG {
+	struct roseEtsiAOCSCurrencyInfoList currency_info;
+	/*!
+	 * \details
+	 * charge_not_available(0),
+	 * currency_info_list(1)
+	 */
+	u_int8_t type;
+};
+
+/*
+ * ARGUMENT CHOICE {
+ *     chargeNotAvailable NULL,
+ *     AOCSSpecialArrInfo
+ * }
+ */
+struct roseEtsiAOCSSpecialArr_ARG {
+	/*!
+	 * \details
+	 * charge_not_available(0),
+	 * special_arrangement_info(1)
+	 */
+	u_int8_t type;
+	/*! AOCSSpecialArrInfo ::= INTEGER (1..10) */
+	u_int8_t special_arrangement;
+};
+
+/*
+ * ARGUMENT CHOICE {
+ *     chargeNotAvailable NULL,
+ *     aOCDCurrencyInfo CHOICE {
+ *         freeOfCharge [1] IMPLICIT NULL,
+ *         specificCurrency SEQUENCE {
+ *             recordedCurrency   [1] IMPLICIT RecordedCurrency,
+ *             typeOfChargingInfo [2] IMPLICIT TypeOfChargingInfo,
+ *             aOCDBillingId      [3] IMPLICIT AOCDBillingId OPTIONAL
+ *         }
+ *     }
+ * }
+ */
+struct roseEtsiAOCDCurrency_ARG {
+	struct {
+		/*! \brief recorded currency */
+		struct roseEtsiAOCRecordedCurrency recorded;
+		/*!
+		 * \brief Type of recorded charging information.
+		 * \details
+		 * subTotal(0),
+		 * total(1)
+		 */
+		u_int8_t type_of_charging_info;
+		/*!
+		 * \brief AOCDBillingId (optional)
+		 * \details
+		 * normalCharging(0),
+		 * reverseCharging(1),
+		 * creditCardCharging(2)
+		 */
+		u_int8_t billing_id;
+		/*! \brief TRUE if billing id is present */
+		u_int8_t billing_id_present;
+	} specific;
+	/*!
+	 * \details
+	 * charge_not_available(0),
+	 * free_of_charge(1),
+	 * specific_currency(2)
+	 */
+	u_int8_t type;
+};
+
+/*
+ * ARGUMENT CHOICE {
+ *     chargeNotAvailable NULL,
+ *     aOCDChargingUnitInfo CHOICE {
+ *         freeOfCharge    [1] IMPLICIT NULL,
+ *         specificChargingUnits SEQUENCE {
+ *             recordedUnitsList  [1] IMPLICIT RecordedUnitsList,
+ *             typeOfChargingInfo [2] IMPLICIT TypeOfChargingInfo,
+ *             aOCDBillingId      [3] IMPLICIT AOCDBillingId OPTIONAL
+ *         }
+ *     }
+ * }
+ */
+struct roseEtsiAOCDChargingUnit_ARG {
+	struct {
+		/*! \brief RecordedUnitsList */
+		struct roseEtsiAOCRecordedUnitsList recorded;
+		/*!
+		 * \brief Type of recorded charging information.
+		 * \details
+		 * subTotal(0),
+		 * total(1)
+		 */
+		u_int8_t type_of_charging_info;
+		/*!
+		 * \brief AOCDBillingId (optional)
+		 * \details
+		 * normalCharging(0),
+		 * reverseCharging(1),
+		 * creditCardCharging(2)
+		 */
+		u_int8_t billing_id;
+		/*! \brief TRUE if billing id is present */
+		u_int8_t billing_id_present;
+	} specific;
+	/*!
+	 * \details
+	 * charge_not_available(0),
+	 * free_of_charge(1),
+	 * specific_charging_units(2)
+	 */
+	u_int8_t type;
+};
+
+/*
+ * ARGUMENT CHOICE {
+ *     chargeNotAvailable NULL,
+ *     AOCECurrencyInfo
+ * }
+ */
+struct roseEtsiAOCECurrency_ARG {
+	struct roseEtsiAOCECurrencyInfo currency_info;
+	/*!
+	 * \details
+	 * charge_not_available(0),
+	 * currency_info(1)
+	 */
+	u_int8_t type;
+};
+
+/*
+ * ARGUMENT CHOICE {
+ *     chargeNotAvailable NULL,
+ *     AOCEChargingUnitInfo
+ * }
+ */
+struct roseEtsiAOCEChargingUnit_ARG {
+	struct roseEtsiAOCEChargingUnitInfo charging_unit;
+	/*!
+	 * \details
+	 * charge_not_available(0),
+	 * charging_unit(1)
+	 */
+	u_int8_t type;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * Name ::= CHOICE {
+ *     -- iso8859-1 is implied in namePresentationAllowedSimple.
+ *     namePresentationAllowedSimple   [0] IMPLICIT NameData,
+ *     namePresentationAllowedExtended [1] IMPLICIT NameSet,
+ *
+ *     -- iso8859-1 is implied in namePresentationRestrictedSimple.
+ *     namePresentationRestrictedSimple    [2] IMPLICIT NameData,
+ *     namePresentationRestrictedExtended  [3] IMPLICIT NameSet,
+ *
+ *     -- namePresentationRestrictedNull shall only be used in the
+ *     -- case of interworking where the other network provides an
+ *     -- indication that the name is restricted without the name itself.
+ *     namePresentationRestrictedNull      [7] IMPLICIT NULL,
+ *
+ *     nameNotAvailable [4] IMPLICIT NULL
+ * }
+ *
+ * NameSet ::= SEQUENCE {
+ *     nameData        NameData,
+ *
+ *     -- If characterSet is not included, iso8859-1 is implied.
+ *     characterSet    CharacterSet OPTIONAL -- DEFAULT iso8859-1
+ * }
+ *
+ * -- The maximum allowed size of the name field is 50 octets.
+ * -- The minimum required size of the name field is 1 octet.
+ * NameData ::= OCTET STRING (SIZE (1..50))
+ */
+struct roseQsigName {
+	/*!
+	 * \details
+	 * optional_name_not_present(0),
+	 * presentation_allowed(1),
+	 * presentation_restricted(2),
+	 * presentation_restricted_null(3),
+	 * name_not_available(4)
+	 */
+	u_int8_t presentation;
+
+	/*!
+	 * \details
+	 * Set to iso8859-1 if not present in the encoding.
+	 *
+	 * \details
+	 * unknown(0),
+	 * iso8859-1(1),
+	 * enum-value-withdrawn-by-ITU-T(2)
+	 * iso8859-2(3),
+	 * iso8859-3(4),
+	 * iso8859-4(5),
+	 * iso8859-5(6),
+	 * iso8859-7(7),
+	 * iso10646-BmpString(8),
+	 * iso10646-utf-8String(9)
+	 */
+	u_int8_t char_set;
+
+	/*! \brief Length of name data */
+	u_int8_t length;
+
+	/*! \brief Name string data */
+	unsigned char data[50 + 1];
+};
+
+/*
+ * NOTE: We are not going to record the Extension information
+ * since it is manufacturer specific.
+ *
+ * ARGUMENT CHOICE {
+ *     Name,
+ *     SEQUENCE {
+ *         Name,
+ *         CHOICE {
+ *             [5] IMPLICIT Extension,
+ *             [6] IMPLICIT SEQUENCE OF Extension
+ *         } OPTIONAL
+ *     }
+ * }
+ */
+struct roseQsigPartyName_ARG {
+	struct roseQsigName name;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * CTIdentifyRes ::= SEQUENCE {
+ *     callIdentity        CallIdentity,
+ *     reroutingNumber     PartyNumber,
+ *     resultExtension     CHOICE {
+ *         [6] IMPLICIT Extension,
+ *         [7] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigCTIdentifyRes_RES {
+	struct rosePartyNumber rerouting_number;
+
+	/*! \brief CallIdentity ::= NumericString (SIZE (1..4)) */
+	unsigned char call_id[4 + 1];
+};
+
+/*
+ * CTInitiateArg ::= SEQUENCE {
+ *     callIdentity        CallIdentity,
+ *     reroutingNumber     PartyNumber,
+ *     argumentExtension   CHOICE {
+ *         [6] IMPLICIT Extension,
+ *         [7] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigCTInitiateArg_ARG {
+	struct rosePartyNumber rerouting_number;
+
+	/*! \brief CallIdentity ::= NumericString (SIZE (1..4)) */
+	unsigned char call_id[4 + 1];
+};
+
+/*
+ * CTSetupArg ::= SEQUENCE {
+ *     callIdentity        CallIdentity,
+ *     argumentExtension   CHOICE {
+ *         [0] IMPLICIT Extension,
+ *         [1] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigCTSetupArg_ARG {
+	/*! \brief CallIdentity ::= NumericString (SIZE (1..4)) */
+	unsigned char call_id[4 + 1];
+};
+
+/*
+ * CTActiveArg ::= SEQUENCE {
+ *     connectedAddress        PresentedAddressScreened,
+ *
+ *     -- ISO/IEC 11572 information elements Party
+ *     -- category and Progress indicator are conveyed
+ *     basicCallInfoElements   PSS1InformationElement OPTIONAL,
+ *     connectedName           Name OPTIONAL,
+ *     argumentExtension       CHOICE {
+ *         [9] IMPLICIT Extension,
+ *         [10] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigCTActiveArg_ARG {
+	/*! \brief connectedAddress */
+	struct rosePresentedAddressScreened connected;
+
+	/*! \brief basicCallInfoElements (optional) */
+	struct roseQ931ie q931ie;
+	/*! \brief q931ie.contents "allocated" after the stucture. */
+	unsigned char q931ie_contents[ROSE_Q931_MAX_PROGRESS + 1];
+
+	/*! \brief connectedName (optional) */
+	struct roseQsigName connected_name;
+
+	/*! \brief TRUE if connected_name is present */
+	u_int8_t connected_name_present;
+};
+
+/*
+ * CTCompleteArg ::= SEQUENCE {
+ *     endDesignation          EndDesignation,
+ *     redirectionNumber       PresentedNumberScreened,
+ *
+ *     -- ISO/IEC 11572 information elements Party
+ *     -- category and Progress indicator are conveyed
+ *     basicCallInfoElements   PSS1InformationElement OPTIONAL,
+ *     redirectionName         Name OPTIONAL,
+ *     callStatus              CallStatus DEFAULT answered,
+ *     argumentExtension       CHOICE {
+ *         [9] IMPLICIT Extension,
+ *         [10] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigCTCompleteArg_ARG {
+	/*! \brief redirectionNumber */
+	struct rosePresentedNumberScreened redirection;
+
+	/*! \brief basicCallInfoElements (optional) */
+	struct roseQ931ie q931ie;
+	/*! \brief q931ie.contents "allocated" after the stucture. */
+	unsigned char q931ie_contents[ROSE_Q931_MAX_PROGRESS + 1];
+
+	/*! \brief redirectionName (optional) */
+	struct roseQsigName redirection_name;
+
+	/*! \brief TRUE if redirection_name is present */
+	u_int8_t redirection_name_present;
+
+	/*!
+	 * \brief endDesignation
+	 * \details
+	 * primaryEnd(0),
+	 * secondaryEnd(1)
+	 */
+	u_int8_t end_designation;
+
+	/*!
+	 * \brief callStatus
+	 * \details
+	 * DEFAULT answered
+	 *
+	 * \details
+	 * answered(0),
+	 * alerting(1)
+	 */
+	u_int8_t call_status;
+};
+
+/*
+ * CTUpdateArg ::= SEQUENCE {
+ *     redirectionNumber       PresentedNumberScreened,
+ *     redirectionName         Name OPTIONAL,
+ *
+ *     -- ISO/IEC 11572 information elements Party
+ *     -- category and Progress indicator are conveyed
+ *     basicCallInfoElements   PSS1InformationElement OPTIONAL,
+ *     argumentExtension       CHOICE {
+ *         [9] IMPLICIT Extension,
+ *         [10] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigCTUpdateArg_ARG {
+	/*! \brief redirectionNumber */
+	struct rosePresentedNumberScreened redirection;
+
+	/*! \brief basicCallInfoElements (optional) */
+	struct roseQ931ie q931ie;
+	/*! \brief q931ie.contents "allocated" after the stucture. */
+	unsigned char q931ie_contents[ROSE_Q931_MAX_PROGRESS + 1];
+
+	/*! \brief redirectionName (optional) */
+	struct roseQsigName redirection_name;
+
+	/*! \brief TRUE if redirection_name is present */
+	u_int8_t redirection_name_present;
+};
+
+/*
+ * SubaddressTransferArg ::= SEQUENCE {
+ *     redirectionSubaddress   PartySubaddress,
+ *     argumentExtension       CHOICE {
+ *         [0] IMPLICIT Extension,
+ *         [1] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigSubaddressTransferArg_ARG {
+	struct rosePartySubaddress redirection_subaddress;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * IntResult ::= SEQUENCE {
+ *     servedUserNr        PartyNumber,
+ *     basicService        BasicService,
+ *     procedure           Procedure,
+ *     divertedToAddress   Address,
+ *     remoteEnabled       BOOLEAN DEFAULT FALSE,
+ *     extension           CHOICE {
+ *         [1] IMPLICIT Extension,
+ *         [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigForwardingRecord {
+	/*! \brief Diverted to address */
+	struct roseAddress diverted_to;
+
+	struct rosePartyNumber served_user_number;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3100Hz(3),
+	 * telephony(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36)
+	 */
+	u_int8_t basic_service;
+
+	/*! \details cfu(0), cfb(1), cfnr(2) */
+	u_int8_t procedure;
+
+	/*! \brief remoteEnabled BOOLEAN DEFAULT FALSE */
+	u_int8_t remote_enabled;
+};
+
+/*
+ * roseQsigInterrogateDiversionQ_REQ
+ * IntResultList ::= SET SIZE (0..29) OF IntResult
+ */
+struct roseQsigForwardingList {
+	/*!
+	 * \brief SET SIZE (0..29) OF Forwarding Records
+	 * \note Reduced the size of the array to conserve
+	 * potential stack usage.
+	 */
+	struct roseQsigForwardingRecord list[10];
+
+	/*! \brief Number of Forwarding records present */
+	u_int8_t num_records;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     procedure           Procedure,
+ *     basicService        BasicService,
+ *     divertedToAddress   Address,
+ *     servedUserNr        PartyNumber,
+ *     activatingUserNr    PartyNumber,
+ *     extension           CHOICE {
+ *         [1] IMPLICIT Extension,
+ *         [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigActivateDiversionQ_ARG {
+	/*! \brief divertedToAddress */
+	struct roseAddress diverted_to;
+
+	struct rosePartyNumber served_user_number;
+	struct rosePartyNumber activating_user_number;
+
+	/*! \details cfu(0), cfb(1), cfnr(2) */
+	u_int8_t procedure;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3100Hz(3),
+	 * telephony(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36)
+	 */
+	u_int8_t basic_service;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     procedure           Procedure,
+ *     basicService        BasicService,
+ *     servedUserNr        PartyNumber,
+ *     deactivatingUserNr  PartyNumber,
+ *     extension           CHOICE {
+ *         [1] IMPLICIT Extension,
+ *         [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigDeactivateDiversionQ_ARG {
+	struct rosePartyNumber served_user_number;
+	struct rosePartyNumber deactivating_user_number;
+
+	/*! \details cfu(0), cfb(1), cfnr(2) */
+	u_int8_t procedure;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3100Hz(3),
+	 * telephony(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36)
+	 */
+	u_int8_t basic_service;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     procedure           Procedure,
+ *     basicService        BasicService DEFAULT allServices,
+ *     servedUserNr        PartyNumber,
+ *     interrogatingUserNr PartyNumber,
+ *     extension           CHOICE {
+ *         [1] IMPLICIT Extension,
+ *         [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigInterrogateDiversionQ_ARG {
+	struct rosePartyNumber served_user_number;
+	struct rosePartyNumber interrogating_user_number;
+
+	/*! \details cfu(0), cfb(1), cfnr(2) */
+	u_int8_t procedure;
+
+	/*!
+	 * \details
+	 * DEFAULT allServices
+	 *
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3100Hz(3),
+	 * telephony(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36)
+	 */
+	u_int8_t basic_service;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     servedUserNr        PartyNumber,
+ *     basicService        BasicService,
+ *     divertedToNr        PartyNumber,
+ *     extension           CHOICE {
+ *         [1] IMPLICIT Extension,
+ *         [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigCheckRestriction_ARG {
+	struct rosePartyNumber served_user_number;
+	struct rosePartyNumber diverted_to_number;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3100Hz(3),
+	 * telephony(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36)
+	 */
+	u_int8_t basic_service;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     reroutingReason             DiversionReason,
+ *     originalReroutingReason     [0] IMPLICIT DiversionReason OPTIONAL,
+ *     calledAddress               Address,
+ *     diversionCounter            INTEGER (1..15),
+ *
+ *     -- The basic call information elements Bearer capability,
+ *     -- High layer compatibility, Low layer compatibity
+ *     -- and Progress indicator can be embedded in the
+ *     -- pSS1InfoElement in accordance with 6.5.3.1.5.
+ *     pSS1InfoElement             PSS1InformationElement,
+ *     lastReroutingNr             [1] EXPLICIT PresentedNumberUnscreened,
+ *     subscriptionOption          [2] IMPLICIT SubscriptionOption,
+ *     callingPartySubaddress      [3] EXPLICIT PartySubaddress OPTIONAL,
+ *     callingNumber               [4] EXPLICIT PresentedNumberScreened,
+ *     callingName                 [5] EXPLICIT Name OPTIONAL,
+ *     originalCalledNr            [6] EXPLICIT PresentedNumberUnscreened OPTIONAL,
+ *     redirectingName             [7] EXPLICIT Name OPTIONAL,
+ *     originalCalledName          [8] EXPLICIT Name OPTIONAL,
+ *     extension                   CHOICE {
+ *         [9] IMPLICIT Extension,
+ *         [10] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigCallRerouting_ARG {
+	/*! \brief calledAddress */
+	struct roseAddress called;
+
+	/*! \brief lastReroutingNr */
+	struct rosePresentedNumberUnscreened last_rerouting;
+
+	/*! \brief originalCalledNr (optional) */
+	struct rosePresentedNumberUnscreened original_called;
+
+	/*!
+	 * \brief callingPartySubaddress (optional)
+	 * The subaddress is present if the length is nonzero.
+	 */
+	struct rosePartySubaddress calling_subaddress;
+
+	/*! \brief callingNumber */
+	struct rosePresentedNumberScreened calling;
+
+	/*! \brief callingName (optional) */
+	struct roseQsigName calling_name;
+
+	/*! \brief redirectingName (optional) */
+	struct roseQsigName redirecting_name;
+
+	/*! \brief originalCalledName (optional) */
+	struct roseQsigName original_called_name;
+
+	/*!
+	 * \brief The BC, HLC (optional), LLC (optional),
+	 * and progress indicator(s) information.
+	 */
+	struct roseQ931ie q931ie;
+	/*! \brief q931ie.contents "allocated" after the stucture. */
+	unsigned char q931ie_contents[ROSE_Q931_MAX_BC + ROSE_Q931_MAX_HLC +
+		ROSE_Q931_MAX_LLC + ROSE_Q931_MAX_PROGRESS + 1];
+
+	/*! \brief TRUE if calling_name is present */
+	u_int8_t calling_name_present;
+
+	/*! \brief TRUE if redirecting_name is present */
+	u_int8_t redirecting_name_present;
+
+	/*! \brief TRUE if original_called_name is present */
+	u_int8_t original_called_name_present;
+
+	/*! \brief TRUE if original_called number is present */
+	u_int8_t original_called_present;
+
+	/*!
+	 * \details
+	 * unknown(0),
+	 * cfu(1),
+	 * cfb(2),
+	 * cfnr(3)
+	 *
+	 * \note The value unknown is only used if received from
+	 * another network when interworking.
+	 */
+	u_int8_t rerouting_reason;
+
+	/*!
+	 * \brief originalReroutingReason (optional)
+	 *
+	 * \details
+	 * unknown(0),
+	 * cfu(1),
+	 * cfb(2),
+	 * cfnr(3)
+	 *
+	 * \note The value unknown is only used if received from
+	 * another network when interworking.
+	 */
+	u_int8_t original_rerouting_reason;
+
+	/*! \brief TRUE if original_rerouting_reason is present */
+	u_int8_t original_rerouting_reason_present;
+
+	/*! \brief diversionCounter INTEGER (1..15) */
+	u_int8_t diversion_counter;
+
+	/*!
+	 * \brief subscriptionOption
+	 *
+	 * \details
+	 * noNotification(0),
+	 * notificationWithoutDivertedToNr(1),
+	 * notificationWithDivertedToNr(2)
+	 */
+	u_int8_t subscription_option;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     diversionReason     DiversionReason,
+ *     subscriptionOption  SubscriptionOption,
+ *     nominatedNr         PartyNumber,
+ *     extension           CHOICE {
+ *         [9] IMPLICIT Extension,
+ *         [10] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigDivertingLegInformation1_ARG {
+	struct rosePartyNumber nominated_number;
+
+	/*!
+	 * \details
+	 * unknown(0),
+	 * cfu(1),
+	 * cfb(2),
+	 * cfnr(3)
+	 *
+	 * \note The value unknown is only used if received from
+	 * another network when interworking.
+	 */
+	u_int8_t diversion_reason;
+
+	/*!
+	 * \brief subscriptionOption
+	 *
+	 * \details
+	 * noNotification(0),
+	 * notificationWithoutDivertedToNr(1),
+	 * notificationWithDivertedToNr(2)
+	 */
+	u_int8_t subscription_option;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     diversionCounter             INTEGER (1..15),
+ *     diversionReason              DiversionReason,
+ *     originalDiversionReason      [0] IMPLICIT DiversionReason OPTIONAL,
+ *
+ *     -- The divertingNr element is mandatory except in the case
+ *     -- of interworking.
+ *     divertingNr                  [1] EXPLICIT PresentedNumberUnscreened OPTIONAL,
+ *     originalCalledNr             [2] EXPLICIT PresentedNumberUnscreened OPTIONAL,
+ *     redirectingName              [3] EXPLICIT Name OPTIONAL,
+ *     originalCalledName           [4] EXPLICIT Name OPTIONAL,
+ *     extension                    CHOICE {
+ *         [5] IMPLICIT Extension,
+ *         [6] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigDivertingLegInformation2_ARG {
+	/*! \brief divertingNr (optional) */
+	struct rosePresentedNumberUnscreened diverting;
+
+	/*! \brief originalCalledNr (optional) */
+	struct rosePresentedNumberUnscreened original_called;
+
+	/*! \brief redirectingName (optional) */
+	struct roseQsigName redirecting_name;
+
+	/*! \brief originalCalledName (optional) */
+	struct roseQsigName original_called_name;
+
+	/*! \brief diversionCounter INTEGER (1..15) */
+	u_int8_t diversion_counter;
+
+	/*!
+	 * \details
+	 * unknown(0),
+	 * cfu(1),
+	 * cfb(2),
+	 * cfnr(3)
+	 *
+	 * \note The value unknown is only used if received from
+	 * another network when interworking.
+	 */
+	u_int8_t diversion_reason;
+
+	/*!
+	 * \brief originalDiversionReason (optional)
+	 *
+	 * \details
+	 * unknown(0),
+	 * cfu(1),
+	 * cfb(2),
+	 * cfnr(3)
+	 *
+	 * \note The value unknown is only used if received from
+	 * another network when interworking.
+	 */
+	u_int8_t original_diversion_reason;
+
+	/*! \brief TRUE if original_diversion_reason is present */
+	u_int8_t original_diversion_reason_present;
+
+	/*! \brief TRUE if diverting number is present */
+	u_int8_t diverting_present;
+
+	/*! \brief TRUE if original_called number is present */
+	u_int8_t original_called_present;
+
+	/*! \brief TRUE if redirecting_name is present */
+	u_int8_t redirecting_name_present;
+
+	/*! \brief TRUE if original_called_name is present */
+	u_int8_t original_called_name_present;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     presentationAllowedIndicator    PresentationAllowedIndicator, -- BOOLEAN
+ *     redirectionName                 [0] EXPLICIT Name OPTIONAL,
+ *     extension                       CHOICE {
+ *         [1] IMPLICIT Extension,
+ *         [2] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigDivertingLegInformation3_ARG {
+	/*! \brief redirectionName (optional) */
+	struct roseQsigName redirection_name;
+
+	/*! \brief TRUE if redirection_name is present */
+	u_int8_t redirection_name_present;
+
+	/*! \brief TRUE if presentation is allowed */
+	u_int8_t presentation_allowed_indicator;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * MsgCentreId ::= CHOICE {
+ *     integer         [0] IMPLICIT INTEGER (0..65535),
+ *
+ *     -- The party number must be a complete number as required
+ *     -- for routing purposes.
+ *     partyNumber     [1] EXPLICIT PartyNumber,
+ *     numericString   [2] IMPLICIT NumericString (SIZE (1..10))
+ * }
+ */
+struct roseQsigMsgCentreId {
+	union {
+		/*! \brief INTEGER (0..65535) */
+		u_int16_t integer;
+
+		/*!
+		 * \note The party number must be a complete number as required
+		 * for routing purposes.
+		 */
+		struct rosePartyNumber number;
+
+		/*! \brief NumericString (SIZE (1..10)) */
+		unsigned char str[10 + 1];
+	} u;
+
+	/*!
+	 * \details
+	 * integer(0),
+	 * partyNumber(1),
+	 * numericString(2)
+	 */
+	u_int8_t type;
+};
+
+/*
+ * MWIActivateArg ::= SEQUENCE {
+ *     servedUserNr            PartyNumber,
+ *     basicService            BasicService,
+ *     msgCentreId             MsgCentreId OPTIONAL,
+ *     nbOfMessages            [3] IMPLICIT NbOfMessages OPTIONAL,
+ *     originatingNr           [4] EXPLICIT PartyNumber OPTIONAL,
+ *     timestamp               TimeStamp OPTIONAL,
+ *
+ *     -- The value 0 means the highest priority and 9 the lowest
+ *     priority                [5] IMPLICIT INTEGER (0..9) OPTIONAL,
+ *     argumentExt             CHOICE {
+ *         extension           [6] IMPLICIT Extension,
+ *         multipleExtension   [7] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigMWIActivateArg {
+	/*! \brief NbOfMessages ::= INTEGER (0..65535) (optional) */
+	u_int16_t number_of_messages;
+
+	/*! \brief msgCentreId (optional) */
+	struct roseQsigMsgCentreId msg_centre_id;
+
+	struct rosePartyNumber served_user_number;
+
+	/*! \brief originatingNr (optional) (Number present if length is nonzero) */
+	struct rosePartyNumber originating_number;
+
+	/*! \brief GeneralizedTime (SIZE (12..19)) (optional) */
+	unsigned char timestamp[19 + 1];
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3100Hz(3),
+	 * telephony(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotextSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * reservedNotUsed1(38),
+	 * reservedNotUsed2(39),
+	 * reservedNotUsed3(40),
+	 * reservedNotUsed4(41),
+	 * reservedNotUsed5(42),
+	 * email(51),
+	 * video(52),
+	 * fileTransfer(53),
+	 * shortMessageService(54),
+	 * speechAndVideo(55),
+	 * speechAndFax(56),
+	 * speechAndEmail(57),
+	 * videoAndFax(58),
+	 * videoAndEmail(59),
+	 * faxAndEmail(60),
+	 * speechVideoAndFax(61),
+	 * speechVideoAndEmail(62),
+	 * speechFaxAndEmail(63),
+	 * videoFaxAndEmail(64),
+	 * speechVideoFaxAndEmail(65),
+	 * multimediaUnknown(66),
+	 * serviceUnknown(67),
+	 * futureReserve1(68),
+	 * futureReserve2(69),
+	 * futureReserve3(70),
+	 * futureReserve4(71),
+	 * futureReserve5(72),
+	 * futureReserve6(73),
+	 * futureReserve7(74),
+	 * futureReserve8(75)
+	 */
+	u_int8_t basic_service;
+
+	/*!
+	 * \brief INTEGER (0..9) (optional)
+	 * \note The value 0 means the highest priority and 9 the lowest.
+	 */
+	u_int8_t priority;
+
+	/*! \brief TRUE if msg_centre_id is present */
+	u_int8_t msg_centre_id_present;
+
+	/*! \brief TRUE if number_of_messages is present */
+	u_int8_t number_of_messages_present;
+
+	/*! \brief TRUE if timestamp is present */
+	u_int8_t timestamp_present;
+
+	/*! \brief TRUE if priority is present */
+	u_int8_t priority_present;
+};
+
+/*
+ * MWIDeactivateArg ::= SEQUENCE {
+ *     servedUserNr            PartyNumber,
+ *     basicService            BasicService,
+ *     msgCentreId             MsgCentreId OPTIONAL,
+ *     argumentExt             CHOICE {
+ *         extension           [3] IMPLICIT Extension,
+ *         multipleExtension   [4] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigMWIDeactivateArg {
+	/*! \brief msgCentreId (optional) */
+	struct roseQsigMsgCentreId msg_centre_id;
+
+	struct rosePartyNumber served_user_number;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3100Hz(3),
+	 * telephony(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotextSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * reservedNotUsed1(38),
+	 * reservedNotUsed2(39),
+	 * reservedNotUsed3(40),
+	 * reservedNotUsed4(41),
+	 * reservedNotUsed5(42),
+	 * email(51),
+	 * video(52),
+	 * fileTransfer(53),
+	 * shortMessageService(54),
+	 * speechAndVideo(55),
+	 * speechAndFax(56),
+	 * speechAndEmail(57),
+	 * videoAndFax(58),
+	 * videoAndEmail(59),
+	 * faxAndEmail(60),
+	 * speechVideoAndFax(61),
+	 * speechVideoAndEmail(62),
+	 * speechFaxAndEmail(63),
+	 * videoFaxAndEmail(64),
+	 * speechVideoFaxAndEmail(65),
+	 * multimediaUnknown(66),
+	 * serviceUnknown(67),
+	 * futureReserve1(68),
+	 * futureReserve2(69),
+	 * futureReserve3(70),
+	 * futureReserve4(71),
+	 * futureReserve5(72),
+	 * futureReserve6(73),
+	 * futureReserve7(74),
+	 * futureReserve8(75)
+	 */
+	u_int8_t basic_service;
+
+	/*! \brief TRUE if msg_centre_id is present */
+	u_int8_t msg_centre_id_present;
+};
+
+/*
+ * MWIInterrogateArg ::= SEQUENCE {
+ *     servedUserNr            PartyNumber,
+ *     basicService            BasicService,
+ *     msgCentreId             MsgCentreId OPTIONAL,
+ *     argumentExt             CHOICE {
+ *         extension           [3] IMPLICIT Extension,
+ *         multipleExtension   [4] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigMWIInterrogateArg {
+	/*! \brief msgCentreId (optional) */
+	struct roseQsigMsgCentreId msg_centre_id;
+
+	struct rosePartyNumber served_user_number;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3100Hz(3),
+	 * telephony(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotextSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * reservedNotUsed1(38),
+	 * reservedNotUsed2(39),
+	 * reservedNotUsed3(40),
+	 * reservedNotUsed4(41),
+	 * reservedNotUsed5(42),
+	 * email(51),
+	 * video(52),
+	 * fileTransfer(53),
+	 * shortMessageService(54),
+	 * speechAndVideo(55),
+	 * speechAndFax(56),
+	 * speechAndEmail(57),
+	 * videoAndFax(58),
+	 * videoAndEmail(59),
+	 * faxAndEmail(60),
+	 * speechVideoAndFax(61),
+	 * speechVideoAndEmail(62),
+	 * speechFaxAndEmail(63),
+	 * videoFaxAndEmail(64),
+	 * speechVideoFaxAndEmail(65),
+	 * multimediaUnknown(66),
+	 * serviceUnknown(67),
+	 * futureReserve1(68),
+	 * futureReserve2(69),
+	 * futureReserve3(70),
+	 * futureReserve4(71),
+	 * futureReserve5(72),
+	 * futureReserve6(73),
+	 * futureReserve7(74),
+	 * futureReserve8(75)
+	 */
+	u_int8_t basic_service;
+
+	/*! \brief TRUE if msg_centre_id is present */
+	u_int8_t msg_centre_id_present;
+};
+
+/*
+ * MWIInterrogateResElt ::= SEQUENCE {
+ *     basicService            BasicService,
+ *     msgCentreId             MsgCentreId OPTIONAL,
+ *     nbOfMessages            [3] IMPLICIT NbOfMessages OPTIONAL,
+ *     originatingNr           [4] EXPLICIT PartyNumber OPTIONAL,
+ *     timestamp               TimeStamp OPTIONAL,
+ *
+ *     -- The value 0 means the highest priority and 9 the lowest
+ *     priority                [5] IMPLICIT INTEGER (0..9) OPTIONAL,
+ *     argumentExt             CHOICE {
+ *         extension           [6] IMPLICIT Extension,
+ *         multipleExtension   [7] IMPLICIT SEQUENCE OF Extension
+ *     } OPTIONAL
+ * }
+ */
+struct roseQsigMWIInterrogateResElt {
+	/*! \brief NbOfMessages ::= INTEGER (0..65535) (optional) */
+	u_int16_t number_of_messages;
+
+	/*! \brief msgCentreId (optional) */
+	struct roseQsigMsgCentreId msg_centre_id;
+
+	/*! \brief originatingNr (optional) (Number present if length is nonzero) */
+	struct rosePartyNumber originating_number;
+
+	/*! \brief GeneralizedTime (SIZE (12..19)) (optional) */
+	unsigned char timestamp[19 + 1];
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3100Hz(3),
+	 * telephony(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotextSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * reservedNotUsed1(38),
+	 * reservedNotUsed2(39),
+	 * reservedNotUsed3(40),
+	 * reservedNotUsed4(41),
+	 * reservedNotUsed5(42),
+	 * email(51),
+	 * video(52),
+	 * fileTransfer(53),
+	 * shortMessageService(54),
+	 * speechAndVideo(55),
+	 * speechAndFax(56),
+	 * speechAndEmail(57),
+	 * videoAndFax(58),
+	 * videoAndEmail(59),
+	 * faxAndEmail(60),
+	 * speechVideoAndFax(61),
+	 * speechVideoAndEmail(62),
+	 * speechFaxAndEmail(63),
+	 * videoFaxAndEmail(64),
+	 * speechVideoFaxAndEmail(65),
+	 * multimediaUnknown(66),
+	 * serviceUnknown(67),
+	 * futureReserve1(68),
+	 * futureReserve2(69),
+	 * futureReserve3(70),
+	 * futureReserve4(71),
+	 * futureReserve5(72),
+	 * futureReserve6(73),
+	 * futureReserve7(74),
+	 * futureReserve8(75)
+	 */
+	u_int8_t basic_service;
+
+	/*!
+	 * \brief INTEGER (0..9) (optional)
+	 * \note The value 0 means the highest priority and 9 the lowest.
+	 */
+	u_int8_t priority;
+
+	/*! \brief TRUE if msg_centre_id is present */
+	u_int8_t msg_centre_id_present;
+
+	/*! \brief TRUE if number_of_messages is present */
+	u_int8_t number_of_messages_present;
+
+	/*! \brief TRUE if timestamp is present */
+	u_int8_t timestamp_present;
+
+	/*! \brief TRUE if priority is present */
+	u_int8_t priority_present;
+};
+
+/*
+ * MWIInterrogateRes ::= SEQUENCE SIZE(1..10) OF MWIInterrogateResElt
+ */
+struct roseQsigMWIInterrogateRes {
+	/*! \brief SEQUENCE SIZE(1..10) OF MWIInterrogateResElt */
+	struct roseQsigMWIInterrogateResElt list[10];
+
+	/*! \brief Number of MWIInterrogateResElt records present */
+	u_int8_t num_records;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * Northern Telecom DMS-100 transfer ability result
+ *
+ * callId [0] IMPLICIT INTEGER (0..16777215) -- 24 bit number
+ */
+struct roseDms100RLTOperationInd_RES {
+	/*! INTEGER (0..16777215) -- 24 bit number */
+	u_int32_t call_id;
+};
+
+/*
+ * Northern Telecom DMS-100 transfer invoke
+ *
+ * ARGUMENT SEQUENCE {
+ *     callId [0] IMPLICIT INTEGER (0..16777215), -- 24 bit number
+ *     reason [1] IMPLICIT INTEGER
+ * }
+ */
+struct roseDms100RLTThirdParty_ARG {
+	/*! INTEGER (0..16777215) -- 24 bit number */
+	u_int32_t call_id;
+
+	/*! Reason for redirect */
+	u_int8_t reason;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/* ARGUMENT ENUMERATED */
+struct roseNi2InformationFollowing_ARG {
+	u_int8_t value;				/*!< Unknown enumerated value */
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     callReference INTEGER -- 16 bit number
+ * }
+ */
+struct roseNi2InitiateTransfer_ARG {
+	u_int16_t call_reference;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*! \brief Facility ie invoke etsi messages with arguments. */
+union rose_msg_invoke_etsi_args {
+	/* ETSI Advice Of Charge (AOC) */
+	struct roseEtsiChargingRequest_ARG ChargingRequest;
+	struct roseEtsiAOCSCurrency_ARG AOCSCurrency;
+	struct roseEtsiAOCSSpecialArr_ARG AOCSSpecialArr;
+	struct roseEtsiAOCDCurrency_ARG AOCDCurrency;
+	struct roseEtsiAOCDChargingUnit_ARG AOCDChargingUnit;
+	struct roseEtsiAOCECurrency_ARG AOCECurrency;
+	struct roseEtsiAOCEChargingUnit_ARG AOCEChargingUnit;
+};
+
+/*! \brief Facility ie result etsi messages with arguments. */
+union rose_msg_result_etsi_args {
+	/* ETSI Advice Of Charge (AOC) */
+	struct roseEtsiChargingRequest_RES ChargingRequest;
+};
+
+/*! \brief Facility ie invoke qsig messages with arguments. */
+union rose_msg_invoke_qsig_args {
+	/* Q.SIG Name-Operations */
+	struct roseQsigPartyName_ARG CallingName;
+	struct roseQsigPartyName_ARG CalledName;
+	struct roseQsigPartyName_ARG ConnectedName;
+	struct roseQsigPartyName_ARG BusyName;
+
+	/* Q.SIG Call-Transfer-Operations */
+	struct roseQsigCTInitiateArg_ARG CallTransferInitiate;
+	struct roseQsigCTSetupArg_ARG CallTransferSetup;
+	struct roseQsigCTActiveArg_ARG CallTransferActive;
+	struct roseQsigCTCompleteArg_ARG CallTransferComplete;
+	struct roseQsigCTUpdateArg_ARG CallTransferUpdate;
+	struct roseQsigSubaddressTransferArg_ARG SubaddressTransfer;
+
+	/* Q.SIG Call-Diversion-Operations */
+	struct roseQsigActivateDiversionQ_ARG ActivateDiversionQ;
+	struct roseQsigDeactivateDiversionQ_ARG DeactivateDiversionQ;
+	struct roseQsigInterrogateDiversionQ_ARG InterrogateDiversionQ;
+	struct roseQsigCheckRestriction_ARG CheckRestriction;
+	struct roseQsigCallRerouting_ARG CallRerouting;
+	struct roseQsigDivertingLegInformation1_ARG DivertingLegInformation1;
+	struct roseQsigDivertingLegInformation2_ARG DivertingLegInformation2;
+	struct roseQsigDivertingLegInformation3_ARG DivertingLegInformation3;
+
+	/* Q.SIG SS-MWI-Operations */
+	struct roseQsigMWIActivateArg MWIActivate;
+	struct roseQsigMWIDeactivateArg MWIDeactivate;
+	struct roseQsigMWIInterrogateArg MWIInterrogate;
+};
+
+/*! \brief Facility ie result qsig messages with arguments. */
+union rose_msg_result_qsig_args {
+	/* Q.SIG Call-Transfer-Operations */
+	struct roseQsigCTIdentifyRes_RES CallTransferIdentify;
+
+	/* Q.SIG Call-Diversion-Operations */
+	struct roseQsigForwardingList InterrogateDiversionQ;
+
+	/* Q.SIG SS-MWI-Operations */
+	struct roseQsigMWIInterrogateRes MWIInterrogate;
+};
+
+/*! \brief Facility ie invoke DMS-100 messages with arguments. */
+union rose_msg_invoke_dms100_args {
+	struct roseDms100RLTThirdParty_ARG RLT_ThirdParty;
+};
+
+/*! \brief Facility ie result DMS-100 messages with arguments. */
+union rose_msg_result_dms100_args {
+	struct roseDms100RLTOperationInd_RES RLT_OperationInd;
+};
+
+/*! \brief Facility ie invoke NI2 messages with arguments. */
+union rose_msg_invoke_ni2_args {
+	struct roseNi2InformationFollowing_ARG InformationFollowing;
+	struct roseNi2InitiateTransfer_ARG InitiateTransfer;
+};
+
+/*! \brief Facility ie result NI2 messages with arguments. */
+union rose_msg_result_ni2_args {
+	int dummy;					/*!< place holder until there are results with parameters */
+};
+
+/*! \brief Facility ie invoke messages with arguments. */
+union rose_msg_invoke_args {
+	union rose_msg_invoke_etsi_args etsi;
+	union rose_msg_invoke_qsig_args qsig;
+	union rose_msg_invoke_dms100_args dms100;
+	union rose_msg_invoke_ni2_args ni2;
+};
+
+/*! \brief Facility ie result messages with arguments. */
+union rose_msg_result_args {
+	union rose_msg_result_etsi_args etsi;
+	union rose_msg_result_qsig_args qsig;
+	union rose_msg_result_dms100_args dms100;
+	union rose_msg_result_ni2_args ni2;
+};
+
+/*! \brief Facility ie error messages with parameters. */
+union rose_msg_error_args {
+	int dummy;					/*!< place holder until there are errors with parameters */
+};
+
+struct rose_msg_invoke {
+	/*! \brief Invoke ID (-32768..32767) */
+	int16_t invoke_id;
+	/*! \brief Linked ID (-32768..32767) (optional) */
+	int16_t linked_id;
+	/*! \brief library encoded operation-value */
+	enum rose_operation operation;
+	/*! \brief TRUE if the Linked ID is present */
+	u_int8_t linked_id_present;
+	union rose_msg_invoke_args args;
+};
+
+struct rose_msg_result {
+	/*! \brief Invoke ID (-32768..32767) */
+	int16_t invoke_id;
+	/*!
+	 * \brief library encoded operation-value
+	 * \note Set to ROSE_None if the operation sequence is not present.
+	 * \note ETSI and Q.SIG imply that if a return result does not have
+	 * any arguments then you must rely upon the invokeId value to
+	 * distinguish between return results because the operation-value is
+	 * not present.
+	 */
+	enum rose_operation operation;
+	union rose_msg_result_args args;
+};
+
+struct rose_msg_error {
+	/*! \brief Invoke ID (-32768..32767) */
+	int16_t invoke_id;
+	/*! \brief library encoded error-value */
+	enum rose_error_code code;
+	union rose_msg_error_args args;
+};
+
+struct rose_msg_reject {
+	/*! \brief Invoke ID (-32768..32767) (optional) */
+	int16_t invoke_id;
+	/*! \brief TRUE if the Invoke ID is present */
+	u_int8_t invoke_id_present;
+	/*! \brief library encoded problem-value */
+	enum rose_reject_code code;
+};
+
+enum rose_component_type {
+	ROSE_COMP_TYPE_INVALID,
+	ROSE_COMP_TYPE_INVOKE,
+	ROSE_COMP_TYPE_RESULT,
+	ROSE_COMP_TYPE_ERROR,
+	ROSE_COMP_TYPE_REJECT
+};
+
+struct rose_message {
+	/*! \brief invoke, result, error, reject */
+	enum rose_component_type type;
+	union {
+		struct rose_msg_invoke invoke;
+		struct rose_msg_result result;
+		struct rose_msg_error error;
+		struct rose_msg_reject reject;
+	} component;
+};
+
+/*
+ * NetworkFacilityExtension ::= [10] IMPLICIT SEQUENCE {
+ *     sourceEntity                [0] IMPLICIT EntityType,
+ *     sourceEntityAddress         [1] EXPLICIT AddressInformation OPTIONAL,
+ *     destinationEntity           [2] IMPLICIT EntityType,
+ *     destinationEntityAddress    [3] EXPLICIT AddressInformation OPTIONAL
+ * }
+ *
+ * AddressInformation ::= PartyNumber
+ */
+struct facNetworkFacilityExtension {
+	/*! \brief sourceEntityAddress (optional) (Number present if length is nonzero) */
+	struct rosePartyNumber source_number;
+	/*! \brief destinationEntityAddress (optional) (Number present if length is nonzero) */
+	struct rosePartyNumber destination_number;
+
+	/*!
+	 * \details
+	 * endPINX(0),
+	 * anyTypeOfPINX(1)
+	 */
+	u_int8_t source_entity;
+
+	/*!
+	 * \details
+	 * endPINX(0),
+	 * anyTypeOfPINX(1)
+	 */
+	u_int8_t destination_entity;
+};
+
+/*
+ * The network extensions header is a sequence of the following components:
+ *
+ * nfe NetworkFacilityExtension OPTIONAL,
+ * npp NetworkProtocolProfile OPTIONAL,
+ * interpretation InterpretationApdu OPTIONAL
+ *
+ * NetworkProtocolProfile ::= [18] IMPLICIT INTEGER (0..254)
+ *
+ * InterpretationApdu ::= [11] IMPLICIT ENUMERATED {
+ *     discardAnyUnrecognisedInvokePdu(0),
+ *
+ *     -- this value also applies to Call independent signalling connections
+ *     -- see clause 8.1.2 (ECMA-165)
+ *     clearCallIfAnyInvokePduNotRecognised(1),
+ *
+ *     -- this coding is implied by the absence of an
+ *     -- interpretation APDU.
+ *     rejectAnyUnrecognisedInvokePdu(2)
+ * }
+ */
+struct fac_extension_header {
+	/*! \brief Network Facility Extension component */
+	struct facNetworkFacilityExtension nfe;
+
+	/*! \brief Network Protocol Profile component */
+	u_int8_t npp;
+
+	/*!
+	 * \brief interpretation component
+	 *
+	 * \details
+	 * discardAnyUnrecognisedInvokePdu(0),
+	 * clearCallIfAnyInvokePduNotRecognised(1),
+	 * rejectAnyUnrecognisedInvokePdu(2)
+	 */
+	u_int8_t interpretation;
+
+	/*! \brief TRUE if nfe is present */
+	u_int8_t nfe_present;
+
+	/*! \brief TRUE if npp is present */
+	u_int8_t npp_present;
+
+	/*! \brief TRUE if interpretation is present */
+	u_int8_t interpretation_present;
+};
+
+const char *rose_operation2str(enum rose_operation operation);
+const char *rose_error2str(enum rose_error_code code);
+const char *rose_reject2str(enum rose_reject_code code);
+
+unsigned char *rose_encode_invoke(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const struct rose_msg_invoke *msg);
+unsigned char *rose_encode_result(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const struct rose_msg_result *msg);
+unsigned char *rose_encode_error(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const struct rose_msg_error *msg);
+unsigned char *rose_encode_reject(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const struct rose_msg_reject *msg);
+
+unsigned char *rose_encode(struct pri *ctrl, unsigned char *pos, unsigned char *end,
+	const struct rose_message *msg);
+const unsigned char *rose_decode(struct pri *ctrl, const unsigned char *pos,
+	const unsigned char *end, struct rose_message *msg);
+
+unsigned char *fac_enc_extension_header(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const struct fac_extension_header *header);
+unsigned char *facility_encode_header(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const struct fac_extension_header *header);
+
+const unsigned char *fac_dec_extension_header(struct pri *ctrl, const unsigned char *pos,
+	const unsigned char *end, struct fac_extension_header *header);
+const unsigned char *facility_decode_header(struct pri *ctrl, const unsigned char *pos,
+	const unsigned char *end, struct fac_extension_header *header);
+
+void facility_decode_dump(struct pri *ctrl, const unsigned char *buf, size_t length);
+
+/* ------------------------------------------------------------------- */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif	/* _LIBPRI_ROSE_H */
+/* ------------------------------------------------------------------- */
+/* end rose.h */

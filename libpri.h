@@ -26,7 +26,14 @@
  * provided with that copy of Asterisk, instead of the license
  * terms granted here.
  */
- 
+
+/*
+ * NOTE:
+ * All new global identifiers that are added to this file MUST be
+ * prefixed with PRI_ or pri_ to indicate that they are part of this
+ * library and to reduce potential naming conflicts.
+ */
+
 #ifndef _LIBPRI_H
 #define _LIBPRI_H
 
@@ -103,13 +110,13 @@
 #define PRI_PROG_CALLER_RETURNED_TO_ISDN					(1 << 9)
 
 /* Numbering plan identifier */
-#define PRI_NPI_UNKNOWN					0x0
-#define PRI_NPI_E163_E164				0x1
-#define PRI_NPI_X121					0x3
-#define PRI_NPI_F69						0x4
-#define PRI_NPI_NATIONAL				0x8
-#define PRI_NPI_PRIVATE					0x9
-#define PRI_NPI_RESERVED				0xF
+#define PRI_NPI_UNKNOWN					0x0 /*!< Unknown numbering plan */
+#define PRI_NPI_E163_E164				0x1 /*!< ISDN/telephony numbering plan (public) */
+#define PRI_NPI_X121					0x3 /*!< Data numbering plan */
+#define PRI_NPI_F69						0x4 /*!< Telex numbering plan */
+#define PRI_NPI_NATIONAL				0x8 /*!< National standard numbering plan */
+#define PRI_NPI_PRIVATE					0x9 /*!< Private numbering plan */
+#define PRI_NPI_RESERVED				0xF /*!< Reserved for extension */
 
 /* Type of number */
 #define PRI_TON_UNKNOWN					0x0
@@ -137,15 +144,44 @@
 #define PRI_UNKNOWN					0x0
 
 /* Presentation */
-#define PRES_ALLOWED_USER_NUMBER_NOT_SCREENED	0x00
-#define PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN	0x01
-#define PRES_ALLOWED_USER_NUMBER_FAILED_SCREEN	0x02
-#define PRES_ALLOWED_NETWORK_NUMBER				0x03
-#define PRES_PROHIB_USER_NUMBER_NOT_SCREENED	0x20
-#define PRES_PROHIB_USER_NUMBER_PASSED_SCREEN	0x21
-#define PRES_PROHIB_USER_NUMBER_FAILED_SCREEN	0x22
-#define PRES_PROHIB_NETWORK_NUMBER				0x23
-#define PRES_NUMBER_NOT_AVAILABLE				0x43
+#define PRI_PRES_NUMBER_TYPE				0x03
+#define PRI_PRES_USER_NUMBER_UNSCREENED		0x00
+#define PRI_PRES_USER_NUMBER_PASSED_SCREEN	0x01
+#define PRI_PRES_USER_NUMBER_FAILED_SCREEN	0x02
+#define PRI_PRES_NETWORK_NUMBER				0x03
+
+#define PRI_PRES_RESTRICTION				0x60
+#define PRI_PRES_ALLOWED					0x00
+#define PRI_PRES_RESTRICTED					0x20
+#define PRI_PRES_UNAVAILABLE				0x40
+#define PRI_PRES_RESERVED					0x60
+
+#define PRES_ALLOWED_USER_NUMBER_NOT_SCREENED \
+	(PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED)
+
+#define PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN \
+	(PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_PASSED_SCREEN)
+
+#define PRES_ALLOWED_USER_NUMBER_FAILED_SCREEN \
+	(PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_FAILED_SCREEN)
+
+#define PRES_ALLOWED_NETWORK_NUMBER	\
+	(PRI_PRES_ALLOWED | PRI_PRES_NETWORK_NUMBER)
+
+#define PRES_PROHIB_USER_NUMBER_NOT_SCREENED \
+	(PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED)
+
+#define PRES_PROHIB_USER_NUMBER_PASSED_SCREEN \
+	(PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_PASSED_SCREEN)
+
+#define PRES_PROHIB_USER_NUMBER_FAILED_SCREEN \
+	(PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_FAILED_SCREEN)
+
+#define PRES_PROHIB_NETWORK_NUMBER \
+	(PRI_PRES_RESTRICTED | PRI_PRES_NETWORK_NUMBER)
+
+#define PRES_NUMBER_NOT_AVAILABLE \
+	(PRI_PRES_UNAVAILABLE | PRI_PRES_NETWORK_NUMBER)
 
 /* Causes for disconnection */
 #define PRI_CAUSE_UNALLOCATED					1

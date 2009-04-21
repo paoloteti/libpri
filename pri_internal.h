@@ -33,6 +33,8 @@
 #include <stddef.h>
 #include <sys/time.h>
 
+#define ARRAY_LEN(arr)	(sizeof(arr) / sizeof((arr)[0]))
+
 #define DBGHEAD __FILE__ ":%d %s: "
 #define DBGINFO __LINE__,__PRETTY_FUNCTION__
 
@@ -51,6 +53,7 @@ enum q931_mode;
 
 #define MAX_TIMERS 32
 
+/*! \brief D channel controller structure */
 struct pri {
 	int fd;				/* File descriptor for D-Channel */
 	pri_io_cb read_func;		/* Read data callback */
@@ -128,10 +131,11 @@ struct pri {
 	unsigned int q931_rxcount;
 #endif
 
-	unsigned char last_invoke;	/* Last ROSE invoke ID */
+	short last_invoke;	/* Last ROSE invoke ID */
 	unsigned char sendfacility;
 };
 
+/*! \brief New call setup parameter structure */
 struct pri_sr {
 	int transmode;
 	int channel;
