@@ -821,7 +821,7 @@ pri_event *q921_dchannel_down(struct pri *pri)
 	/* Notify Layer 3 */
 	q931_dl_indication(pri, PRI_EVENT_DCHAN_DOWN);
 
-	/* Report event that D-Channel is now up */
+	/* Report event that D-Channel is now down */
 	pri->ev.gen.e = PRI_EVENT_DCHAN_DOWN;
 	return &pri->ev;
 }
@@ -894,6 +894,7 @@ static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
 		/* Go to master */
 		for (sub = pri; sub->master; sub = sub->master);
 		tei = 64;
+/*! \todo XXX Error:  The following loop never terminates! */
 		while(sub->subchannel) {
 			if(sub->subchannel->tei == tei)
 				++tei;
