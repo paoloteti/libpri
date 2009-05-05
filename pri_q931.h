@@ -232,25 +232,220 @@ typedef struct q931_ie {
 #define Q931_IE_ESCAPE_FOR_EXT			0x7F
 
 
-/* Call state stuff */
-#define Q931_CALL_STATE_NULL				0
-#define Q931_CALL_STATE_CALL_INITIATED			1
-#define Q931_CALL_STATE_OVERLAP_SENDING			2
+/* Q.931 call states */
+/*!
+ * \details
+ *   null state (U0):
+ *     No call exists.
+ * \details
+ *   null state (N0):
+ *     No call exists.
+ */
+#define Q931_CALL_STATE_NULL						0
+/*!
+ * \details
+ *   call initiated (U1):
+ *     This state exists for an outgoing call, when the user requests
+ *     call establishment from the network.
+ * \details
+ *   call initiated (N1):
+ *     This state exists for an outgoing call when the network has received
+ *     a call establishment request but has not yet responded.
+ */
+#define Q931_CALL_STATE_CALL_INITIATED				1
+/*!
+ * \details
+ *   overlap sending (U2):
+ *     This state exists for an outgoing call when the user has
+ *     received acknowledgement of the call establishment request which
+ *     permits the user to send additional call information to the network
+ *     in overlap mode.
+ * \details
+ *   overlap sending (N2):
+ *     This state exists for an outgoing call when the network has acknowledged
+ *     the call establishment request and is prepared to receive additional
+ *     call information (if any) in overlap mode.
+ */
+#define Q931_CALL_STATE_OVERLAP_SENDING				2
+/*!
+ * \details
+ *   outgoing call proceeding (U3):
+ *     This state exists for an outgoing call when the user has
+ *     received acknowledgement that the network has received all
+ *     call information necessary to effect call establishment.
+ * \details
+ *   outgoing call proceeding (N3):
+ *     This state exists for an outgoing call when the network has sent
+ *     acknowledgement that the network has received all call information
+ *     necessary to effect call establishment.
+ */
 #define Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING	3
-#define Q931_CALL_STATE_CALL_DELIVERED			4
-#define Q931_CALL_STATE_CALL_PRESENT			6
-#define Q931_CALL_STATE_CALL_RECEIVED			7
-#define Q931_CALL_STATE_CONNECT_REQUEST			8
+/*!
+ * \details
+ *   call delivered (U4):
+ *     This state exists for an outgoing call when the calling user has
+ *     received an indication that remote user alerting has been initiated.
+ * \details
+ *   call delivered (N4):
+ *     This state exists for an outgoing call when the network has indicated
+ *     that remote user alerting has been initiated.
+ */
+#define Q931_CALL_STATE_CALL_DELIVERED				4
+/*!
+ * \details
+ *   call present (U6):
+ *     This state exists for an incoming call when the user has received a
+ *     call establishment request but has not yet responded.
+ * \details
+ *   call present (N6):
+ *     This state exists for an incoming call when the network has sent a
+ *     call establishment request but has not yet received a satisfactory
+ *     response.
+ */
+#define Q931_CALL_STATE_CALL_PRESENT				6
+/*!
+ * \details
+ *   call received (U7):
+ *     This state exists for an incoming call when the user has indicated
+ *     alerting but has not yet answered.
+ * \details
+ *   call received (N7):
+ *     This state exists for an incoming call when the network has received
+ *     an indication that the user is alerting but has not yet received an
+ *     answer.
+ */
+#define Q931_CALL_STATE_CALL_RECEIVED				7
+/*!
+ * \details
+ *   connect request (U8):
+ *     This state exists for an incoming call when the user has answered
+ *     the call and is waiting to be awarded the call.
+ * \details
+ *   connect request (N8):
+ *     This state exists for an incoming call when the network has received
+ *     an answer but the network has not yet awarded the call.
+ */
+#define Q931_CALL_STATE_CONNECT_REQUEST				8
+/*!
+ * \details
+ *   incoming call proceeding (U9):
+ *     This state exists for an incoming call when the user has sent
+ *     acknowledgement that the user has received all call information
+ *     necessary to effect call establishment.
+ * \details
+ *   incoming call proceeding (N9):
+ *     This state exists for an incoming call when the network has received
+ *     acknowledgement that the user has received all call information
+ *     necessary to effect call establishment.
+ */
 #define Q931_CALL_STATE_INCOMING_CALL_PROCEEDING	9
-#define Q931_CALL_STATE_ACTIVE				10
-#define Q931_CALL_STATE_DISCONNECT_REQUEST		11
+/*!
+ * \details
+ *   active (U10):
+ *     This state exists for an incoming call when the user has received
+ *     an acknowledgement from the network that the user has been awarded
+ *     the call. This state exists for an outgoing call when the user has
+ *     received an indication that the remote user has answered the call.
+ * \details
+ *   active (N10):
+ *     This state exists for an incoming call when the network has awarded
+ *     the call to the called user. This state exists for an outgoing call
+ *     when the network has indicated that the remote user has answered
+ *     the call.
+ */
+#define Q931_CALL_STATE_ACTIVE						10
+/*!
+ * \details
+ *   disconnect request (U11):
+ *     This state exists when the user has requested the network to clear
+ *     the end-to-end connection (if any) and is waiting for a response.
+ * \details
+ *   disconnect request (N11):
+ *     This state exists when the network has received a request from the
+ *     user to clear the end-to-end connection (if any).
+ */
+#define Q931_CALL_STATE_DISCONNECT_REQUEST			11
+/*!
+ * \details
+ *   disconnect indication (U12):
+ *     This state exists when the user has received an invitation to
+ *     disconnect because the network has disconnected the end-to-end
+ *     connection (if any).
+ * \details
+ *   disconnect indication (N12):
+ *     This state exists when the network has disconnected the end-to-end
+ *     connection (if any) and has sent an invitation to disconnect the
+ *     user-network connection.
+ */
 #define Q931_CALL_STATE_DISCONNECT_INDICATION		12
-#define Q931_CALL_STATE_SUSPEND_REQUEST			15
-#define Q931_CALL_STATE_RESUME_REQUEST			17
-#define Q931_CALL_STATE_RELEASE_REQUEST			19
-#define Q931_CALL_STATE_OVERLAP_RECEIVING		25
-#define Q931_CALL_STATE_RESTART_REQUEST			61
-#define Q931_CALL_STATE_RESTART				62
+/*!
+ * \details
+ *   suspend request (U15):
+ *     This state exists when the user has requested the network to suspend
+ *     the call and is waiting for a response.
+ * \details
+ *   suspend request (N15):
+ *     This state exists when the network has received a request to suspend
+ *     the call but has not yet responded.
+ */
+#define Q931_CALL_STATE_SUSPEND_REQUEST				15
+/*!
+ * \details
+ *   resume request (U17):
+ *     This state exists when the user has requested the network to resume
+ *     a previously suspended call and is waiting for a response.
+ * \details
+ *   resume request (N17):
+ *     This state exists when the network has received a request to resume
+ *     a previously suspended call but has not yet responded.
+ */
+#define Q931_CALL_STATE_RESUME_REQUEST				17
+/*!
+ * \details
+ *   release request (U19):
+ *     This state exists when the user has requested the network to release
+ *     and is waiting for a response.
+ * \details
+ *   release request (N19):
+ *     This state exists when the network has requested the user to release
+ *     and is waiting for a response.
+ */
+#define Q931_CALL_STATE_RELEASE_REQUEST				19
+/*!
+ * \details
+ *   call abort (N22):
+ *     This state exists for an incoming call for the point-to-multipoint
+ *     configuration when the call is being cleared before any user has been
+ *     awarded the call.
+ */
+#define Q931_CALL_STATE_CALL_ABORT					22
+/*!
+ * \details
+ *   overlap receiving (U25):
+ *     This state exists for an incoming call when the user has acknowledged
+ *     the call establishment request from the network and is prepared to
+ *     receive additional call information (if any) in overlap mode.
+ * \details
+ *   overlap receiving (N25):
+ *     This state exists for an incoming call when the network has received
+ *     acknowledgement of the call establishment request which permits the
+ *     network to send additional call information (if any) in the overlap
+ *     mode.
+ */
+#define Q931_CALL_STATE_OVERLAP_RECEIVING			25
+/*!
+ * \details
+ *   call independent service (U31): (From Q.932)
+ *     This state exists when a call independent supplementary service
+ *     signalling connection is established.
+ * \details
+ *   call independent service (N31): (From Q.932)
+ *     This state exists when a call independent supplementary service
+ *     signalling connection is established.
+ */
+#define Q931_CALL_STATE_CALL_INDEPENDENT_SERVICE	31
+#define Q931_CALL_STATE_RESTART_REQUEST				61
+#define Q931_CALL_STATE_RESTART						62
 
 
 /* EuroISDN  */
