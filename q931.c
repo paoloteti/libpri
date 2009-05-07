@@ -2382,10 +2382,15 @@ static q931_call *q931_getcall(struct pri *pri, int cr, int outboundnew)
 	/* Call reference */
 	cur->cr = cr;
 	/* PRI is set to whoever called us */
-	if (pri->bri && (pri->localtype == PRI_CPE) && pri->subchannel && outboundnew)
-		cur->pri = pri->subchannel;
-	else
+	if (pri->bri && (pri->localtype == PRI_CPE)) {
+		/*
+		 * Point to the master to avoid stale pointer problems if
+		 * the TEI is removed later.
+		 */
+		cur->pri = master;
+	} else {
 		cur->pri = pri;
+	}
 
 	/* Append to end of list */
 	if (prev)
@@ -2680,7 +2685,19 @@ static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
 	}
 	/* Invert the logic */
 	len = sizeof(buf) - len;
-	q931_xmit(c->pri, h, len, 1);
+
+	pri = c->pri;
+	if (pri->bri && (pri->localtype == PRI_CPE)) {
+		/*
+		 * Must use the BRI subchannel structure to send with the correct TEI.
+		 * Note: If the subchannel is NULL then there is no TEI assigned and
+		 * we should not be sending anything out at this time.
+		 */
+		pri = pri->subchannel;
+	}
+	if (pri) {
+		q931_xmit(pri, h, len, 1);
+	}
 	c->acked = 1;
 	return 0;
 }
