@@ -276,17 +276,6 @@ static char *pritype(int type)
 	}
 }
 
-static void call_init(struct q931_call *c)
-{
-	c->forceinvert = -1;	
-	c->cr = -1;
-	c->slotmap = -1;
-	c->channelno = -1;
-	c->newcall = 1;
-	c->ourcallstate = Q931_CALL_STATE_NULL;
-	c->peercallstate = Q931_CALL_STATE_NULL;
-}
-
 static char *binary(int b, int len) {
 	static char res[33];
 	int x;
@@ -2352,52 +2341,65 @@ static inline void q931_dumpie(struct pri *pri, int codeset, q931_ie *ie, char p
 	pri_error(pri, "!! %c Unknown IE %d (cs%d, len = %d)\n", prefix, Q931_IE_IE(base_ie), Q931_IE_CODESET(base_ie), ielen(ie));
 }
 
-static q931_call *q931_getcall(struct pri *pri, int cr, int outboundnew)
+static q931_call *q931_getcall(struct pri *ctrl, int cr)
 {
-	q931_call *cur, *prev;
+	q931_call *cur;
+	q931_call *prev;
 	struct pri *master;
 
 	/* Find the master  - He has the call pool */
-	if (pri->master)
-		master = pri->master;
-	else
-		master = pri;
-	
+	if (ctrl->master) {
+		master = ctrl->master;
+	} else {
+		master = ctrl;
+	}
+
 	cur = *master->callpool;
 	prev = NULL;
-	while(cur) {
-		if (cur->cr == cr)
+	while (cur) {
+		if (cur->cr == cr) {
 			return cur;
+		}
 		prev = cur;
 		cur = cur->next;
 	}
-	/* No call exists, make a new one */
-	if (pri->debug & PRI_DEBUG_Q931_STATE)
-		pri_message(pri, "-- Making new call for cr %d\n", cr);
-	
-	if (!(cur = calloc(1, sizeof(*cur))))
-		return NULL;
 
-	call_init(cur);
-	/* Call reference */
+	/* No call exists, make a new one */
+	if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+		pri_message(ctrl, "-- Making new call for cr %d\n", cr);
+	}
+
+	cur = calloc(1, sizeof(*cur));
+	if (!cur) {
+		return NULL;
+	}
+
+	/* Initialize call structure. */
 	cur->cr = cr;
+	cur->slotmap = -1;
+	cur->channelno = -1;
+	cur->newcall = 1;
+	cur->ourcallstate = Q931_CALL_STATE_NULL;
+	cur->peercallstate = Q931_CALL_STATE_NULL;
+
 	/* PRI is set to whoever called us */
-	if (pri->bri && (pri->localtype == PRI_CPE)) {
+	if (ctrl->bri && (ctrl->localtype == PRI_CPE)) {
 		/*
 		 * Point to the master to avoid stale pointer problems if
 		 * the TEI is removed later.
 		 */
 		cur->pri = master;
 	} else {
-		cur->pri = pri;
+		cur->pri = ctrl;
 	}
 
 	/* Append to end of list */
-	if (prev)
+	if (prev) {
 		prev->next = cur;
-	else
+	} else {
 		*master->callpool = cur;
-	
+	}
+
 	return cur;
 }
 
@@ -2422,7 +2424,7 @@ q931_call *q931_new_call(struct pri *pri)
 		}
 	} while(cur);
 
-	return q931_getcall(pri, pri->cref | 0x8000, 1);
+	return q931_getcall(pri, pri->cref | 0x8000);
 }
 
 static void q931_destroy(struct pri *pri, int cr, q931_call *c)
@@ -2454,17 +2456,17 @@ static void q931_destroy(struct pri *pri, int cr, q931_call *c)
 	pri_error(pri, "Can't destroy call %d!\n", cr);
 }
 
-static void q931_destroycall(struct pri *pri, int cr)
+static void q931_destroycall(struct pri *ctrl, int cr)
 {
-	return q931_destroy(pri, cr, NULL);
+	q931_destroy(ctrl, cr, NULL);
 }
 
 
-void __q931_destroycall(struct pri *pri, q931_call *c) 
+void __q931_destroycall(struct pri *ctrl, q931_call *call) 
 {
-	if (pri && c)
-		q931_destroy(pri,0, c);
-	return;
+	if (ctrl && call) {
+		q931_destroy(ctrl, 0, call);
+	}
 }
 
 static int add_ie(struct pri *pri, q931_call *call, int msgtype, int ie, q931_ie *iet, int maxlen, int *codeset)
@@ -2540,9 +2542,15 @@ void q931_dump(struct pri *pri, q931_h *h, int len, int txrx)
 	int x=0, r;
 	int cur_codeset;
 	int codeset;
+	int cref;
+
 	c = txrx ? '>' : '<';
 	pri_message(pri, "%c Protocol Discriminator: %s (%d)  len=%d\n", c, disc2str(h->pd), h->pd, len);
-	pri_message(pri, "%c Call Ref: len=%2d (reference %d/0x%X) (%s)\n", c, h->crlen, q931_cr(h) & 0x7FFF, q931_cr(h) & 0x7FFF, (h->crv[0] & 0x80) ? "Terminator" : "Originator");
+	cref = q931_cr(h);
+	pri_message(pri, "%c Call Ref: len=%2d (reference %d/0x%X) (%s)\n",
+		c, h->crlen, cref & 0x7FFF, cref & 0x7FFF,
+		(cref & 0x8000) ? "Terminator" : "Originator");
+
 	/* Message header begins at the end of the call reference number */
 	mh = (q931_mh *)(h->contents + h->crlen);
 	if ((h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) || (h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_2)) {
@@ -2595,49 +2603,44 @@ static int q931_handle_ie(int codeset, struct pri *pri, q931_call *c, int msg, q
 	return -1;
 }
 
-static void init_header(struct pri *pri, q931_call *call, unsigned char *buf, q931_h **hb, q931_mh **mhb, int *len, int protodisc)
+/* Returns header and message header and modifies length in place */
+static void init_header(struct pri *ctrl, q931_call *call, unsigned char *buf, q931_h **hb, q931_mh **mhb, int *len, int protodisc)
 {
-	/* Returns header and message header and modifies length in place */
-	q931_h *h = (q931_h *)buf;
-	q931_mh * mh;
+	q931_h *h = (q931_h *) buf;
+	q931_mh *mh;
+	unsigned crv;
+
 	if (protodisc) {
 		h->pd = protodisc;
 	} else {
-		h->pd = pri->protodisc;
+		h->pd = ctrl->protodisc;
 	}
 	h->x0 = 0;		/* Reserved 0 */
-	if (!pri->bri) {
-		h->crlen = 2;	/* Two bytes of Call Reference.  Invert the top bit to make it from our sense */
-		if (call->cr || call->forceinvert) {
-			h->crv[0] = ((call->cr ^ 0x8000) & 0xff00) >> 8;
-			h->crv[1] = (call->cr & 0xff);
-		} else {
-			/* Unless of course this has no call reference */
-			h->crv[0] = 0;
-			h->crv[1] = 0;
-		}
-		if (pri->subchannel && !pri->bri) {
+	if (!ctrl->bri) {
+		/* Two bytes of Call Reference. */
+		h->crlen = 2;
+		/* Invert the top bit to make it from our sense */
+		crv = (unsigned) call->cr;
+		h->crv[0] = ((crv >> 8) ^ 0x80) & 0xff;
+		h->crv[1] = crv & 0xff;
+		if (ctrl->subchannel && !ctrl->bri) {
 			/* On GR-303, top bit is always 0 */
 			h->crv[0] &= 0x7f;
 		}
 	} else {
 		h->crlen = 1;
-		if (call->cr || call->forceinvert) {
-			h->crv[0] = (((call->cr ^ 0x8000) & 0x8000) >> 8) | (call->cr & 0x7f);
-		} else {
-			/* Unless of course this has no call reference */
-			h->crv[0] = 0;
-		}
+		/* Invert the top bit to make it from our sense */
+		crv = (unsigned) call->cr;
+		h->crv[0] = (((crv >> 8) ^ 0x80) & 0x80) | (crv & 0x7f);
 	}
-	mh = (q931_mh *)(h->contents + h->crlen);
-	mh->f = 0;
 	*hb = h;
+
+	*len -= 3;/* Protocol discriminator, call reference length, message type id */
+	*len -= h->crlen;
+
+	mh = (q931_mh *) (h->contents + h->crlen);
+	mh->f = 0;
 	*mhb = mh;
-	if (h->crlen == 2)
-		*len -= 5;
-	else
-		*len -= 4;
-	
 }
 
 static int q931_xmit(struct pri *pri, q931_h *h, int len, int cr)
@@ -2654,7 +2657,7 @@ static int q931_xmit(struct pri *pri, q931_h *h, int len, int cr)
 	return 0;
 }
 
-static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
+static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[])
 {
 	unsigned char buf[1024];
 	q931_h *h;
@@ -2664,18 +2667,17 @@ static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
 	int offset=0;
 	int x;
 	int codeset;
-	
+
 	memset(buf, 0, sizeof(buf));
 	len = sizeof(buf);
-	init_header(pri, c, buf, &h, &mh, &len, (msgtype >> 8));
+	init_header(ctrl, call, buf, &h, &mh, &len, (msgtype >> 8));
 	mh->msg = msgtype & 0x00ff;
 	x=0;
 	codeset = 0;
 	while(ies[x] > -1) {
-		res = add_ie(pri, c, mh->msg, ies[x], (q931_ie *)(mh->data + offset), len, &codeset);
-
+		res = add_ie(ctrl, call, mh->msg, ies[x], (q931_ie *)(mh->data + offset), len, &codeset);
 		if (res < 0) {
-			pri_error(pri, "!! Unable to add IE '%s'\n", ie2str(ies[x]));
+			pri_error(ctrl, "!! Unable to add IE '%s'\n", ie2str(ies[x]));
 			return -1;
 		}
 
@@ -2686,19 +2688,19 @@ static int send_message(struct pri *pri, q931_call *c, int msgtype, int ies[])
 	/* Invert the logic */
 	len = sizeof(buf) - len;
 
-	pri = c->pri;
-	if (pri->bri && (pri->localtype == PRI_CPE)) {
+	ctrl = call->pri;
+	if (ctrl->bri && (ctrl->localtype == PRI_CPE)) {
 		/*
 		 * Must use the BRI subchannel structure to send with the correct TEI.
 		 * Note: If the subchannel is NULL then there is no TEI assigned and
 		 * we should not be sending anything out at this time.
 		 */
-		pri = pri->subchannel;
+		ctrl = ctrl->subchannel;
 	}
-	if (pri) {
-		q931_xmit(pri, h, len, 1);
+	if (ctrl) {
+		q931_xmit(ctrl, h, len, 1);
 	}
-	c->acked = 1;
+	call->acked = 1;
 	return 0;
 }
 
@@ -2712,7 +2714,7 @@ int maintenance_service_ack(struct pri *pri, q931_call *c)
 int maintenance_service(struct pri *pri, int span, int channel, int changestatus)
 {
 	struct q931_call *c;
-	c = q931_getcall(pri, 0x8000, 0);
+	c = q931_getcall(pri, 0 | 0x8000);
 	if (!c) {
 		return -1;
 	}
@@ -3055,7 +3057,7 @@ static int restart_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
 int q931_restart(struct pri *pri, int channel)
 {
 	struct q931_call *c;
-	c = q931_getcall(pri, 0 | 0x8000, 1);
+	c = q931_getcall(pri, 0 | 0x8000);
 	if (!c)
 		return -1;
 	if (!channel)
@@ -3504,6 +3506,7 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 	int missingmand;
 	int codeset, cur_codeset;
 	int last_ie[8];
+	int cref;
 
 	memset(last_ie, 0, sizeof(last_ie));
 	if (pri->debug & PRI_DEBUG_Q931_DUMP)
@@ -3527,9 +3530,10 @@ int q931_receive(struct pri *pri, q931_h *h, int len)
 		q931_xmit(pri, h, len, 1);
 		return 0;
 	}
-	c = q931_getcall(pri, q931_cr(h), 0);
+	cref = q931_cr(h);
+	c = q931_getcall(pri, cref);
 	if (!c) {
-		pri_error(pri, "Unable to locate call %d\n", q931_cr(h));
+		pri_error(pri, "Unable to locate call %d\n", cref);
 		return -1;
 	}
 	/* Preliminary handling */

@@ -177,7 +177,6 @@ struct apdu_event {
 struct q931_call {
 	struct pri *pri;	/* PRI */
 	int cr;				/* Call Reference */
-	int forceinvert;	/* Force inversion of call number even if 0 */
 	q931_call *next;
 	/* Slotmap specified (bitmap of channels 31/24-1) (Channel Identifier IE) (-1 means not specified) */
 	int slotmap;
@@ -270,7 +269,7 @@ struct q931_call {
 	unsigned int rlt_call_id;	/* RLT call id */
 
 	/* Bridged call info */
-	q931_call *bridged_call;        /* Pointer to other leg of bridged call */
+	q931_call *bridged_call;        /* Pointer to other leg of bridged call (Used by Q.SIG when eliminating tromboned calls) */
 
 	int changestatus;		/* SERVICE message changestatus */
 };
