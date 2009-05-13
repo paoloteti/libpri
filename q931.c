@@ -2767,7 +2767,7 @@ int q931_information(struct pri *pri, q931_call *c, char digit)
 
 static int keypad_facility_ies[] = { Q931_IE_KEYPAD_FACILITY, -1 };
 
-int q931_keypad_facility(struct pri *pri, q931_call *call, char *digits)
+int q931_keypad_facility(struct pri *pri, q931_call *call, const char *digits)
 {
 	libpri_copy_string(call->keypad_digits, digits, sizeof(call->keypad_digits));
 	return send_message(pri, call, Q931_INFORMATION, keypad_facility_ies);

@@ -515,7 +515,7 @@ int pri_information(struct pri *pri, q931_call *call, char digit)
 	return q931_information(pri, call, digit);
 }
 
-int pri_keypad_facility(struct pri *pri, q931_call *call, char *digits)
+int pri_keypad_facility(struct pri *pri, q931_call *call, const char *digits)
 {
 	if (!pri || !call || !digits || !digits[0])
 		return -1;

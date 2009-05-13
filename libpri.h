@@ -573,7 +573,7 @@ int pri_information(struct pri *pri, q931_call *call, char digit);
 
 #define PRI_KEYPAD_FACILITY_TX
 /* Send a keypad facility string of digits */
-int pri_keypad_facility(struct pri *pri, q931_call *call, char *digits);
+int pri_keypad_facility(struct pri *pri, q931_call *call, const char *digits);
 
 /* Answer the incomplete(call without called number) call on the given channel.
    Set non-isdn to non-zero if you are not connecting to ISDN equipment */
