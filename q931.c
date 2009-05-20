@@ -221,9 +221,9 @@ static char *ie2str(int ie);
 static char *msg2str(int msg);
 
 
-#define FUNC_DUMP(name) void ((name))(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
-#define FUNC_RECV(name) int ((name))(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
-#define FUNC_SEND(name) int ((name))(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
+#define FUNC_DUMP(name) void (name)(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
+#define FUNC_RECV(name) int (name)(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
+#define FUNC_SEND(name) int (name)(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 
 #if 1
 /* Update call state with transition trace. */
@@ -287,7 +287,7 @@ static char *binary(int b, int len) {
 	return res;
 }
 
-static FUNC_RECV(receive_channel_id)
+static int receive_channel_id(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {	
 	int x;
 	int pos=0;
@@ -361,7 +361,7 @@ static FUNC_RECV(receive_channel_id)
 	return -1;
 }
 
-static FUNC_SEND(transmit_channel_id)
+static int transmit_channel_id(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	int pos=0;
 
@@ -432,7 +432,7 @@ static FUNC_SEND(transmit_channel_id)
 	return -1;
 }
 
-static FUNC_DUMP(dump_channel_id)
+static void dump_channel_id(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	int pos=0;
 	int x;
@@ -489,20 +489,20 @@ static char *ri2str(int ri)
 	return code2str(ri, ris, sizeof(ris) / sizeof(ris[0]));
 }
 
-static FUNC_DUMP(dump_restart_indicator)
+static void dump_restart_indicator(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	pri_message(pri, "%c Restart Indentifier (len=%2d) [ Ext: %d  Spare: %d  Resetting %s (%d) ]\n", 
 		prefix, len, (ie->data[0] & 0x80) >> 7, (ie->data[0] & 0x78) >> 3, ri2str(ie->data[0] & 0x7), ie->data[0] & 0x7);
 }
 
-static FUNC_RECV(receive_restart_indicator)
+static int receive_restart_indicator(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	/* Pretty simple */
 	call->ri = ie->data[0] & 0x7;
 	return 0;
 }
 
-static FUNC_SEND(transmit_restart_indicator)
+static int transmit_restart_indicator(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	/* Pretty simple */
 	switch(call->ri) {
@@ -614,7 +614,7 @@ static char *int_rate2str(int proto)
     return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
 }
 
-static FUNC_DUMP(dump_bearer_capability)
+static void dump_bearer_capability(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	int pos=2;
 	pri_message(pri, "%c Bearer Capability (len=%2d) [ Ext: %d  Q.931 Std: %d  Info transfer capability: %s (%d)\n",
@@ -744,7 +744,7 @@ static FUNC_DUMP(dump_bearer_capability)
 	}
 }
 
-static FUNC_RECV(receive_bearer_capability)
+static int receive_bearer_capability(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	int pos=2;
 	if (ie->data[0] & 0x60) {
@@ -795,7 +795,7 @@ static FUNC_RECV(receive_bearer_capability)
 	return 0;
 }
 
-static FUNC_SEND(transmit_bearer_capability)
+static int transmit_bearer_capability(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	int tc;
 	int pos;
@@ -941,7 +941,7 @@ static void q931_get_number(unsigned char *num, int maxlen, unsigned char *src, 
 	num[len] = 0;
 }
 
-static FUNC_DUMP(dump_called_party_number)
+static void dump_called_party_number(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	unsigned char cnum[256];
 
@@ -950,7 +950,7 @@ static FUNC_DUMP(dump_called_party_number)
 		prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f, cnum);
 }
 
-static FUNC_DUMP(dump_called_party_subaddr)
+static void dump_called_party_subaddr(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	unsigned char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
@@ -960,7 +960,7 @@ static FUNC_DUMP(dump_called_party_subaddr)
 		(ie->data[0] & 0x08) >> 3, cnum);
 }
 
-static FUNC_DUMP(dump_calling_party_number)
+static void dump_calling_party_number(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	unsigned char cnum[256];
 	if (ie->data[0] & 0x80)
@@ -974,7 +974,7 @@ static FUNC_DUMP(dump_calling_party_number)
 		pri_message(pri, "%c                           Presentation: %s (%d)  '%s' ]\n", prefix, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f, cnum);
 }
 
-static FUNC_DUMP(dump_calling_party_subaddr)
+static void dump_calling_party_subaddr(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	unsigned char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
@@ -984,7 +984,7 @@ static FUNC_DUMP(dump_calling_party_subaddr)
 		(ie->data[0] & 0x08) >> 3, cnum);
 }
 
-static FUNC_DUMP(dump_redirecting_number)
+static void dump_redirecting_number(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	unsigned char cnum[256];
 	int i = 0;
@@ -1010,7 +1010,7 @@ static FUNC_DUMP(dump_redirecting_number)
 	pri_message(pri, "  '%s' ]\n", cnum);
 }
 
-static FUNC_DUMP(dump_connected_number)
+static void dump_connected_number(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	unsigned char cnum[256];
 	int i = 0;
@@ -1033,7 +1033,7 @@ static FUNC_DUMP(dump_connected_number)
 }
 
 
-static FUNC_RECV(receive_redirecting_number)
+static int receive_redirecting_number(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	int i = 0;
 
@@ -1056,7 +1056,7 @@ static FUNC_RECV(receive_redirecting_number)
 	return 0;
 }
 
-static FUNC_SEND(transmit_redirecting_number)
+static int transmit_redirecting_number(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	if (order > 1)
 		return 0;
@@ -1070,7 +1070,7 @@ static FUNC_SEND(transmit_redirecting_number)
 	return 0;
 }
 
-static FUNC_DUMP(dump_redirecting_subaddr)
+static void dump_redirecting_subaddr(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	unsigned char cnum[256];
 	q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
@@ -1080,14 +1080,14 @@ static FUNC_DUMP(dump_redirecting_subaddr)
 		(ie->data[0] & 0x08) >> 3, cnum);
 }
 
-static FUNC_RECV(receive_calling_party_subaddr)
+static int receive_calling_party_subaddr(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	/* copy digits to call->callingsubaddr */
  	q931_get_number((unsigned char *) call->callingsubaddr, sizeof(call->callingsubaddr), ie->data + 1, len - 3);
 	return 0;
 }
 
-static FUNC_RECV(receive_called_party_number)
+static int receive_called_party_number(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	/* copy digits to call->callednum */
  	q931_get_number((unsigned char *) call->callednum, sizeof(call->callednum), ie->data + 1, len - 3);
@@ -1095,7 +1095,7 @@ static FUNC_RECV(receive_called_party_number)
 	return 0;
 }
 
-static FUNC_SEND(transmit_called_party_number)
+static int transmit_called_party_number(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	ie->data[0] = 0x80 | call->calledplan;
 	if (*call->callednum)
@@ -1103,7 +1103,7 @@ static FUNC_SEND(transmit_called_party_number)
 	return strlen(call->callednum) + 3;
 }
 
-static FUNC_RECV(receive_calling_party_number)
+static int receive_calling_party_number(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	u_int8_t *data;
 	size_t length;
@@ -1136,7 +1136,7 @@ static FUNC_RECV(receive_calling_party_number)
 	return 0;
 }
 
-static FUNC_SEND(transmit_calling_party_number)
+static int transmit_calling_party_number(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	ie->data[0] = call->callerplan;
 	ie->data[1] = 0x80 | call->callerpres;
@@ -1145,7 +1145,7 @@ static FUNC_SEND(transmit_calling_party_number)
 	return strlen(call->callernum) + 4;
 }
 
-static FUNC_DUMP(dump_user_user)
+static void dump_user_user(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	int x;
 	pri_message(pri, "%c User-User Information (len=%2d) [", prefix, len);
@@ -1155,7 +1155,7 @@ static FUNC_DUMP(dump_user_user)
 }
 
 
-static FUNC_RECV(receive_user_user)
+static int receive_user_user(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {        
         call->useruserprotocoldisc = ie->data[0] & 0xff;
         if (call->useruserprotocoldisc == 4) /* IA5 */
@@ -1163,7 +1163,7 @@ static FUNC_RECV(receive_user_user)
 	return 0;
 }
 
-static FUNC_SEND(transmit_user_user)
+static int transmit_user_user(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {        
 	int datalen = strlen(call->useruserinfo);
 	if (datalen > 0) {
@@ -1184,7 +1184,7 @@ static FUNC_SEND(transmit_user_user)
 	return 0;
 }
 
-static FUNC_DUMP(dump_change_status)
+static void dump_change_status(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	int x;
 	
@@ -1195,13 +1195,13 @@ static FUNC_DUMP(dump_change_status)
 	pri_message(pri, " ]\n");
 }
 
-static FUNC_RECV(receive_change_status)
+static int receive_change_status(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	call->changestatus = ie->data[0] & 0x0f;
 	return 0;
 }
 
-static FUNC_SEND(transmit_change_status)
+static int transmit_change_status(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	ie->data[0] = 0xc0 | call->changestatus;
 	return 3;
@@ -1249,7 +1249,7 @@ static char *loc2str(int loc)
 	return code2str(loc, locs, sizeof(locs) / sizeof(locs[0]));
 }
 
-static FUNC_DUMP(dump_progress_indicator)
+static void dump_progress_indicator(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	pri_message(pri, "%c Progress Indicator (len=%2d) [ Ext: %d  Coding: %s (%d)  0: %d  Location: %s (%d)\n",
 		prefix, len, ie->data[0] >> 7, coding2str((ie->data[0] & 0x60) >> 5), (ie->data[0] & 0x60) >> 5,
@@ -1258,7 +1258,7 @@ static FUNC_DUMP(dump_progress_indicator)
 		prefix, ie->data[1] >> 7, prog2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f);
 }
 
-static FUNC_RECV(receive_display)
+static int receive_display(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	unsigned char *data;
 	data = ie->data;
@@ -1271,7 +1271,7 @@ static FUNC_RECV(receive_display)
 	return 0;
 }
 
-static FUNC_SEND(transmit_display)
+static int transmit_display(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	int i;
 	
@@ -1289,7 +1289,7 @@ static FUNC_SEND(transmit_display)
 	return 2 + i + strlen(call->callername);
 }
 
-static FUNC_RECV(receive_progress_indicator)
+static int receive_progress_indicator(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	call->progloc = ie->data[0] & 0xf;
 	call->progcode = (ie->data[0] & 0x60) >> 5;
@@ -1331,7 +1331,7 @@ static FUNC_RECV(receive_progress_indicator)
 	return 0;
 }
 
-static FUNC_SEND(transmit_facility)
+static int transmit_facility(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	struct apdu_event *tmp;
 	int i = 0;
@@ -1434,7 +1434,7 @@ static int receive_facility(int full_ie, struct pri *ctrl, q931_call *call, int 
 	return 0;
 }
 
-static FUNC_SEND(transmit_progress_indicator)
+static int transmit_progress_indicator(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	int code, mask;
 	/* Can't send progress indicator on GR-303 -- EVER! */
@@ -1473,7 +1473,7 @@ static FUNC_SEND(transmit_progress_indicator)
 	/* Leave off */
 	return 0;
 }
-static FUNC_SEND(transmit_call_state)
+static int transmit_call_state(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	if (call->ourcallstate > -1 ) {
 		ie->data[0] = call->ourcallstate;
@@ -1482,7 +1482,7 @@ static FUNC_SEND(transmit_call_state)
 	return 0;
 }
 
-static FUNC_RECV(receive_call_state)
+static int receive_call_state(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	call->sugcallstate = ie->data[0] & 0x3f;
 	return 0;
@@ -1514,14 +1514,14 @@ static char *callstate2str(int callstate)
 	return code2str(callstate, callstates, sizeof(callstates) / sizeof(callstates[0]));
 }
 
-static FUNC_DUMP(dump_call_state)
+static void dump_call_state(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	pri_message(pri, "%c Call State (len=%2d) [ Ext: %d  Coding: %s (%d)  Call state: %s (%d)\n",
 		prefix, len, ie->data[0] >> 7, coding2str((ie->data[0] & 0xC0) >> 6), (ie->data[0] & 0xC0) >> 6,
 		callstate2str(ie->data[0] & 0x3f), ie->data[0] & 0x3f);
 }
 
-static FUNC_DUMP(dump_call_identity)
+static void dump_call_identity(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	int x;
 	pri_message(pri, "%c Call Identity (len=%2d) [ ", prefix, len);
@@ -1530,7 +1530,7 @@ static FUNC_DUMP(dump_call_identity)
 	pri_message(pri, " ]\n");
 }
 
-static FUNC_DUMP(dump_time_date)
+static void dump_time_date(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	pri_message(pri, "%c Time Date (len=%2d) [ ", prefix, len);
 	if (ie->len > 0)
@@ -1548,7 +1548,7 @@ static FUNC_DUMP(dump_time_date)
 	pri_message(pri, " ]\n");
 }
 
-static FUNC_DUMP(dump_keypad_facility)
+static void dump_keypad_facility(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	char tmp[64];
 	
@@ -1560,7 +1560,7 @@ static FUNC_DUMP(dump_keypad_facility)
 	pri_message(pri, "%c Keypad Facility (len=%2d) [ %s ]\n", prefix, ie->len, tmp );
 }
 
-static FUNC_RECV(receive_keypad_facility)
+static int receive_keypad_facility(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	int mylen;
 
@@ -1578,7 +1578,7 @@ static FUNC_RECV(receive_keypad_facility)
 	return 0;
 }
 
-static FUNC_SEND(transmit_keypad_facility)
+static int transmit_keypad_facility(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	int sublen;
 
@@ -1598,7 +1598,7 @@ static FUNC_SEND(transmit_keypad_facility)
 		return 0;
 }
 
-static FUNC_DUMP(dump_display)
+static void dump_display(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	int x, y;
 	char *buf = malloc(len + 1);
@@ -1662,7 +1662,7 @@ static void dump_ie_data(struct pri *pri, unsigned char *c, int len)
 	pri_message(pri, "%s", tmp);
 }
 
-static FUNC_DUMP(dump_facility)
+static void dump_facility(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	int dataat = (ie->data[0] & 0x80) ? 1 : 2;
 
@@ -1676,7 +1676,7 @@ static FUNC_DUMP(dump_facility)
 
 }
 
-static FUNC_DUMP(dump_network_spec_fac)
+static void dump_network_spec_fac(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	pri_message(pri, "%c Network-Specific Facilities (len=%2d) [ ", prefix, ie->len);
 	if (ie->data[0] == 0x00) {
@@ -1687,12 +1687,12 @@ static FUNC_DUMP(dump_network_spec_fac)
 	pri_message(pri, " ]\n");
 }
 
-static FUNC_RECV(receive_network_spec_fac)
+static int receive_network_spec_fac(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	return 0;
 }
 
-static FUNC_SEND(transmit_network_spec_fac)
+static int transmit_network_spec_fac(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	/* We are ready to transmit single IE only */
 	if (order > 1)
@@ -1727,7 +1727,7 @@ static char *pri_causeclass2str(int cause)
 	return code2str(cause, causeclasses, sizeof(causeclasses) / sizeof(causeclasses[0]));
 }
 
-static FUNC_DUMP(dump_cause)
+static void dump_cause(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	int x;
 	pri_message(pri, "%c Cause (len=%2d) [ Ext: %d  Coding: %s (%d)  Spare: %d  Location: %s (%d)\n",
@@ -1764,7 +1764,7 @@ static FUNC_DUMP(dump_cause)
 	}
 }
 
-static FUNC_RECV(receive_cause)
+static int receive_cause(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	call->causeloc = ie->data[0] & 0xf;
 	call->causecode = (ie->data[0] & 0x60) >> 5;
@@ -1772,7 +1772,7 @@ static FUNC_RECV(receive_cause)
 	return 0;
 }
 
-static FUNC_SEND(transmit_cause)
+static int transmit_cause(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	/* We are ready to transmit single IE only */
 	if (order > 1)
@@ -1788,19 +1788,19 @@ static FUNC_SEND(transmit_cause)
 	}
 }
 
-static FUNC_DUMP(dump_sending_complete)
+static void dump_sending_complete(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	pri_message(pri, "%c Sending Complete (len=%2d)\n", prefix, len);
 }
 
-static FUNC_RECV(receive_sending_complete)
+static int receive_sending_complete(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	/* We've got a "Complete" message: Exect no further digits. */
 	call->complete = 1; 
 	return 0;
 }
 
-static FUNC_SEND(transmit_sending_complete)
+static int transmit_sending_complete(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	if ((pri->overlapdial && call->complete) || /* Explicit */
 		(!pri->overlapdial && ((pri->switchtype == PRI_SWITCH_EUROISDN_E1) || 
@@ -1841,18 +1841,18 @@ static char *notify2str(int info)
 	return code2str(info, notifies, sizeof(notifies) / sizeof(notifies[0]));
 }
 
-static FUNC_DUMP(dump_notify)
+static void dump_notify(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	pri_message(pri, "%c Notification indicator (len=%2d): Ext: %d  %s (%d)\n", prefix, len, ie->data[0] >> 7, notify2str(ie->data[0] & 0x7f), ie->data[0] & 0x7f);
 }
 
-static FUNC_RECV(receive_notify)
+static int receive_notify(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	call->notify = ie->data[0] & 0x7F;
 	return 0;
 }
 
-static FUNC_SEND(transmit_notify)
+static int transmit_notify(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	if (call->notify >= 0) {
 		ie->data[0] = 0x80 | call->notify;
@@ -1861,7 +1861,7 @@ static FUNC_SEND(transmit_notify)
 	return 0;
 }
 
-static FUNC_DUMP(dump_shift)
+static void dump_shift(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	pri_message(pri, "%c %sLocking Shift (len=%02d): Requested codeset %d\n", prefix, (full_ie & 8) ? "Non-" : "", len, full_ie & 7);
 }
@@ -1898,18 +1898,18 @@ static char *lineinfo2str(int info)
 	return code2str(info, lineinfo, sizeof(lineinfo) / sizeof(lineinfo[0]));
 }
 
-static FUNC_DUMP(dump_line_information)
+static void dump_line_information(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	pri_message(pri, "%c Originating Line Information (len=%02d): %s (%d)\n", prefix, len, lineinfo2str(ie->data[0]), ie->data[0]);
 }
 
-static FUNC_RECV(receive_line_information)
+static int receive_line_information(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	call->ani2 = ie->data[0];
 	return 0;
 }
 
-static FUNC_SEND(transmit_line_information)
+static int transmit_line_information(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 #if 0	/* XXX Is this IE possible for 4ESS only? XXX */
 	if(pri->switchtype == PRI_SWITCH_ATT4ESS) {
@@ -1948,7 +1948,7 @@ static char *gdtype2str(int type)
 	return code2str(type, gdtype, sizeof(gdtype) / sizeof(gdtype[0]));
 }
 
-static FUNC_DUMP(dump_generic_digits)
+static void dump_generic_digits(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	int encoding;
 	int type;
@@ -1994,7 +1994,7 @@ static FUNC_DUMP(dump_generic_digits)
 	pri_message(pri, "\n");
 }
 
-static FUNC_RECV(receive_generic_digits)
+static int receive_generic_digits(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	int encoding;
 	int type;
@@ -2069,7 +2069,7 @@ static FUNC_RECV(receive_generic_digits)
 	return 0;
 }
 
-static FUNC_SEND(transmit_generic_digits)
+static int transmit_generic_digits(int full_ie, struct pri *pri, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 #if 0	/* XXX Is this IE possible for other switches? XXX */
 	if (order > 1)
@@ -2114,7 +2114,7 @@ static char *signal2str(int signal)
 }
 
 
-static FUNC_DUMP(dump_signal)
+static void dump_signal(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	pri_message(pri, "%c Signal (len=%02d): ", prefix, len);
 	if (len < 3) {
@@ -2124,7 +2124,7 @@ static FUNC_DUMP(dump_signal)
 	pri_message(pri, "Signal %s (%d)\n", signal2str(ie->data[0]), ie->data[0]);
 }
 
-static FUNC_DUMP(dump_transit_count)
+static void dump_transit_count(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
 {
 	/* Defined in ECMA-225 */
 	pri_message(pri, "%c Transit Count (len=%02d): ", prefix, len);
