@@ -33,6 +33,7 @@
 
 
 #include <stdio.h>
+#include <ctype.h>
 
 #include "compat.h"
 #include "libpri.h"
@@ -40,6 +41,26 @@
 #include "asn1.h"
 
 /* ------------------------------------------------------------------- */
+
+/*!
+ * \internal
+ * \brief Dump the memory contents indicated in printable characters. (Helper function.)
+ *
+ * \param ctrl D channel controller for any diagnostic messages.
+ * \param start Dump memory starting position.
+ * \param end Dump memory ending position. (Not included in dump.)
+ *
+ * \return Nothing
+ */
+static void asn1_dump_mem_helper(struct pri *ctrl, const unsigned char *start,
+	const unsigned char *end)
+{
+	pri_message(ctrl, " - \"");
+	for (; start < end; ++start) {
+		pri_message(ctrl, "%c", (isprint(*start)) ? *start : '~');
+	}
+	pri_message(ctrl, "\"\n");
+}
 
 /*!
  * \internal
@@ -55,10 +76,12 @@
 static void asn1_dump_mem(struct pri *ctrl, unsigned indent, const unsigned char *pos,
 	unsigned length)
 {
+	const unsigned char *seg_start;
 	const unsigned char *end;
 	unsigned delimiter;
 	unsigned count;
 
+	seg_start = pos;
 	end = pos + length;
 	if (pos < end) {
 		delimiter = '<';
@@ -71,12 +94,14 @@ static void asn1_dump_mem(struct pri *ctrl, unsigned indent, const unsigned char
 			if (end <= pos) {
 				break;
 			}
-			pri_message(ctrl, "\n");
+			asn1_dump_mem_helper(ctrl, seg_start, pos);
+			seg_start = pos;
 		}
 	} else {
 		pri_message(ctrl, "%*s<", indent, "");
 	}
-	pri_message(ctrl, ">\n");
+	pri_message(ctrl, ">");
+	asn1_dump_mem_helper(ctrl, seg_start, end);
 }
 
 /*!
