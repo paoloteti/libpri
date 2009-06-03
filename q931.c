@@ -230,8 +230,8 @@ static char *msg2str(int msg);
 #define UPDATE_OURCALLSTATE(ctrl,c,newstate) do {\
 	if (ctrl->debug & (PRI_DEBUG_Q931_STATE) && c->ourcallstate != newstate) \
 		pri_message(ctrl, DBGHEAD "call %d on channel %d enters state %d (%s)\n", DBGINFO, \
-		            c->cr, c->channelno, newstate, callstate2str(newstate)); \
-	c->ourcallstate = newstate; \
+			c->cr, c->channelno, newstate, q931_call_state_str(newstate)); \
+		c->ourcallstate = newstate; \
 	} while (0)
 #else
 /* Update call state with no trace. */
@@ -1489,7 +1489,14 @@ static int receive_call_state(int full_ie, struct pri *ctrl, q931_call *call, in
 	return 0;
 }
 
-static char *callstate2str(int callstate)
+/*!
+ * \brief Convert the internal Q.931 call state to a string.
+ *
+ * \param callstate Internal Q.931 call state.
+ *
+ * \return String equivalent of the given Q.931 call state.
+ */
+static const char *q931_call_state_str(int callstate)
 {
 	static struct msgtype callstates[] = {
 		{ 0, "Null" },
@@ -1519,7 +1526,7 @@ static void dump_call_state(int full_ie, struct pri *ctrl, q931_ie *ie, int len,
 {
 	pri_message(ctrl, "%c Call State (len=%2d) [ Ext: %d  Coding: %s (%d)  Call state: %s (%d)\n",
 		prefix, len, ie->data[0] >> 7, coding2str((ie->data[0] & 0xC0) >> 6), (ie->data[0] & 0xC0) >> 6,
-		callstate2str(ie->data[0] & 0x3f), ie->data[0] & 0x3f);
+		q931_call_state_str(ie->data[0] & 0x3f), ie->data[0] & 0x3f);
 }
 
 static void dump_call_identity(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
@@ -2444,7 +2451,10 @@ static void q931_destroy(struct pri *ctrl, int cr, q931_call *c)
 			else
 				*ctrl->callpool = cur->next;
 			if (ctrl->debug & PRI_DEBUG_Q931_STATE)
-				pri_message(ctrl, "NEW_HANGUP DEBUG: Destroying the call, ourstate %s, peerstate %s\n",callstate2str(cur->ourcallstate),callstate2str(cur->peercallstate));
+				pri_message(ctrl,
+					"NEW_HANGUP DEBUG: Destroying the call, ourstate %s, peerstate %s\n",
+					q931_call_state_str(cur->ourcallstate),
+					q931_call_state_str(cur->peercallstate));
 			if (cur->retranstimer)
 				pri_schedule_del(ctrl, cur->retranstimer);
 			pri_call_apdu_queue_cleanup(cur);
@@ -3245,7 +3255,10 @@ int q931_hangup(struct pri *ctrl, q931_call *c, int cause)
 	int disconnect = 1;
 	int release_compl = 0;
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
-		pri_message(ctrl, "NEW_HANGUP DEBUG: Calling q931_hangup, ourstate %s, peerstate %s\n",callstate2str(c->ourcallstate),callstate2str(c->peercallstate));
+		pri_message(ctrl,
+			"NEW_HANGUP DEBUG: Calling q931_hangup, ourstate %s, peerstate %s\n",
+			q931_call_state_str(c->ourcallstate),
+			q931_call_state_str(c->peercallstate));
 	if (!ctrl || !c)
 		return -1;
 	/* If mandatory IE was missing, insist upon that cause code */
@@ -3296,7 +3309,10 @@ int q931_hangup(struct pri *ctrl, q931_call *c, int cause)
 			else
 				q931_release(ctrl,c,cause);
 		} else 
-			pri_error(ctrl, "Wierd, doing nothing but this shouldn't happen, ourstate %s, peerstate %s\n",callstate2str(c->ourcallstate),callstate2str(c->peercallstate));
+			pri_error(ctrl,
+				"Wierd, doing nothing but this shouldn't happen, ourstate %s, peerstate %s\n",
+				q931_call_state_str(c->ourcallstate),
+				q931_call_state_str(c->peercallstate));
 		break;
 	case Q931_CALL_STATE_ACTIVE:
 		/* received CONNECT */
@@ -3320,13 +3336,17 @@ int q931_hangup(struct pri *ctrl, q931_call *c, int cause)
 	case Q931_CALL_STATE_RESTART:
 	case Q931_CALL_STATE_RESTART_REQUEST:
 		/* sent RESTART */
-		pri_error(ctrl, "q931_hangup shouldn't be called in this state, ourstate %s, peerstate %s\n",callstate2str(c->ourcallstate),callstate2str(c->peercallstate));
+		pri_error(ctrl,
+			"q931_hangup shouldn't be called in this state, ourstate %s, peerstate %s\n",
+			q931_call_state_str(c->ourcallstate),
+			q931_call_state_str(c->peercallstate));
 		break;
 	default:
-		pri_error(ctrl, "We're not yet handling hanging up when our state is %d, contact support@digium.com, ourstate %s, peerstate %s\n",
-			  c->ourcallstate,
-			  callstate2str(c->ourcallstate),
-			  callstate2str(c->peercallstate));
+		pri_error(ctrl,
+			"We're not yet handling hanging up when our state is %d, contact support@digium.com, ourstate %s, peerstate %s\n",
+			c->ourcallstate,
+			q931_call_state_str(c->ourcallstate),
+			q931_call_state_str(c->peercallstate));
 		return -1;
 	}
 	/* we did handle hangup properly at this point */
@@ -4206,7 +4226,8 @@ void q931_dl_indication(struct pri *ctrl, int event)
 			} else if (cur->ourcallstate != Q931_CALL_STATE_NULL) {
 				/* For a call that is not in Active state, schedule internal clearing of the call 'ASAP' (delay 0). */
 				pri_message(ctrl, DBGHEAD "cancel call %d on channel %d in state %d (%s)\n", DBGINFO,
-				            cur->cr, cur->channelno, cur->ourcallstate, callstate2str(cur->ourcallstate));
+					cur->cr, cur->channelno, cur->ourcallstate,
+					q931_call_state_str(cur->ourcallstate));
 				if (cur->retranstimer)
 					pri_schedule_del(ctrl, cur->retranstimer);
 				cur->retranstimer = pri_schedule_event(ctrl, 0, pri_dl_down_cancelcall, cur);
