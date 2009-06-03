@@ -1344,7 +1344,8 @@ static int transmit_facility(int full_ie, struct pri *ctrl, q931_call *call, int
 		return 0;
 
 	if (ctrl->debug & PRI_DEBUG_APDU) {
-		pri_message(ctrl, "Adding facility ie contents to send message:\n");
+		pri_message(ctrl, "Adding facility ie contents to send in %s message:\n",
+			msg2str(msgtype));
 		facility_decode_dump(ctrl, tmp->apdu, tmp->apdu_len);
 	}
 
