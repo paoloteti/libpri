@@ -421,6 +421,7 @@ typedef struct pri_event_ring {
 	char origcallednum[256];
 	int callingplanorigcalled;		/* Dialing plan of Originally Called Number */
 	int origredirectingreason;
+	int reversecharge;
 } pri_event_ring;
 
 typedef struct pri_event_hangup {
