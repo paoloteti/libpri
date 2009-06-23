@@ -2143,16 +2143,6 @@ static void dump_transit_count(int full_ie, struct pri *ctrl, q931_ie *ie, int l
 	pri_message(ctrl, "Count=%d (0x%02x)\n", ie->data[0] & 0x1f, ie->data[0] & 0x1f);
 }
 
-static void dump_reverse_charging_indication(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
-{
-	pri_message(ctrl, "%c Reverse Charging Indication (len=%02d): %d\n", prefix, len, ie->data[0] & 0x7);
-}
-
-static int receive_reverse_charging_indication(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
-{
-	call->reversecharge = ie->data[0] & 0x7;
-	return 0;
-}
 
 static struct ie ies[] = {
 	/* Codeset 0 - Common */
@@ -2170,7 +2160,7 @@ static struct ie ies[] = {
 	{ 1, Q931_BINARY_PARAMETERS, "Packet-layer Binary Parameters" },
 	{ 1, Q931_WINDOW_SIZE, "Packet-layer Window Size" },
 	{ 1, Q931_CLOSED_USER_GROUP, "Closed User Group" },
-	{ 1, Q931_REVERSE_CHARGE_INDIC, "Reverse Charging Indication", dump_reverse_charging_indication, receive_reverse_charging_indication },
+	{ 1, Q931_REVERSE_CHARGE_INDIC, "Reverse Charging Indication" },
 	{ 1, Q931_CALLING_PARTY_NUMBER, "Calling Party Number", dump_calling_party_number, receive_calling_party_number, transmit_calling_party_number },
 	{ 1, Q931_CALLING_PARTY_SUBADDR, "Calling Party Subaddress", dump_calling_party_subaddr, receive_calling_party_subaddr },
 	{ 1, Q931_CALLED_PARTY_NUMBER, "Called Party Number", dump_called_party_number, receive_called_party_number, transmit_called_party_number },
@@ -3794,7 +3784,6 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		ctrl->ev.ring.redirectingreason = c->redirectingreason;
 		ctrl->ev.ring.progress = c->progress;
 		ctrl->ev.ring.progressmask = c->progressmask;
-		ctrl->ev.ring.reversecharge = c->reversecharge;
 		return Q931_RES_HAVEEVENT;
 	case Q931_ALERTING:
 		if (c->newcall) {
