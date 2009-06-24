@@ -42,7 +42,6 @@
 #include "pri_facility.h"
 #include "pri_q921.h"
 #include "pri_q931.h"
-#include "pri_timers.h"
 
 char *pri_node2str(int node)
 {
@@ -84,13 +83,32 @@ char *pri_switch2str(int sw)
 	}
 }
 
-static void pri_default_timers(struct pri *pri, int switchtype)
+static void pri_default_timers(struct pri *ctrl, int switchtype)
 {
-	static const int defaulttimers[20][PRI_MAX_TIMERS] = PRI_TIMERS_ALL;
-	int x;
+	unsigned idx;
 
-	for (x = 0; x<PRI_MAX_TIMERS; x++) {
-		pri->timers[x] = defaulttimers[switchtype][x];
+	/* Initialize all timers/counters to unsupported/disabled. */
+	for (idx = 0; idx < PRI_MAX_TIMERS; ++idx) {
+		ctrl->timers[idx] = -1;
+	}
+
+	/* Set timer values to standard defaults.  Time is in ms. */
+	ctrl->timers[PRI_TIMER_N200] = 3;		/* Max numer of Q.921 retransmissions */
+	ctrl->timers[PRI_TIMER_N202] = 3;		/* Max numer of transmissions of the TEI identity request message */
+	ctrl->timers[PRI_TIMER_K] = 7;			/* Max number of outstanding I-frames */
+	ctrl->timers[PRI_TIMER_T200] = 1000;	/* Time between SABME's */
+	ctrl->timers[PRI_TIMER_T202] = 10000;	/* Min time between transmission of TEI Identity request messages */
+	ctrl->timers[PRI_TIMER_T203] = 10000;	/* Max time without exchanging packets */
+	ctrl->timers[PRI_TIMER_T305] = 30000;	/* Wait for DISCONNECT acknowledge */
+	ctrl->timers[PRI_TIMER_T308] = 4000;	/* Wait for RELEASE acknowledge */
+	ctrl->timers[PRI_TIMER_T313] = 4000;	/* Wait for CONNECT acknowledge, CPE side only */
+	ctrl->timers[PRI_TIMER_TM20] = 2500;	/* Max time awaiting XID response - Q.921 Appendix IV */
+	ctrl->timers[PRI_TIMER_NM20] = 3;		/* Number of XID retransmits - Q.921 Appendix IV */
+
+	/* Set any switch specific override default values */
+	switch (switchtype) {
+	default:
+		break;
 	}
 }
 
@@ -119,64 +137,54 @@ int pri_set_service_message_support(struct pri *pri, int supportflag)
 	return 0;
 }
 
-int pri_timer2idx(char *timer)
+int pri_timer2idx(const char *timer_name)
 {
-	if (!strcasecmp(timer, "N200"))
-		return PRI_TIMER_N200;
-	else if (!strcasecmp(timer, "N201"))
-		return PRI_TIMER_N201;
-	else if (!strcasecmp(timer, "N202"))
-		return PRI_TIMER_N202;
-	else if (!strcasecmp(timer, "K"))
-		return PRI_TIMER_K;
-	else if (!strcasecmp(timer, "T200"))
-		return PRI_TIMER_T200;
-	else if (!strcasecmp(timer, "T202"))
-		return PRI_TIMER_T202;
-	else if (!strcasecmp(timer, "T203"))
-		return PRI_TIMER_T203;
-	else if (!strcasecmp(timer, "T300"))
-		return PRI_TIMER_T300;
-	else if (!strcasecmp(timer, "T301"))
-		return PRI_TIMER_T301;
-	else if (!strcasecmp(timer, "T302"))
-		return PRI_TIMER_T302;
-	else if (!strcasecmp(timer, "T303"))
-		return PRI_TIMER_T303;
-	else if (!strcasecmp(timer, "T304"))
-		return PRI_TIMER_T304;
-	else if (!strcasecmp(timer, "T305"))
-		return PRI_TIMER_T305;
-	else if (!strcasecmp(timer, "T306"))
-		return PRI_TIMER_T306;
-	else if (!strcasecmp(timer, "T307"))
-		return PRI_TIMER_T307;
-	else if (!strcasecmp(timer, "T308"))
-		return PRI_TIMER_T308;
-	else if (!strcasecmp(timer, "T309"))
-		return PRI_TIMER_T309;
-	else if (!strcasecmp(timer, "T310"))
-		return PRI_TIMER_T310;
-	else if (!strcasecmp(timer, "T313"))
-		return PRI_TIMER_T313;
-	else if (!strcasecmp(timer, "T314"))
-		return PRI_TIMER_T314;
-	else if (!strcasecmp(timer, "T316"))
-		return PRI_TIMER_T316;
-	else if (!strcasecmp(timer, "T317"))
-		return PRI_TIMER_T317;
-	else if (!strcasecmp(timer, "T318"))
-		return PRI_TIMER_T318;
-	else if (!strcasecmp(timer, "T319"))
-		return PRI_TIMER_T319;
-	else if (!strcasecmp(timer, "T320"))
-		return PRI_TIMER_T320;
-	else if (!strcasecmp(timer, "T321"))
-		return PRI_TIMER_T321;
-	else if (!strcasecmp(timer, "T322"))
-		return PRI_TIMER_T322;
-	else
-		return -1;
+	static const struct {
+		const char *name;
+		int number;
+	} timer[] = {
+/* *INDENT-OFF* */
+		{ "N200", PRI_TIMER_N200 },
+		{ "N201", PRI_TIMER_N201 },
+		{ "N202", PRI_TIMER_N202 },
+		{ "K",    PRI_TIMER_K },
+		{ "T200", PRI_TIMER_T200 },
+		{ "T202", PRI_TIMER_T202 },
+		{ "T203", PRI_TIMER_T203 },
+		{ "T300", PRI_TIMER_T300 },
+		{ "T301", PRI_TIMER_T301 },
+		{ "T302", PRI_TIMER_T302 },
+		{ "T303", PRI_TIMER_T303 },
+		{ "T304", PRI_TIMER_T304 },
+		{ "T305", PRI_TIMER_T305 },
+		{ "T306", PRI_TIMER_T306 },
+		{ "T307", PRI_TIMER_T307 },
+		{ "T308", PRI_TIMER_T308 },
+		{ "T309", PRI_TIMER_T309 },
+		{ "T310", PRI_TIMER_T310 },
+		{ "T313", PRI_TIMER_T313 },
+		{ "T314", PRI_TIMER_T314 },
+		{ "T316", PRI_TIMER_T316 },
+		{ "T317", PRI_TIMER_T317 },
+		{ "T318", PRI_TIMER_T318 },
+		{ "T319", PRI_TIMER_T319 },
+		{ "T320", PRI_TIMER_T320 },
+		{ "T321", PRI_TIMER_T321 },
+		{ "T322", PRI_TIMER_T322 },
+/* *INDENT-ON* */
+	};
+
+	unsigned idx;
+	int timer_number;
+
+	timer_number = -1;
+	for (idx = 0; idx < ARRAY_LEN(timer); ++idx) {
+		if (!strcasecmp(timer_name, timer[idx].name)) {
+			timer_number = timer[idx].number;
+			break;
+		}
+	}
+	return timer_number;
 }
 
 static int __pri_read(struct pri *pri, void *buf, int buflen)

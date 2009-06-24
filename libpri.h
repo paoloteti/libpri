@@ -720,7 +720,7 @@ int pri_callrerouting_facility(struct pri *pri, q931_call *call, const char *des
 #define PRI_GETSET_TIMERS
 int pri_set_timer(struct pri *pri, int timer, int value);
 int pri_get_timer(struct pri *pri, int timer);
-int pri_timer2idx(char *timer);
+int pri_timer2idx(const char *timer_name);
 
 #define PRI_MAX_TIMERS 32
 
@@ -732,7 +732,7 @@ int pri_timer2idx(char *timer);
 #define PRI_TIMER_T200	4	/* time between SABME's */
 #define PRI_TIMER_T201	5	/* minimum time between retransmissions of the TEI Identity check messages */
 #define PRI_TIMER_T202	6	/* minimum time between transmission of TEI Identity request messages */
-#define PRI_TIMER_T203	7	/* maxiumum time without exchanging packets */
+#define PRI_TIMER_T203	7	/* maximum time without exchanging packets */
 
 #define PRI_TIMER_T300	8	
 #define PRI_TIMER_T301	9	/* maximum time to respond to an ALERT */
@@ -755,7 +755,7 @@ int pri_timer2idx(char *timer);
 #define PRI_TIMER_T321	26
 #define PRI_TIMER_T322	27
 
-#define PRI_TIMER_TM20	28	/* maximum time avaiting XID response */
+#define PRI_TIMER_TM20	28	/* maximum time awaiting XID response */
 #define PRI_TIMER_NM20	29	/* number of XID retransmits */
 
 /* Get PRI version */
