@@ -2154,6 +2154,15 @@ static int receive_reverse_charging_indication(int full_ie, struct pri *ctrl, q9
 	return 0;
 }
 
+static int transmit_reverse_charging_indication(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
+{
+	if (call->reversecharge != PRI_REVERSECHARGE_NONE) {
+		ie->data[0] = 0x80 | (call->reversecharge & 0x7);
+		return 3;
+	}
+	return 0;
+}
+
 static struct ie ies[] = {
 	/* Codeset 0 - Common */
 	{ 1, NATIONAL_CHANGE_STATUS, "Change Status", dump_change_status, receive_change_status, transmit_change_status },
@@ -2170,7 +2179,7 @@ static struct ie ies[] = {
 	{ 1, Q931_BINARY_PARAMETERS, "Packet-layer Binary Parameters" },
 	{ 1, Q931_WINDOW_SIZE, "Packet-layer Window Size" },
 	{ 1, Q931_CLOSED_USER_GROUP, "Closed User Group" },
-	{ 1, Q931_REVERSE_CHARGE_INDIC, "Reverse Charging Indication", dump_reverse_charging_indication, receive_reverse_charging_indication },
+	{ 1, Q931_REVERSE_CHARGE_INDIC, "Reverse Charging Indication", dump_reverse_charging_indication, receive_reverse_charging_indication, transmit_reverse_charging_indication },
 	{ 1, Q931_CALLING_PARTY_NUMBER, "Calling Party Number", dump_calling_party_number, receive_calling_party_number, transmit_calling_party_number },
 	{ 1, Q931_CALLING_PARTY_SUBADDR, "Calling Party Subaddress", dump_calling_party_subaddr, receive_calling_party_subaddr },
 	{ 1, Q931_CALLED_PARTY_NUMBER, "Called Party Number", dump_called_party_number, receive_called_party_number, transmit_called_party_number },
@@ -3116,8 +3125,8 @@ int q931_disconnect(struct pri *ctrl, q931_call *c, int cause)
 }
 
 static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_IE_FACILITY, Q931_PROGRESS_INDICATOR, Q931_NETWORK_SPEC_FAC, Q931_DISPLAY,
-	Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_REDIRECTING_NUMBER, Q931_IE_USER_USER, Q931_SENDING_COMPLETE,
-	Q931_IE_ORIGINATING_LINE_INFO, Q931_IE_GENERIC_DIGITS, -1 };
+	Q931_REVERSE_CHARGE_INDIC, Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_REDIRECTING_NUMBER, Q931_IE_USER_USER,
+	Q931_SENDING_COMPLETE, Q931_IE_ORIGINATING_LINE_INFO, Q931_IE_GENERIC_DIGITS, -1 };
 
 static int gr303_setup_ies[] =  { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, -1 };
 
@@ -3205,6 +3214,8 @@ int q931_setup(struct pri *ctrl, q931_call *c, struct pri_sr *req)
 		c->progressmask = PRI_PROG_CALLER_NOT_ISDN;
 	else
 		c->progressmask = 0;
+
+	c->reversecharge = req->reversecharge;
 
 	pri_call_add_standard_apdus(ctrl, c);
 
@@ -3445,6 +3456,7 @@ static int prepare_to_handle_q931_message(struct pri *ctrl, q931_mh *mh, q931_ca
 		c->complete = 0;
 		c->nonisdn = 0;
 		c->aoc_units = -1;
+		c->reversecharge = -1;
 		/* Fall through */
 	case Q931_CONNECT:
 	case Q931_ALERTING:

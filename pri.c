@@ -692,7 +692,7 @@ void pri_dump_event(struct pri *pri, pri_event *e)
 static void pri_sr_init(struct pri_sr *req)
 {
 	memset(req, 0, sizeof(struct pri_sr));
-	
+	req->reversecharge = PRI_REVERSECHARGE_NONE;
 }
 
 int pri_sr_set_connection_call_independent(struct pri_sr *req)
@@ -960,4 +960,9 @@ int pri_sr_set_redirecting(struct pri_sr *sr, char *num, int plan, int pres, int
 	sr->redirectingpres = pres;
 	sr->redirectingreason = reason;
 	return 0;
+}
+
+void pri_sr_set_reversecharge(struct pri_sr *sr, int requested)
+{
+	sr->reversecharge = requested;
 }

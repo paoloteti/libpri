@@ -183,6 +183,10 @@
 #define PRES_NUMBER_NOT_AVAILABLE \
 	(PRI_PRES_UNAVAILABLE | PRI_PRES_NETWORK_NUMBER)
 
+/* Reverse Charging Indication */
+#define PRI_REVERSECHARGE_NONE      -1
+#define PRI_REVERSECHARGE_REQUESTED  1
+
 /* Causes for disconnection */
 #define PRI_CAUSE_UNALLOCATED					1
 #define PRI_CAUSE_NO_ROUTE_TRANSIT_NET			2	/* !Q.SIG */
@@ -643,6 +647,7 @@ int pri_sr_set_redirecting(struct pri_sr *sr, char *num, int plan, int pres, int
 #define PRI_USER_USER_TX
 /* Set the user user field.  Warning!  don't send binary data accross this field */
 void pri_sr_set_useruser(struct pri_sr *sr, const char *userchars);
+void pri_sr_set_reversecharge(struct pri_sr *sr, int requested);
 
 void pri_call_set_useruser(q931_call *sr, const char *userchars);
 
@@ -709,7 +714,6 @@ void pri_enslave(struct pri *master, struct pri *slave);
 #define PRI_REDIRECTING_REASON
 #define PRI_AOC_UNITS
 #define PRI_ANI
-#define PRI_REVERSECHARGE_SUPPORT
 
 /* Send notification */
 int pri_notify(struct pri *pri, q931_call *c, int channel, int info);
