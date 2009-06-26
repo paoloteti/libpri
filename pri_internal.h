@@ -48,10 +48,8 @@ struct q921_frame;
 enum q931_state;
 enum q931_mode;
 
-/* No more than 128 scheduled events */
+/*! Maximum number of scheduled events active at the same time. */
 #define MAX_SCHED 128
-
-#define MAX_TIMERS 32
 
 /*! \brief D channel controller structure */
 struct pri {
@@ -100,7 +98,7 @@ struct pri {
 	int ri;
 	int t200_timer;		/* T-200 retransmission timer */
 	/* All ISDN Timer values */
-	int timers[MAX_TIMERS];
+	int timers[PRI_MAX_TIMERS];
 
 	/* Used by scheduler */
 	struct timeval tv;
