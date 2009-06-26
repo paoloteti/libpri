@@ -43,6 +43,52 @@
 #include "pri_q921.h"
 #include "pri_q931.h"
 
+#define PRI_BIT(a_bit)		(1UL << (a_bit))
+#define PRI_ALL_SWITCHES	0xFFFFFFFF
+
+struct pri_timer_table {
+	const char *name;
+	enum PRI_TIMERS_AND_COUNTERS number;
+	unsigned long used_by;
+};
+
+/*!
+ * \note Sort the timer table entries in the order of the timer name so
+ * pri_dump_info_str() can display them in a consitent order.
+ */
+static const struct pri_timer_table pri_timer[] = {
+/* *INDENT-OFF* */
+	/* timer name       timer number                used by switches */
+	{ "N200",           PRI_TIMER_N200,             PRI_ALL_SWITCHES },
+	{ "N201",           PRI_TIMER_N201,             PRI_ALL_SWITCHES },
+	{ "N202",           PRI_TIMER_N202,             PRI_ALL_SWITCHES },
+	{ "K",              PRI_TIMER_K,                PRI_ALL_SWITCHES },
+	{ "T200",           PRI_TIMER_T200,             PRI_ALL_SWITCHES },
+	{ "T202",           PRI_TIMER_T202,             PRI_ALL_SWITCHES },
+	{ "T203",           PRI_TIMER_T203,             PRI_ALL_SWITCHES },
+	{ "T300",           PRI_TIMER_T300,             PRI_ALL_SWITCHES },
+	{ "T301",           PRI_TIMER_T301,             PRI_ALL_SWITCHES },
+	{ "T302",           PRI_TIMER_T302,             PRI_ALL_SWITCHES },
+	{ "T303",           PRI_TIMER_T303,             PRI_ALL_SWITCHES },
+	{ "T304",           PRI_TIMER_T304,             PRI_ALL_SWITCHES },
+	{ "T305",           PRI_TIMER_T305,             PRI_ALL_SWITCHES },
+	{ "T306",           PRI_TIMER_T306,             PRI_ALL_SWITCHES },
+	{ "T307",           PRI_TIMER_T307,             PRI_ALL_SWITCHES },
+	{ "T308",           PRI_TIMER_T308,             PRI_ALL_SWITCHES },
+	{ "T309",           PRI_TIMER_T309,             PRI_ALL_SWITCHES },
+	{ "T310",           PRI_TIMER_T310,             PRI_ALL_SWITCHES },
+	{ "T313",           PRI_TIMER_T313,             PRI_ALL_SWITCHES },
+	{ "T314",           PRI_TIMER_T314,             PRI_ALL_SWITCHES },
+	{ "T316",           PRI_TIMER_T316,             PRI_ALL_SWITCHES },
+	{ "T317",           PRI_TIMER_T317,             PRI_ALL_SWITCHES },
+	{ "T318",           PRI_TIMER_T318,             PRI_ALL_SWITCHES },
+	{ "T319",           PRI_TIMER_T319,             PRI_ALL_SWITCHES },
+	{ "T320",           PRI_TIMER_T320,             PRI_ALL_SWITCHES },
+	{ "T321",           PRI_TIMER_T321,             PRI_ALL_SWITCHES },
+	{ "T322",           PRI_TIMER_T322,             PRI_ALL_SWITCHES },
+/* *INDENT-ON* */
+};
+
 char *pri_node2str(int node)
 {
 	switch(node) {
@@ -93,17 +139,17 @@ static void pri_default_timers(struct pri *ctrl, int switchtype)
 	}
 
 	/* Set timer values to standard defaults.  Time is in ms. */
-	ctrl->timers[PRI_TIMER_N200] = 3;		/* Max numer of Q.921 retransmissions */
-	ctrl->timers[PRI_TIMER_N202] = 3;		/* Max numer of transmissions of the TEI identity request message */
-	ctrl->timers[PRI_TIMER_K] = 7;			/* Max number of outstanding I-frames */
-	ctrl->timers[PRI_TIMER_T200] = 1000;	/* Time between SABME's */
-	ctrl->timers[PRI_TIMER_T202] = 10000;	/* Min time between transmission of TEI Identity request messages */
-	ctrl->timers[PRI_TIMER_T203] = 10000;	/* Max time without exchanging packets */
-	ctrl->timers[PRI_TIMER_T305] = 30000;	/* Wait for DISCONNECT acknowledge */
-	ctrl->timers[PRI_TIMER_T308] = 4000;	/* Wait for RELEASE acknowledge */
-	ctrl->timers[PRI_TIMER_T313] = 4000;	/* Wait for CONNECT acknowledge, CPE side only */
-	ctrl->timers[PRI_TIMER_TM20] = 2500;	/* Max time awaiting XID response - Q.921 Appendix IV */
-	ctrl->timers[PRI_TIMER_NM20] = 3;		/* Number of XID retransmits - Q.921 Appendix IV */
+	ctrl->timers[PRI_TIMER_N200] = 3;			/* Max numer of Q.921 retransmissions */
+	ctrl->timers[PRI_TIMER_N202] = 3;			/* Max numer of transmissions of the TEI identity request message */
+	ctrl->timers[PRI_TIMER_K] = 7;				/* Max number of outstanding I-frames */
+	ctrl->timers[PRI_TIMER_T200] = 1000;		/* Time between SABME's */
+	ctrl->timers[PRI_TIMER_T202] = 10 * 1000;	/* Min time between transmission of TEI Identity request messages */
+	ctrl->timers[PRI_TIMER_T203] = 10 * 1000;	/* Max time without exchanging packets */
+	ctrl->timers[PRI_TIMER_T305] = 30 * 1000;	/* Wait for DISCONNECT acknowledge */
+	ctrl->timers[PRI_TIMER_T308] = 4 * 1000;	/* Wait for RELEASE acknowledge */
+	ctrl->timers[PRI_TIMER_T313] = 4 * 1000;	/* Wait for CONNECT acknowledge, CPE side only */
+	ctrl->timers[PRI_TIMER_TM20] = 2500;		/* Max time awaiting XID response - Q.921 Appendix IV */
+	ctrl->timers[PRI_TIMER_NM20] = 3;			/* Number of XID retransmits - Q.921 Appendix IV */
 
 	/* Set any switch specific override default values */
 	switch (switchtype) {
@@ -139,48 +185,13 @@ int pri_set_service_message_support(struct pri *pri, int supportflag)
 
 int pri_timer2idx(const char *timer_name)
 {
-	static const struct {
-		const char *name;
-		int number;
-	} timer[] = {
-/* *INDENT-OFF* */
-		{ "N200", PRI_TIMER_N200 },
-		{ "N201", PRI_TIMER_N201 },
-		{ "N202", PRI_TIMER_N202 },
-		{ "K",    PRI_TIMER_K },
-		{ "T200", PRI_TIMER_T200 },
-		{ "T202", PRI_TIMER_T202 },
-		{ "T203", PRI_TIMER_T203 },
-		{ "T300", PRI_TIMER_T300 },
-		{ "T301", PRI_TIMER_T301 },
-		{ "T302", PRI_TIMER_T302 },
-		{ "T303", PRI_TIMER_T303 },
-		{ "T304", PRI_TIMER_T304 },
-		{ "T305", PRI_TIMER_T305 },
-		{ "T306", PRI_TIMER_T306 },
-		{ "T307", PRI_TIMER_T307 },
-		{ "T308", PRI_TIMER_T308 },
-		{ "T309", PRI_TIMER_T309 },
-		{ "T310", PRI_TIMER_T310 },
-		{ "T313", PRI_TIMER_T313 },
-		{ "T314", PRI_TIMER_T314 },
-		{ "T316", PRI_TIMER_T316 },
-		{ "T317", PRI_TIMER_T317 },
-		{ "T318", PRI_TIMER_T318 },
-		{ "T319", PRI_TIMER_T319 },
-		{ "T320", PRI_TIMER_T320 },
-		{ "T321", PRI_TIMER_T321 },
-		{ "T322", PRI_TIMER_T322 },
-/* *INDENT-ON* */
-	};
-
 	unsigned idx;
-	int timer_number;
+	enum PRI_TIMERS_AND_COUNTERS timer_number;
 
 	timer_number = -1;
-	for (idx = 0; idx < ARRAY_LEN(timer); ++idx) {
-		if (!strcasecmp(timer_name, timer[idx].name)) {
-			timer_number = timer[idx].number;
+	for (idx = 0; idx < ARRAY_LEN(pri_timer); ++idx) {
+		if (!strcasecmp(timer_name, pri_timer[idx].name)) {
+			timer_number = pri_timer[idx].number;
 			break;
 		}
 	}
@@ -846,49 +857,102 @@ int pri_fd(struct pri *pri)
 	return pri->fd;
 }
 
-char *pri_dump_info_str(struct pri *pri)
+/*!
+ * \internal
+ * \brief Append snprintf output to the given buffer.
+ *
+ * \param buf Buffer currently filling.
+ * \param buf_used Offset into buffer where to put new stuff.
+ * \param buf_size Actual buffer size of buf.
+ * \param format printf format string.
+ *
+ * \return Total buffer space used.
+ */
+static size_t pri_snprintf(char *buf, size_t buf_used, size_t buf_size, const char *format, ...) __attribute__((format(printf, 4, 5)));
+static size_t pri_snprintf(char *buf, size_t buf_used, size_t buf_size, const char *format, ...)
 {
-	char buf[4096];
-	int len = 0;
+	va_list args;
+
+	if (buf_used < buf_size) {
+		va_start(args, format);
+		buf_used += vsnprintf(buf + buf_used, buf_size - buf_used, format, args);
+		va_end(args);
+	}
+	if (buf_size < buf_used) {
+		buf_used = buf_size + 1;
+	}
+	return buf_used;
+}
+
+char *pri_dump_info_str(struct pri *ctrl)
+{
+	char *buf;
+	size_t buf_size;
+	size_t used;
 #ifdef LIBPRI_COUNTERS
 	struct q921_frame *f;
-	int q921outstanding = 0;
+	unsigned q921outstanding;
 #endif
-	if (!pri)
+	unsigned idx;
+	unsigned long switch_bit;
+
+	if (!ctrl) {
 		return NULL;
+	}
+
+	buf_size = 4096;	/* This should be bigger than we will ever need. */
+	buf = malloc(buf_size);
+	if (!buf) {
+		return NULL;
+	}
 
 	/* Might be nice to format these a little better */
-	len += sprintf(buf + len, "Switchtype: %s\n", pri_switch2str(pri->switchtype));
-	len += sprintf(buf + len, "Type: %s\n", pri_node2str(pri->localtype));
+	used = 0;
+	used = pri_snprintf(buf, used, buf_size, "Switchtype: %s\n",
+		pri_switch2str(ctrl->switchtype));
+	used = pri_snprintf(buf, used, buf_size, "Type: %s\n", pri_node2str(ctrl->localtype));
 #ifdef LIBPRI_COUNTERS
 	/* Remember that Q921 Counters include Q931 packets (and any retransmissions) */
-	len += sprintf(buf + len, "Q931 RX: %d\n", pri->q931_rxcount);
-	len += sprintf(buf + len, "Q931 TX: %d\n", pri->q931_txcount);
-	len += sprintf(buf + len, "Q921 RX: %d\n", pri->q921_rxcount);
-	len += sprintf(buf + len, "Q921 TX: %d\n", pri->q921_txcount);
-	f = pri->txqueue;
+	used = pri_snprintf(buf, used, buf_size, "Q931 RX: %d\n", ctrl->q931_rxcount);
+	used = pri_snprintf(buf, used, buf_size, "Q931 TX: %d\n", ctrl->q931_txcount);
+	used = pri_snprintf(buf, used, buf_size, "Q921 RX: %d\n", ctrl->q921_rxcount);
+	used = pri_snprintf(buf, used, buf_size, "Q921 TX: %d\n", ctrl->q921_txcount);
+	q921outstanding = 0;
+	f = ctrl->txqueue;
 	while (f) {
 		q921outstanding++;
 		f = f->next;
 	}
-	len += sprintf(buf + len, "Q921 Outstanding: %d\n", q921outstanding);
+	used = pri_snprintf(buf, used, buf_size, "Q921 Outstanding: %u\n", q921outstanding);
 #endif
-	len += sprintf(buf + len, "Window Length: %d/%d\n", pri->windowlen, pri->window);
-	len += sprintf(buf + len, "Sentrej: %d\n", pri->sentrej);
-	len += sprintf(buf + len, "SolicitFbit: %d\n", pri->solicitfbit);
-	len += sprintf(buf + len, "Retrans: %d\n", pri->retrans);
-	len += sprintf(buf + len, "Busy: %d\n", pri->busy);
-	len += sprintf(buf + len, "Overlap Dial: %d\n", pri->overlapdial);
-	len += sprintf(buf + len, "Logical Channel Mapping: %d\n", pri->chan_mapping_logical);
-	len += sprintf(buf + len, "T200 Timer: %d\n", pri->timers[PRI_TIMER_T200]);
-	len += sprintf(buf + len, "T203 Timer: %d\n", pri->timers[PRI_TIMER_T203]);
-	len += sprintf(buf + len, "T305 Timer: %d\n", pri->timers[PRI_TIMER_T305]);
-	len += sprintf(buf + len, "T308 Timer: %d\n", pri->timers[PRI_TIMER_T308]);
-	len += sprintf(buf + len, "T309 Timer: %d\n", pri->timers[PRI_TIMER_T309]);
-	len += sprintf(buf + len, "T313 Timer: %d\n", pri->timers[PRI_TIMER_T313]);
-	len += sprintf(buf + len, "N200 Counter: %d\n", pri->timers[PRI_TIMER_N200]);
+	used = pri_snprintf(buf, used, buf_size, "Window Length: %d/%d\n", ctrl->windowlen,
+		ctrl->window);
+	used = pri_snprintf(buf, used, buf_size, "Sentrej: %d\n", ctrl->sentrej);
+	used = pri_snprintf(buf, used, buf_size, "SolicitFbit: %d\n", ctrl->solicitfbit);
+	used = pri_snprintf(buf, used, buf_size, "Retrans: %d\n", ctrl->retrans);
+	used = pri_snprintf(buf, used, buf_size, "Busy: %d\n", ctrl->busy);
+	used = pri_snprintf(buf, used, buf_size, "Overlap Dial: %d\n", ctrl->overlapdial);
+	used = pri_snprintf(buf, used, buf_size, "Logical Channel Mapping: %d\n",
+		ctrl->chan_mapping_logical);
+	used = pri_snprintf(buf, used, buf_size, "Timer and counter settings:\n");
+	switch_bit = PRI_BIT(ctrl->switchtype);
+	for (idx = 0; idx < ARRAY_LEN(pri_timer); ++idx) {
+		if (pri_timer[idx].used_by & switch_bit) {
+			enum PRI_TIMERS_AND_COUNTERS tmr;
 
-	return strdup(buf);
+			tmr = pri_timer[idx].number;
+			if (0 <= ctrl->timers[tmr] || tmr == PRI_TIMER_T309) {
+				used = pri_snprintf(buf, used, buf_size, "  %s: %d\n",
+					pri_timer[idx].name, ctrl->timers[tmr]);
+			}
+		}
+	}
+
+	if (buf_size < used) {
+		pri_message(ctrl,
+			"pri_dump_info_str(): Produced output exceeded buffer capacity. (Truncated)\n");
+	}
+	return buf;
 }
 
 int pri_get_crv(struct pri *pri, q931_call *call, int *callmode)
