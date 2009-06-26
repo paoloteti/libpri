@@ -682,7 +682,8 @@ static void dump_bearer_capability(int full_ie, struct pri *ctrl, q931_ie *ie, i
 					(data & 0x04)?1:0,
 					(data & 0x02)?1:0);
 			} else {
-				pri_message(ctrl, "%c                                Unknown octet 5b: 0x%x\n", data );
+				pri_message(ctrl, "%c                                Unknown octet 5b: 0x%x\n",
+					prefix, data);
 			}
 			pos++;
 		}
@@ -1970,12 +1971,13 @@ static void dump_generic_digits(int full_ie, struct pri *ctrl, q931_ie *ie, int 
 	type = ie->data[0] & 0x1F;
 	pri_message(ctrl, "%c Generic Digits (len=%02d): Encoding %s  Type %s\n", prefix, len, gdencoding2str(encoding), gdtype2str(type));
 	if (encoding == 3) {	/* Binary */
-		pri_message(ctrl, "%c                            Don't know how to handle binary encoding\n");
+		pri_message(ctrl, "%c                            Don't know how to handle binary encoding\n",
+			prefix);
 		return;
 	}
 	if (len == 3)	/* No number information */
 		return;
-	pri_message(ctrl, "%c                            Digits: ");
+	pri_message(ctrl, "%c                            Digits: ", prefix);
 	value = 0;
 	for(idx = 3; idx < len; ++idx) {
 		switch(encoding) {
