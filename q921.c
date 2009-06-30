@@ -523,9 +523,7 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 		   size is too big */
 		if ((pri->q921_state == Q921_LINK_CONNECTION_ESTABLISHED) && (!pri->retrans && !pri->busy)) {
 			if (pri->windowlen < pri->window) {
-				pri->windowlen++;
-				q921_transmit(pri, (q921_h *)(&f->h), f->len);
-				f->transmitted++;
+				q921_send_queued_iframes(pri);
 			} else {
 				if (pri->debug & PRI_DEBUG_Q921_DUMP)
 					pri_message(pri, "Delaying transmission of %d, window is %d/%d long\n", 
@@ -583,7 +581,7 @@ static pri_event *q921_handle_iframe(struct pri *pri, q921_i *i, int len)
 		Q921_INC(pri->v_r);
 		/* Handle their ACK */
 		pri->sentrej = 0;
-		ev = q921_ack_rx(pri, i->n_r, 0);
+		ev = q921_ack_rx(pri, i->n_r, 1);
 		if (ev)
 			return ev;
 		if (i->p_f) {
