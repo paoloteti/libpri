@@ -1,27 +1,36 @@
 2009-04-18 Matthew Fredrickson <creslin@digium.com>
 
 	* libpri 1.4.10.1 released.  Includes a fix for a regression found in
-	the last few revisions of libpri, but fixed in revision 859 of
-	branches/1.4.  The summary is as follows:
+	  the last few revisions of libpri, but fixed in revision 859 of
+	  branches/1.4.  The summary is as follows:
 
-	* q921.c: There are two changes in this commit that are bug fixes for various Q.921 issues found in internal testing.
+	* q921.c: There are two changes in this commit that are bug fixes for
+	  various Q.921 issues found in internal testing.
 
-	Both were exposed/introduced by the TBR4 compliance patch for bug #12861, in changing how retransmissions and in how
-	the transmission queue was maintained.  TX-RX message flow and acknowledgement was severely restricted,
-	since the patch changed the behavior so that pending untransmitted frames would not actually be send until
-	the next RR was received in normal circumstances, or REJ when a reject frame was received.  On busy links,
-	this can severly limit the amount of useful traffic that is sent, and can slow down message transmission.
+	  Both were exposed/introduced by the TBR4 compliance patch for bug
+	  #12861, in changing how retransmissions and in how the transmission
+	  queue was maintained.  TX-RX message flow and acknowledgement was
+	  severely restricted, since the patch changed the behavior so that
+	  pending untransmitted frames would not actually be send until the
+	  next RR was received in normal circumstances, or REJ when a reject
+	  frame was received.  On busy links, this can severly limit the
+	  amount of useful traffic that is sent, and can slow down message
+	  transmission.
 
-	Until someone can point out where in Q.921 it is mandated for us to wait for RR frames to start sending
-	untransmitted messages, the first change is to allow us to send untransmitted frames when we receive new
-	I frames as well, with updated N(R).
+	  Until someone can point out where in Q.921 it is mandated for us to
+	  wait for RR frames to start sending untransmitted messages, the
+	  first change is to allow us to send untransmitted frames when we
+	  receive new I frames as well, with updated N(R).
 
-	The other bug fixed is a situation caused by the restricted traffic flow, if an outside process tries to send
-	an I-frame asynchronous to an RR frame, when the transmit window was previously closed and then opened up but 
-	an RR has not been received yet.  A bug was found with the integration of the old transmit code with the new reject 
-	handling code which caused the new frame to be sent immediately, regardless if there were any pending untransmitted 
-	I-frames in the queue to be sent and causing an out of order I-frame to be sent to the other side.  This bug is 
-	also fixed in this patch.
+	  The other bug fixed is a situation caused by the restricted traffic
+	  flow, if an outside process tries to send an I-frame asynchronous to
+	  an RR frame, when the transmit window was previously closed and then
+	  opened up but an RR has not been received yet.  A bug was found with
+	  the integration of the old transmit code with the new reject
+	  handling code which caused the new frame to be sent immediately,
+	  regardless if there were any pending untransmitted I-frames in the
+	  queue to be sent and causing an out of order I-frame to be sent to
+	  the other side.  This bug is also fixed in this patch.
 
 2009-04-18 Matthew Fredrickson <creslin@digium.com>
 
