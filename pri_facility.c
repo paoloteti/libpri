@@ -873,7 +873,7 @@ int mwi_message_send(struct pri *ctrl, q931_call *call, struct pri_sr *req, int 
 	unsigned char buffer[255];
 	unsigned char *end;
 
-	if (!req->called[0]) {
+	if (!req->called || !req->called[0]) {
 		return -1;
 	}
 
