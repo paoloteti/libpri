@@ -28,7 +28,7 @@
  * \file
  * \brief Q.SIG ROSE Call-Diversion-Operations
  *
- * Call-Diversion-Operations ECMA-167 Annex F Table F.1
+ * Call-Diversion-Operations ECMA-174 Annex F Table F.1
  *
  * \author Richard Mudgett <rmudgett@digium.com>
  */
