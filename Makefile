@@ -79,7 +79,7 @@ DYNAMIC_OBJS= \
 	rose_qsig_mwi.lo \
 	rose_qsig_name.lo \
 	version.lo
-CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g -fPIC $(ALERTING) $(LIBPRI_COUNTERS)
+CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g -fPIC $(ALERTING) $(LIBPRI_COUNTERS) $(LIBPRI_OPT)
 INSTALL_PREFIX=$(DESTDIR)
 INSTALL_BASE=/usr
 libdir?=$(INSTALL_BASE)/lib
@@ -110,7 +110,9 @@ PRIVERSION:=$(shell GREP=$(GREP) AWK=$(AWK) build_tools/make_version .)
 #A ultrasparc cpu is really v9 but the stock debian stable 3.0 gcc doesnt support it.
 ifeq ($(PROC),sparc64)
 PROC=ultrasparc
-CFLAGS += -mtune=$(PROC) -O3 -pipe -fomit-frame-pointer -mcpu=v8
+LIBPRI_OPT = -mtune=$(PROC) -O3 -pipe -fomit-frame-pointer -mcpu=v8
+else
+LIBPRI_OPT = -O2
 endif
 
 all: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
