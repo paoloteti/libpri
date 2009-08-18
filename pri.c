@@ -374,8 +374,8 @@ char *pri_event2str(int id)
 		return "Hangup ACK";
 	case PRI_EVENT_RESTART_ACK:
 		return "Restart ACK";
-	case PRI_EVENT_FACNAME:
-		return "FacName";
+	case PRI_EVENT_FACILITY:
+		return "Facility";
 	case PRI_EVENT_INFO_RECEIVED:
 		return "Info Received";
 	case PRI_EVENT_PROCEEDING:
@@ -579,6 +579,203 @@ int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn)
 	return q931_connect(pri, call, channel, nonisdn);
 }
 
+/*!
+ * \internal
+ * \brief Copy the PRI party name to the Q.931 party name structure.
+ *
+ * \param q931_name Q.931 party name structure
+ * \param pri_name PRI party name structure
+ *
+ * \return Nothing
+ */
+static void pri_copy_party_name_to_q931(struct q931_party_name *q931_name, const struct pri_party_name *pri_name)
+{
+	q931_party_name_init(q931_name);
+	if (pri_name->valid) {
+		q931_name->valid = 1;
+		q931_name->presentation = pri_name->presentation;
+		q931_name->char_set = pri_name->char_set;
+		libpri_copy_string(q931_name->str, pri_name->str, sizeof(q931_name->str));
+	}
+}
+
+/*!
+ * \internal
+ * \brief Copy the PRI party number to the Q.931 party number structure.
+ *
+ * \param q931_number Q.931 party number structure
+ * \param pri_number PRI party number structure
+ *
+ * \return Nothing
+ */
+static void pri_copy_party_number_to_q931(struct q931_party_number *q931_number, const struct pri_party_number *pri_number)
+{
+	q931_party_number_init(q931_number);
+	if (pri_number->valid) {
+		q931_number->valid = 1;
+		q931_number->presentation = pri_number->presentation;
+		q931_number->plan = pri_number->plan;
+		libpri_copy_string(q931_number->str, pri_number->str, sizeof(q931_number->str));
+	}
+}
+
+/*!
+ * \internal
+ * \brief Copy the PRI party id to the Q.931 party id structure.
+ *
+ * \param q931_id Q.931 party id structure
+ * \param pri_id PRI party id structure
+ *
+ * \return Nothing
+ */
+static void pri_copy_party_id_to_q931(struct q931_party_id *q931_id, const struct pri_party_id *pri_id)
+{
+	pri_copy_party_name_to_q931(&q931_id->name, &pri_id->name);
+	pri_copy_party_number_to_q931(&q931_id->number, &pri_id->number);
+}
+
+int pri_connected_line_update(struct pri *ctrl, q931_call *call, const struct pri_party_connected_line *connected)
+{
+	struct q931_party_id party_id;
+
+	if (!ctrl || !call) {
+		return -1;
+	}
+
+	pri_copy_party_id_to_q931(&party_id, &connected->id);
+	q931_party_id_fixup(ctrl, &party_id);
+	if (!q931_party_id_cmp(&party_id, &call->local_id)) {
+		/* The local party information did not change so do nothing. */
+		return 0;
+	}
+	call->local_id = party_id;
+
+	switch (call->ourcallstate) {
+	case Q931_CALL_STATE_CALL_INITIATED:
+	case Q931_CALL_STATE_OVERLAP_SENDING:
+	case Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING:
+	case Q931_CALL_STATE_CALL_DELIVERED:
+		/*
+		 * The local party transferred to someone else before
+		 * the remote end answered.
+		 */
+	case Q931_CALL_STATE_ACTIVE:
+		switch (ctrl->switchtype) {
+		case PRI_SWITCH_EUROISDN_E1:
+		case PRI_SWITCH_EUROISDN_T1:
+			if (q931_is_ptmp(ctrl)) {
+				/* PTMP mode */
+				q931_notify_redirection(ctrl, call, PRI_NOTIFY_TRANSFER_ACTIVE,
+					&call->local_id.number);
+			} else {
+				/* PTP mode */
+				/* Immediately send EctInform APDU, callStatus=answered(0) */
+				send_call_transfer_complete(ctrl, call, 0);
+			}
+			break;
+		case PRI_SWITCH_QSIG:
+			/* Immediately send CallTransferComplete APDU, callStatus=answered(0) */
+			send_call_transfer_complete(ctrl, call, 0);
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		/* Just save the data for further developments. */
+		break;
+	}
+
+	return 0;
+}
+
+int pri_redirecting_update(struct pri *ctrl, q931_call *call, const struct pri_party_redirecting *redirecting)
+{
+	if (!ctrl || !call) {
+		return -1;
+	}
+
+	/* Save redirecting.to information and reason. */
+	pri_copy_party_id_to_q931(&call->redirecting.to, &redirecting->to);
+	q931_party_id_fixup(ctrl, &call->redirecting.to);
+	call->redirecting.reason = redirecting->reason;
+
+	switch (call->ourcallstate) {
+	case Q931_CALL_STATE_NULL:
+		/* Save the remaining redirecting information before we place a call. */
+		pri_copy_party_id_to_q931(&call->redirecting.from, &redirecting->from);
+		q931_party_id_fixup(ctrl, &call->redirecting.from);
+		pri_copy_party_id_to_q931(&call->redirecting.orig_called, &redirecting->orig_called);
+		q931_party_id_fixup(ctrl, &call->redirecting.orig_called);
+		call->redirecting.orig_reason = redirecting->orig_reason;
+		if (redirecting->count <= 0) {
+			if (call->redirecting.from.number.valid) {
+				/*
+				 * We are redirecting with an unknown count
+				 * so assume the count is one.
+				 */
+				call->redirecting.count = 1;
+			} else {
+				call->redirecting.count = 0;
+			}
+		} else if (redirecting->count < PRI_MAX_REDIRECTS) {
+			call->redirecting.count = redirecting->count;
+		} else {
+			call->redirecting.count = PRI_MAX_REDIRECTS;
+		}
+		break;
+	case Q931_CALL_STATE_OVERLAP_RECEIVING:
+	case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
+	case Q931_CALL_STATE_CALL_RECEIVED:
+		/* This is an incoming call that has not connected yet. */
+		if (!call->redirecting.to.number.valid) {
+			/* Not being redirected toward valid number data. Ignore. */
+			break;
+		}
+
+		switch (ctrl->switchtype) {
+		case PRI_SWITCH_EUROISDN_E1:
+		case PRI_SWITCH_EUROISDN_T1:
+			if (q931_is_ptmp(ctrl)) {
+				/* PTMP mode */
+				q931_notify_redirection(ctrl, call, PRI_NOTIFY_CALL_DIVERTING,
+					&call->redirecting.to.number);
+				break;
+			}
+			/* PTP mode - same behaviour as Q.SIG */
+			/* fall through */
+		case PRI_SWITCH_QSIG:
+			if (call->redirecting.state != Q931_REDIRECTING_STATE_PENDING_TX_DIV_LEG_3
+				|| strcmp(call->redirecting.to.number.str, call->called.number.str) != 0) {
+				/* immediately send divertingLegInformation1 APDU */
+				if (rose_diverting_leg_information1_encode(ctrl, call)
+					|| q931_facility(ctrl, call)) {
+					pri_message(ctrl,
+						"Could not schedule facility message for divertingLegInfo1\n");
+				}
+			}
+			call->redirecting.state = Q931_REDIRECTING_STATE_IDLE;
+
+			/* immediately send divertingLegInformation3 APDU */
+			if (rose_diverting_leg_information3_encode(ctrl, call, Q931_FACILITY)
+				|| q931_facility(ctrl, call)) {
+				pri_message(ctrl,
+					"Could not schedule facility message for divertingLegInfo3\n");
+			}
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		pri_message(ctrl, "Ignored redirecting update because call in state %s(%d).\n",
+			q931_call_state_str(call->ourcallstate), call->ourcallstate);
+		break;
+	}
+
+	return 0;
+}
+
 #if 0
 /* deprecated routines, use pri_hangup */
 int pri_release(struct pri *pri, q931_call *call, int cause)
@@ -703,6 +900,9 @@ void pri_dump_event(struct pri *pri, pri_event *e)
 static void pri_sr_init(struct pri_sr *req)
 {
 	memset(req, 0, sizeof(struct pri_sr));
+	q931_party_redirecting_init(&req->redirecting);
+	q931_party_id_init(&req->caller);
+	q931_party_address_init(&req->called);
 	req->reversecharge = PRI_REVERSECHARGE_NONE;
 }
 
@@ -725,13 +925,8 @@ int pri_mwi_activate(struct pri *pri, q931_call *c, char *caller, int callerplan
 
 	pri_sr_init(&req);
 	pri_sr_set_connection_call_independent(&req);
-
-	req.caller = caller;
-	req.callerplan = callerplan;
-	req.callername = callername;
-	req.callerpres = callerpres;
-	req.called = called;
-	req.calledplan = calledplan;
+	pri_sr_set_caller(&req, caller, callername, callerplan, callerpres);
+	pri_sr_set_called(&req, called, calledplan, 0);
 
 	if (mwi_message_send(pri, c, &req, 1) < 0) {
 		pri_message(pri, "Unable to send MWI activate message\n");
@@ -750,13 +945,8 @@ int pri_mwi_deactivate(struct pri *pri, q931_call *c, char *caller, int callerpl
 
 	pri_sr_init(&req);
 	pri_sr_set_connection_call_independent(&req);
-
-	req.caller = caller;
-	req.callerplan = callerplan;
-	req.callername = callername;
-	req.callerpres = callerpres;
-	req.called = called;
-	req.calledplan = calledplan;
+	pri_sr_set_caller(&req, caller, callername, callerplan, callerpres);
+	pri_sr_set_called(&req, called, calledplan, 0);
 
 	if(mwi_message_send(pri, c, &req, 0) < 0) {
 		pri_message(pri, "Unable to send MWI deactivate message\n");
@@ -782,16 +972,12 @@ int pri_call(struct pri *pri, q931_call *c, int transmode, int channel, int excl
 	if (!pri || !c)
 		return -1;
 	pri_sr_init(&req);
+	pri_sr_set_caller(&req, caller, callername, callerplan, callerpres);
+	pri_sr_set_called(&req, called, calledplan, 0);
 	req.transmode = transmode;
 	req.channel = channel;
 	req.exclusive = exclusive;
 	req.nonisdn =  nonisdn;
-	req.caller = caller;
-	req.callerplan = callerplan;
-	req.callername = callername;
-	req.callerpres = callerpres;
-	req.called = called;
-	req.calledplan = calledplan;
 	req.userl1 = ulayer1;
 	return q931_setup(pri, c, &req);
 }	
@@ -1002,28 +1188,79 @@ int pri_sr_set_bearer(struct pri_sr *sr, int transmode, int userl1)
 
 int pri_sr_set_called(struct pri_sr *sr, char *called, int calledplan, int numcomplete)
 {
-	sr->called = called;
-	sr->calledplan = calledplan;
+	q931_party_address_init(&sr->called);
+	if (called) {
+		sr->called.number.valid = 1;
+		sr->called.number.plan = calledplan;
+		libpri_copy_string(sr->called.number.str, called, sizeof(sr->called.number.str));
+	}
 	sr->numcomplete = numcomplete;
 	return 0;
 }
 
 int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int callerplan, int callerpres)
 {
-	sr->caller = caller;
-	sr->callername = callername;
-	sr->callerplan = callerplan;
-	sr->callerpres = callerpres;
+	q931_party_id_init(&sr->caller);
+	if (caller) {
+		sr->caller.number.valid = 1;
+		sr->caller.number.presentation = callerpres;
+		sr->caller.number.plan = callerplan;
+		libpri_copy_string(sr->caller.number.str, caller, sizeof(sr->caller.number.str));
+
+		if (callername) {
+			sr->caller.name.valid = 1;
+			sr->caller.name.presentation = callerpres;
+			sr->caller.name.char_set = PRI_CHAR_SET_ISO8859_1;
+			libpri_copy_string(sr->caller.name.str, callername,
+				sizeof(sr->caller.name.str));
+		}
+	}
 	return 0;
+}
+
+void pri_sr_set_caller_party(struct pri_sr *sr, const struct pri_party_id *caller)
+{
+	pri_copy_party_id_to_q931(&sr->caller, caller);
 }
 
 int pri_sr_set_redirecting(struct pri_sr *sr, char *num, int plan, int pres, int reason)
 {
-	sr->redirectingnum = num;
-	sr->redirectingplan = plan;
-	sr->redirectingpres = pres;
-	sr->redirectingreason = reason;
+	q931_party_redirecting_init(&sr->redirecting);
+	if (num && num[0]) {
+		sr->redirecting.from.number.valid = 1;
+		sr->redirecting.from.number.presentation = pres;
+		sr->redirecting.from.number.plan = plan;
+		libpri_copy_string(sr->redirecting.from.number.str, num,
+			sizeof(sr->redirecting.from.number.str));
+
+		sr->redirecting.count = 1;
+		sr->redirecting.reason = reason;
+	}
 	return 0;
+}
+
+void pri_sr_set_redirecting_parties(struct pri_sr *sr, const struct pri_party_redirecting *redirecting)
+{
+	pri_copy_party_id_to_q931(&sr->redirecting.from, &redirecting->from);
+	pri_copy_party_id_to_q931(&sr->redirecting.to, &redirecting->to);
+	pri_copy_party_id_to_q931(&sr->redirecting.orig_called, &redirecting->orig_called);
+	sr->redirecting.orig_reason = redirecting->orig_reason;
+	sr->redirecting.reason = redirecting->reason;
+	if (redirecting->count <= 0) {
+		if (sr->redirecting.from.number.valid) {
+			/*
+			 * We are redirecting with an unknown count
+			 * so assume the count is one.
+			 */
+			sr->redirecting.count = 1;
+		} else {
+			sr->redirecting.count = 0;
+		}
+	} else if (redirecting->count < PRI_MAX_REDIRECTS) {
+		sr->redirecting.count = redirecting->count;
+	} else {
+		sr->redirecting.count = PRI_MAX_REDIRECTS;
+	}
 }
 
 void pri_sr_set_reversecharge(struct pri_sr *sr, int requested)

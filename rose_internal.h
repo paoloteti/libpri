@@ -137,6 +137,107 @@ const unsigned char *rose_dec_etsi_AOCEChargingUnit_ARG(struct pri *ctrl, unsign
 	const unsigned char *pos, const unsigned char *end,
 	union rose_msg_invoke_args *args);
 
+/* ETSI Call Diversion */
+unsigned char *rose_enc_etsi_ActivationDiversion_ARG(struct pri *ctrl,
+	unsigned char *pos, unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_DeactivationDiversion_ARG(struct pri *ctrl,
+	unsigned char *pos, unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_ActivationStatusNotificationDiv_ARG(struct pri *ctrl,
+	unsigned char *pos, unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_DeactivationStatusNotificationDiv_ARG(struct pri *ctrl,
+	unsigned char *pos, unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_InterrogationDiversion_ARG(struct pri *ctrl,
+	unsigned char *pos, unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_InterrogationDiversion_RES(struct pri *ctrl,
+	unsigned char *pos, unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_etsi_DiversionInformation_ARG(struct pri *ctrl,
+	unsigned char *pos, unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CallDeflection_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CallRerouting_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_InterrogateServedUserNumbers_RES(struct pri *ctrl,
+	unsigned char *pos, unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_etsi_DivertingLegInformation1_ARG(struct pri *ctrl,
+	unsigned char *pos, unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_DivertingLegInformation2_ARG(struct pri *ctrl,
+	unsigned char *pos, unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_DivertingLegInformation3_ARG(struct pri *ctrl,
+	unsigned char *pos, unsigned char *end, const union rose_msg_invoke_args *args);
+
+const unsigned char *rose_dec_etsi_ActivationDiversion_ARG(struct pri *ctrl,
+	unsigned tag, const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_DeactivationDiversion_ARG(struct pri *ctrl,
+	unsigned tag, const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_ActivationStatusNotificationDiv_ARG(struct pri *ctrl,
+	unsigned tag, const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_DeactivationStatusNotificationDiv_ARG(struct pri
+	*ctrl, unsigned tag, const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_InterrogationDiversion_ARG(struct pri *ctrl,
+	unsigned tag, const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_InterrogationDiversion_RES(struct pri *ctrl,
+	unsigned tag, const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_etsi_DiversionInformation_ARG(struct pri *ctrl,
+	unsigned tag, const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CallDeflection_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CallRerouting_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_InterrogateServedUserNumbers_RES(struct pri *ctrl,
+	unsigned tag, const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_etsi_DivertingLegInformation1_ARG(struct pri *ctrl,
+	unsigned tag, const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_DivertingLegInformation2_ARG(struct pri *ctrl,
+	unsigned tag, const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_DivertingLegInformation3_ARG(struct pri *ctrl,
+	unsigned tag, const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+
+/* ETSI Explicit Call Transfer (ECT) */
+unsigned char *rose_enc_etsi_ExplicitEctExecute_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_SubaddressTransfer_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_EctLinkIdRequest_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_etsi_EctInform_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_EctLoopTest_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_EctLoopTest_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+
+const unsigned char *rose_dec_etsi_ExplicitEctExecute_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_SubaddressTransfer_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_EctLinkIdRequest_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_etsi_EctInform_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_EctLoopTest_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_EctLoopTest_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+
 /* Q.SIG Name-Operations */
 unsigned char *rose_enc_qsig_Name(struct pri *ctrl, unsigned char *pos,
 	unsigned char *end, const struct roseQsigName *name);

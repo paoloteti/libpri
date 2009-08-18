@@ -65,6 +65,20 @@ enum rose_operation {
 	ROSE_Unknown,
 
 /* *INDENT-OFF* */
+	/* ETSI Diversion-Operations */
+	ROSE_ETSI_ActivationDiversion,          /*!< Invoke/Result */
+	ROSE_ETSI_DeactivationDiversion,        /*!< Invoke/Result */
+	ROSE_ETSI_ActivationStatusNotificationDiv,/*!< Invoke only */
+	ROSE_ETSI_DeactivationStatusNotificationDiv,/*!< Invoke only */
+	ROSE_ETSI_InterrogationDiversion,       /*!< Invoke/Result */
+	ROSE_ETSI_DiversionInformation,         /*!< Invoke only */
+	ROSE_ETSI_CallDeflection,               /*!< Invoke/Result */
+	ROSE_ETSI_CallRerouting,                /*!< Invoke/Result */
+	ROSE_ETSI_InterrogateServedUserNumbers, /*!< Invoke/Result */
+	ROSE_ETSI_DivertingLegInformation1,     /*!< Invoke only */
+	ROSE_ETSI_DivertingLegInformation2,     /*!< Invoke only */
+	ROSE_ETSI_DivertingLegInformation3,     /*!< Invoke only */
+
 	/*
 	 * ETSI Advice-of-Charge-Operations
 	 *
@@ -79,6 +93,15 @@ enum rose_operation {
 	ROSE_ETSI_AOCDChargingUnit,             /*!< Invoke only */
 	ROSE_ETSI_AOCECurrency,                 /*!< Invoke only */
 	ROSE_ETSI_AOCEChargingUnit,             /*!< Invoke only */
+
+	/* ETSI Explicit-Call-Transfer-Operations-and-Errors */
+	ROSE_ETSI_EctExecute,                   /*!< Invoke/Result */
+	ROSE_ETSI_ExplicitEctExecute,           /*!< Invoke/Result */
+	ROSE_ETSI_RequestSubaddress,            /*!< Invoke only */
+	ROSE_ETSI_SubaddressTransfer,           /*!< Invoke only */
+	ROSE_ETSI_EctLinkIdRequest,             /*!< Invoke/Result */
+	ROSE_ETSI_EctInform,                    /*!< Invoke only */
+	ROSE_ETSI_EctLoopTest,                  /*!< Invoke/Result */
 
 	/* Q.SIG Name-Operations */
 	ROSE_QSIG_CallingName,                  /*!< Invoke only */
@@ -164,10 +187,16 @@ enum rose_error_code {
 	ROSE_ERROR_Div_InvalidDivertedToNr,
 	ROSE_ERROR_Div_SpecialServiceNr,
 	ROSE_ERROR_Div_DiversionToServedUserNr,
+	ROSE_ERROR_Div_IncomingCallAccepted,
 	ROSE_ERROR_Div_NumberOfDiversionsExceeded,
+	ROSE_ERROR_Div_NotActivated,
+	ROSE_ERROR_Div_RequestAlreadyAccepted,
 
 	/* ETSI Advice-of-Charge-Operations */
 	ROSE_ERROR_AOC_NoChargingInfoAvailable,
+
+	/* ETSI Explicit-Call-Transfer-Operations-and-Errors */
+	ROSE_ERROR_ECT_LinkIdNotAssignedByNetwork,
 
 	/* Q.SIG from various specifications */
 	ROSE_ERROR_QSIG_Unspecified,
@@ -1040,6 +1069,602 @@ struct roseEtsiAOCEChargingUnit_ARG {
 	 * charging_unit(1)
 	 */
 	u_int8_t type;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     procedure           Procedure,
+ *     basicService        BasicService,
+ *     forwardedToAddress  Address,
+ *     servedUserNr        ServedUserNr
+ * }
+ */
+struct roseEtsiActivationDiversion_ARG {
+	/*! \brief Forwarded to address */
+	struct roseAddress forwarded_to;
+
+	/*! \brief Forward all numbers if not present (Number length is zero). */
+	struct rosePartyNumber served_user_number;
+
+	/*! \details cfu(0), cfb(1), cfnr(2) */
+	u_int8_t procedure;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3k1Hz(3),
+	 * unrestrictedDigitalInformationWithTonesAndAnnouncements(4),
+	 * multirate(5),
+	 * telephony3k1Hz(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * telephony7kHz(38),
+	 * euroFileTransfer(39),
+	 * fileTransferAndAccessManagement(40),
+	 * videoconference(41),
+	 * audioGraphicConference(42)
+	 */
+	u_int8_t basic_service;
+};
+
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     procedure           Procedure,
+ *     basicService        BasicService,
+ *     servedUserNr        ServedUserNr
+ * }
+ */
+struct roseEtsiDeactivationDiversion_ARG {
+	/*! \brief Forward all numbers if not present (Number length is zero). */
+	struct rosePartyNumber served_user_number;
+
+	/*! \details cfu(0), cfb(1), cfnr(2) */
+	u_int8_t procedure;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3k1Hz(3),
+	 * unrestrictedDigitalInformationWithTonesAndAnnouncements(4),
+	 * multirate(5),
+	 * telephony3k1Hz(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * telephony7kHz(38),
+	 * euroFileTransfer(39),
+	 * fileTransferAndAccessManagement(40),
+	 * videoconference(41),
+	 * audioGraphicConference(42)
+	 */
+	u_int8_t basic_service;
+};
+
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     procedure           Procedure,
+ *     basicService        BasicService,
+ *     forwardedToAddresss Address,
+ *     servedUserNr        ServedUserNr
+ * }
+ */
+struct roseEtsiActivationStatusNotificationDiv_ARG {
+	/*! \brief Forwarded to address */
+	struct roseAddress forwarded_to;
+
+	/*! \brief Forward all numbers if not present (Number length is zero). */
+	struct rosePartyNumber served_user_number;
+
+	/*! \details cfu(0), cfb(1), cfnr(2) */
+	u_int8_t procedure;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3k1Hz(3),
+	 * unrestrictedDigitalInformationWithTonesAndAnnouncements(4),
+	 * multirate(5),
+	 * telephony3k1Hz(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * telephony7kHz(38),
+	 * euroFileTransfer(39),
+	 * fileTransferAndAccessManagement(40),
+	 * videoconference(41),
+	 * audioGraphicConference(42)
+	 */
+	u_int8_t basic_service;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     procedure           Procedure,
+ *     basicService        BasicService,
+ *     servedUserNr        ServedUserNr
+ * }
+ */
+struct roseEtsiDeactivationStatusNotificationDiv_ARG {
+	/*! \brief Forward all numbers if not present (Number length is zero). */
+	struct rosePartyNumber served_user_number;
+
+	/*! \details cfu(0), cfb(1), cfnr(2) */
+	u_int8_t procedure;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3k1Hz(3),
+	 * unrestrictedDigitalInformationWithTonesAndAnnouncements(4),
+	 * multirate(5),
+	 * telephony3k1Hz(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * telephony7kHz(38),
+	 * euroFileTransfer(39),
+	 * fileTransferAndAccessManagement(40),
+	 * videoconference(41),
+	 * audioGraphicConference(42)
+	 */
+	u_int8_t basic_service;
+};
+
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     procedure           Procedure,
+ *     basicService        BasicService DEFAULT allServices,
+ *     servedUserNr        ServedUserNr
+ * }
+ */
+struct roseEtsiInterrogationDiversion_ARG {
+	/*! \brief Forward all numbers if not present (Number length is zero). */
+	struct rosePartyNumber served_user_number;
+
+	/*! \details cfu(0), cfb(1), cfnr(2) */
+	u_int8_t procedure;
+
+	/*!
+	 * \details
+	 * DEFAULT allServices
+	 *
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3k1Hz(3),
+	 * unrestrictedDigitalInformationWithTonesAndAnnouncements(4),
+	 * multirate(5),
+	 * telephony3k1Hz(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * telephony7kHz(38),
+	 * euroFileTransfer(39),
+	 * fileTransferAndAccessManagement(40),
+	 * videoconference(41),
+	 * audioGraphicConference(42)
+	 */
+	u_int8_t basic_service;
+};
+
+/*
+ * IntResult ::= SEQUENCE {
+ *     servedUserNr        ServedUserNr,
+ *     basicService        BasicService,
+ *     procedure           Procedure,
+ *     forwardedToAddress  Address
+ * }
+ */
+struct roseEtsiForwardingRecord {
+	/*! \brief Forwarded to address */
+	struct roseAddress forwarded_to;
+
+	/*! \brief Forward all numbers if not present (Number length is zero). */
+	struct rosePartyNumber served_user_number;
+
+	/*! \details cfu(0), cfb(1), cfnr(2) */
+	u_int8_t procedure;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3k1Hz(3),
+	 * unrestrictedDigitalInformationWithTonesAndAnnouncements(4),
+	 * multirate(5),
+	 * telephony3k1Hz(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * telephony7kHz(38),
+	 * euroFileTransfer(39),
+	 * fileTransferAndAccessManagement(40),
+	 * videoconference(41),
+	 * audioGraphicConference(42)
+	 */
+	u_int8_t basic_service;
+};
+
+/*
+ * roseInterrogationDiversion_RES
+ * IntResultList ::= SET SIZE (0..29) OF IntResult
+ */
+struct roseEtsiForwardingList {
+	/*!
+	 * \brief SET SIZE (0..29) OF Forwarding Records
+	 * \note Reduced the size of the array to conserve
+	 * potential stack usage.
+	 */
+	struct roseEtsiForwardingRecord list[10];
+
+	/*! \brief Number of Forwarding records present */
+	u_int8_t num_records;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     diversionReason         DiversionReason,
+ *     basicService            BasicService,
+ *     servedUserSubaddress    PartySubaddress OPTIONAL,
+ *     callingAddress          [0] EXPLICIT PresentedAddressScreened OPTIONAL,
+ *     originalCalledNr        [1] EXPLICIT PresentedNumberUnscreened OPTIONAL,
+ *     lastDivertingNr         [2] EXPLICIT PresentedNumberUnscreened OPTIONAL,
+ *     lastDivertingReason     [3] EXPLICIT DiversionReason OPTIONAL,
+ *
+ *     -- The User-user information element, as specified
+ *     -- in ETS 300 102-1 [11], subclause 4.5.29, shall
+ *     -- be embedded in the userInfo parameter.
+ *     userInfo                Q931InformationElement OPTIONAL
+ * }
+ */
+struct roseEtsiDiversionInformation_ARG {
+	/*! \brief Served user subaddress (Optional) */
+	struct rosePartySubaddress served_user_subaddress;
+
+	/*! \brief Calling address (Optional) */
+	struct rosePresentedAddressScreened calling;
+
+	/*! \brief Original called number (Optional) */
+	struct rosePresentedNumberUnscreened original_called;
+
+	/*! \brief Last diverting number (Optional) */
+	struct rosePresentedNumberUnscreened last_diverting;
+
+	/*! \brief User-User information embedded in Q.931 IE (Optional) */
+	struct roseQ931ie q931ie;
+	/*! \brief q931ie.contents "allocated" after the stucture. */
+	unsigned char q931ie_contents[ROSE_Q931_MAX_USER + 1];
+
+	/*!
+	 * \brief Last diverting reason (Optional)
+	 *
+	 * \details
+	 * unknown(0),
+	 * cfu(1),
+	 * cfb(2),
+	 * cfnr(3),
+	 * cdAlerting(4),
+	 * cdImmediate(5)
+	 */
+	u_int8_t last_diverting_reason;
+
+	/*! \brief TRUE if CallingAddress is present */
+	u_int8_t calling_present;
+
+	/*! \brief TRUE if OriginalCalled is present */
+	u_int8_t original_called_present;
+
+	/*! \brief TRUE if LastDiverting is present */
+	u_int8_t last_diverting_present;
+
+	/*! \brief TRUE if LastDivertingReason is present */
+	u_int8_t last_diverting_reason_present;
+
+	/*!
+	 * \details
+	 * unknown(0),
+	 * cfu(1),
+	 * cfb(2),
+	 * cfnr(3),
+	 * cdAlerting(4),
+	 * cdImmediate(5)
+	 */
+	u_int8_t diversion_reason;
+
+	/*!
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3k1Hz(3),
+	 * unrestrictedDigitalInformationWithTonesAndAnnouncements(4),
+	 * multirate(5),
+	 * telephony3k1Hz(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * telephony7kHz(38),
+	 * euroFileTransfer(39),
+	 * fileTransferAndAccessManagement(40),
+	 * videoconference(41),
+	 * audioGraphicConference(42)
+	 */
+	u_int8_t basic_service;
+};
+
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     deflectionAddress                 Address,
+ *     presentationAllowedDivertedToUser PresentationAllowedIndicator OPTIONAL
+ * }
+ */
+struct roseEtsiCallDeflection_ARG {
+	/*! \brief Deflection address (Deflected-To address) */
+	struct roseAddress deflection;
+
+	/*! \brief TRUE if PresentationAllowedToDivertedToUser is present */
+	u_int8_t presentation_allowed_to_diverted_to_user_present;
+
+	/*! \brief TRUE if presentation is allowed (Optional) */
+	u_int8_t presentation_allowed_to_diverted_to_user;
+};
+
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     reroutingReason         DiversionReason,
+ *     calledAddress           Address,
+ *     reroutingCounter        DiversionCounter,
+ *
+ *     -- The User-user information element (optional),
+ *     -- High layer compatibility information element (optional),
+ *     -- Bearer capability information element
+ *     -- and Low layer compatibility information element (optional)
+ *     -- as specified in ETS 300 102-1 [11] subclause 4.5 shall be
+ *     -- embedded in the q931InfoElement.
+ *     q931InfoElement         Q931InformationElement,
+ *     lastReroutingNr         [1] EXPLICIT PresentedNumberUnscreened,
+ *     subscriptionOption      [2] EXPLICIT SubscriptionOption DEFAULT noNotification,
+ *     callingPartySubaddress  [3] EXPLICIT PartySubaddress OPTIONAL
+ * }
+ */
+struct roseEtsiCallRerouting_ARG {
+	struct roseAddress called_address;
+
+	/*! \brief The BC, HLC (optional), LLC (optional), and User-user (optional) information */
+	struct roseQ931ie q931ie;
+	/*! \brief q931ie.contents "allocated" after the stucture. */
+	unsigned char q931ie_contents[ROSE_Q931_MAX_BC + ROSE_Q931_MAX_HLC +
+		ROSE_Q931_MAX_LLC + ROSE_Q931_MAX_USER + 1];
+
+	/*! \brief Last rerouting number */
+	struct rosePresentedNumberUnscreened last_rerouting;
+
+	/*! \brief Calling party subaddress (Optional) */
+	struct rosePartySubaddress calling_subaddress;
+
+	/*!
+	 * \details
+	 * unknown(0),
+	 * cfu(1),
+	 * cfb(2),
+	 * cfnr(3),
+	 * cdAlerting(4),
+	 * cdImmediate(5)
+	 */
+	u_int8_t rerouting_reason;
+
+	/*! \brief Range 1-5 */
+	u_int8_t rerouting_counter;
+
+	/*!
+	 * \details
+	 * DEFAULT noNotification
+	 *
+	 * \details
+	 * noNotification(0),
+	 * notificationWithoutDivertedToNr(1),
+	 * notificationWithDivertedToNr(2)
+	 */
+	u_int8_t subscription_option;
+};
+
+
+/*
+ * roseInterrogateServedUserNumbers_RES
+ * ServedUserNumberList ::= SET SIZE (0..99) OF PartyNumber
+ */
+struct roseEtsiServedUserNumberList {
+	/*!
+	 * \brief SET SIZE (0..99) OF Served user numbers
+	 * \note Reduced the size of the array to conserve
+	 * potential stack usage.
+	 */
+	struct rosePartyNumber number[20];
+
+	/*! \brief Number of Served user numbers present */
+	u_int8_t num_records;
+};
+
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     diversionReason     DiversionReason,
+ *     subscriptionOption  SubscriptionOption,
+ *     divertedToNumber    PresentedNumberUnscreened OPTIONAL
+ * }
+ */
+struct roseEtsiDivertingLegInformation1_ARG {
+	/*! \brief Diverted to number (Optional) */
+	struct rosePresentedNumberUnscreened diverted_to;
+
+	/*! \brief TRUE if DivertedTo is present */
+	u_int8_t diverted_to_present;
+
+	/*!
+	 * \details
+	 * unknown(0),
+	 * cfu(1),
+	 * cfb(2),
+	 * cfnr(3),
+	 * cdAlerting(4),
+	 * cdImmediate(5)
+	 */
+	u_int8_t diversion_reason;
+
+	/*!
+	 * \details
+	 * noNotification(0),
+	 * notificationWithoutDivertedToNr(1),
+	 * notificationWithDivertedToNr(2)
+	 */
+	u_int8_t subscription_option;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     diversionCounter    DiversionCounter,
+ *     diversionReason     DiversionReason,
+ *     divertingNr         [1] EXPLICIT PresentedNumberUnscreened OPTIONAL,
+ *     originalCalledNr    [2] EXPLICIT PresentedNumberUnscreened OPTIONAL
+ * }
+ */
+struct roseEtsiDivertingLegInformation2_ARG {
+	/*! \brief Diverting number (Optional) */
+	struct rosePresentedNumberUnscreened diverting;
+
+	/*! \brief Original called number (Optional) */
+	struct rosePresentedNumberUnscreened original_called;
+
+	/*! \brief TRUE if Diverting number is present */
+	u_int8_t diverting_present;
+
+	/*! \brief TRUE if OriginalCalled is present */
+	u_int8_t original_called_present;
+
+	/*!
+	 * \details
+	 * unknown(0),
+	 * cfu(1),
+	 * cfb(2),
+	 * cfnr(3),
+	 * cdAlerting(4),
+	 * cdImmediate(5)
+	 */
+	u_int8_t diversion_reason;
+
+	/*! \brief Range 1-5 */
+	u_int8_t diversion_counter;
+};
+
+/*
+ * ARGUMENT presentationAllowedIndicator PresentationAllowedIndicator
+ */
+struct roseEtsiDivertingLegInformation3_ARG {
+	/*! \brief TRUE if presentation is allowed */
+	u_int8_t presentation_allowed_indicator;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * ARGUMENT LinkId
+ */
+struct roseEtsiExplicitEctExecute_ARG {
+	int16_t link_id;
+};
+
+/*
+ * ARGUMENT transferredToSubaddress PartySubaddress
+ */
+struct roseEtsiSubaddressTransfer_ARG {
+	/*! \brief Transferred to subaddress */
+	struct rosePartySubaddress subaddress;
+};
+
+
+/*
+ * RESULT LinkId
+ */
+struct roseEtsiEctLinkIdRequest_RES {
+	int16_t link_id;
+};
+
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     ENUMERATED {
+ *         alerting (0),
+ *         active   (1)
+ *     },
+ *     redirectionNumber PresentedNumberUnscreened OPTIONAL
+ * }
+ */
+struct roseEtsiEctInform_ARG {
+	/*! \brief Redirection Number (Optional) */
+	struct rosePresentedNumberUnscreened redirection;
+
+	/*! \brief TRUE if the Redirection Number is present */
+	u_int8_t redirection_present;
+
+	/*! \details alerting(0), active(1) */
+	u_int8_t status;
+};
+
+
+/*
+ * ARGUMENT CallTransferIdentity
+ */
+struct roseEtsiEctLoopTest_ARG {
+	int8_t call_transfer_id;
+};
+
+/*
+ * RESULT LoopResult
+ */
+struct roseEtsiEctLoopTest_RES {
+	/*!
+	 * \details
+	 * insufficientInformation(0),
+	 * noLoopExists(1),
+	 * simultaneousTransfer(2)
+	 */
+	u_int8_t loop_result;
 };
 
 
@@ -2638,12 +3263,40 @@ union rose_msg_invoke_etsi_args {
 	struct roseEtsiAOCDChargingUnit_ARG AOCDChargingUnit;
 	struct roseEtsiAOCECurrency_ARG AOCECurrency;
 	struct roseEtsiAOCEChargingUnit_ARG AOCEChargingUnit;
+
+	/* ETSI Call Diversion */
+	struct roseEtsiActivationDiversion_ARG ActivationDiversion;
+	struct roseEtsiDeactivationDiversion_ARG DeactivationDiversion;
+	struct roseEtsiActivationStatusNotificationDiv_ARG ActivationStatusNotificationDiv;
+	struct roseEtsiDeactivationStatusNotificationDiv_ARG
+		DeactivationStatusNotificationDiv;
+	struct roseEtsiInterrogationDiversion_ARG InterrogationDiversion;
+	struct roseEtsiDiversionInformation_ARG DiversionInformation;
+	struct roseEtsiCallDeflection_ARG CallDeflection;
+	struct roseEtsiCallRerouting_ARG CallRerouting;
+	struct roseEtsiDivertingLegInformation1_ARG DivertingLegInformation1;
+	struct roseEtsiDivertingLegInformation2_ARG DivertingLegInformation2;
+	struct roseEtsiDivertingLegInformation3_ARG DivertingLegInformation3;
+
+	/* ETSI Explicit Call Transfer (ECT) */
+	struct roseEtsiExplicitEctExecute_ARG ExplicitEctExecute;
+	struct roseEtsiSubaddressTransfer_ARG SubaddressTransfer;
+	struct roseEtsiEctInform_ARG EctInform;
+	struct roseEtsiEctLoopTest_ARG EctLoopTest;
 };
 
 /*! \brief Facility ie result etsi messages with arguments. */
 union rose_msg_result_etsi_args {
 	/* ETSI Advice Of Charge (AOC) */
 	struct roseEtsiChargingRequest_RES ChargingRequest;
+
+	/* ETSI Call Diversion */
+	struct roseEtsiForwardingList InterrogationDiversion;
+	struct roseEtsiServedUserNumberList InterrogateServedUserNumbers;
+
+	/* ETSI Explicit Call Transfer (ECT) */
+	struct roseEtsiEctLinkIdRequest_RES EctLinkIdRequest;
+	struct roseEtsiEctLoopTest_RES EctLoopTest;
 };
 
 /*! \brief Facility ie invoke qsig messages with arguments. */

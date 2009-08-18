@@ -192,6 +192,14 @@ struct rose_convert_error {
  * First_Value = (First_Subidentifier * 40) + Second_Subidentifier
  */
 
+/*! \brief ETSI Explicit Call Transfer OID prefix. */
+static const struct asn1_oid rose_etsi_ect = {
+/* *INDENT-OFF* */
+	/* {ccitt(0) identified-organization(4) etsi(0) 369 operations-and-errors(1)} */
+	4, { 4, 0, 369, 1 }
+/* *INDENT-ON* */
+};
+
 /*! \brief ETSI specific invoke/result encode/decode message table */
 static const struct rose_convert_msg rose_etsi_msgs[] = {
 /* *INDENT-OFF* */
@@ -200,6 +208,71 @@ static const struct rose_convert_msg rose_etsi_msgs[] = {
  *			encode_invoke_args,                     encode_result_args,
  *			decode_invoke_args,                     decode_result_args
  */
+	/*
+	 * localValue's from Diversion-Operations
+	 * {ccitt identified-organization etsi(0) 207 operations-and-errors(1)}
+	 */
+	{
+		ROSE_ETSI_ActivationDiversion,				NULL, 7,
+			rose_enc_etsi_ActivationDiversion_ARG,	NULL,
+			rose_dec_etsi_ActivationDiversion_ARG,	NULL
+	},
+	{
+		ROSE_ETSI_DeactivationDiversion,			NULL, 8,
+			rose_enc_etsi_DeactivationDiversion_ARG,NULL,
+			rose_dec_etsi_DeactivationDiversion_ARG,NULL
+	},
+	{
+		ROSE_ETSI_ActivationStatusNotificationDiv,	NULL, 9,
+			rose_enc_etsi_ActivationStatusNotificationDiv_ARG,NULL,
+			rose_dec_etsi_ActivationStatusNotificationDiv_ARG,NULL
+	},
+	{
+		ROSE_ETSI_DeactivationStatusNotificationDiv,NULL, 10,
+			rose_enc_etsi_DeactivationStatusNotificationDiv_ARG,NULL,
+			rose_dec_etsi_DeactivationStatusNotificationDiv_ARG,NULL
+	},
+	{
+		ROSE_ETSI_InterrogationDiversion,			NULL, 11,
+			rose_enc_etsi_InterrogationDiversion_ARG,rose_enc_etsi_InterrogationDiversion_RES,
+			rose_dec_etsi_InterrogationDiversion_ARG,rose_dec_etsi_InterrogationDiversion_RES
+	},
+	{
+		ROSE_ETSI_DiversionInformation,				NULL, 12,
+			rose_enc_etsi_DiversionInformation_ARG,	NULL,
+			rose_dec_etsi_DiversionInformation_ARG,	NULL
+	},
+	{
+		ROSE_ETSI_CallDeflection,					NULL, 13,
+			rose_enc_etsi_CallDeflection_ARG,		NULL,
+			rose_dec_etsi_CallDeflection_ARG,		NULL
+	},
+	{
+		ROSE_ETSI_CallRerouting,					NULL, 14,
+			rose_enc_etsi_CallRerouting_ARG,		NULL,
+			rose_dec_etsi_CallRerouting_ARG,		NULL
+	},
+	{
+		ROSE_ETSI_DivertingLegInformation2,			NULL, 15,
+			rose_enc_etsi_DivertingLegInformation2_ARG,NULL,
+			rose_dec_etsi_DivertingLegInformation2_ARG,NULL
+	},
+	{
+		ROSE_ETSI_InterrogateServedUserNumbers,		NULL, 17,
+			NULL,									rose_enc_etsi_InterrogateServedUserNumbers_RES,
+			NULL,									rose_dec_etsi_InterrogateServedUserNumbers_RES
+	},
+	{
+		ROSE_ETSI_DivertingLegInformation1,			NULL, 18,
+			rose_enc_etsi_DivertingLegInformation1_ARG,NULL,
+			rose_dec_etsi_DivertingLegInformation1_ARG,NULL
+	},
+	{
+		ROSE_ETSI_DivertingLegInformation3,			NULL, 19,
+			rose_enc_etsi_DivertingLegInformation3_ARG,NULL,
+			rose_dec_etsi_DivertingLegInformation3_ARG,NULL
+	},
+
 	/*
 	 * localValue's from Advice-of-Charge-Operations
 	 * {ccitt identified-organization etsi (0) 182 operations-and-errors (1)}
@@ -242,6 +315,51 @@ static const struct rose_convert_msg rose_etsi_msgs[] = {
 		ROSE_ETSI_AOCEChargingUnit,					NULL, 36,
 			rose_enc_etsi_AOCEChargingUnit_ARG,		NULL,
 			rose_dec_etsi_AOCEChargingUnit_ARG,		NULL
+	},
+
+	/*
+	 * localValue's from Explicit-Call-Transfer-Operations-and-Errors
+	 * {ccitt identified-organization etsi(0) 369 operations-and-errors(1)}
+	 */
+	{
+		ROSE_ETSI_EctExecute,						NULL, 6,
+			NULL,									NULL,
+			NULL,									NULL
+	},
+
+	/*
+	 * globalValue's (OIDs) from Explicit-Call-Transfer-Operations-and-Errors
+	 * {ccitt identified-organization etsi(0) 369 operations-and-errors(1)}
+	 */
+	{
+		ROSE_ETSI_ExplicitEctExecute,				&rose_etsi_ect, 1,
+			rose_enc_etsi_ExplicitEctExecute_ARG,	NULL,
+			rose_dec_etsi_ExplicitEctExecute_ARG,	NULL
+	},
+	{
+		ROSE_ETSI_RequestSubaddress,				&rose_etsi_ect, 2,
+			NULL,									NULL,
+			NULL,									NULL
+	},
+	{
+		ROSE_ETSI_SubaddressTransfer,				&rose_etsi_ect, 3,
+			rose_enc_etsi_SubaddressTransfer_ARG,	NULL,
+			rose_dec_etsi_SubaddressTransfer_ARG,	NULL
+	},
+	{
+		ROSE_ETSI_EctLinkIdRequest,					&rose_etsi_ect, 4,
+			NULL,									rose_enc_etsi_EctLinkIdRequest_RES,
+			NULL,									rose_dec_etsi_EctLinkIdRequest_RES
+	},
+	{
+		ROSE_ETSI_EctInform,						&rose_etsi_ect, 5,
+			rose_enc_etsi_EctInform_ARG,			NULL,
+			rose_dec_etsi_EctInform_ARG,			NULL
+	},
+	{
+		ROSE_ETSI_EctLoopTest,						&rose_etsi_ect, 6,
+			rose_enc_etsi_EctLoopTest_ARG,			rose_enc_etsi_EctLoopTest_RES,
+			rose_dec_etsi_EctLoopTest_ARG,			rose_dec_etsi_EctLoopTest_RES
 	},
 /* *INDENT-ON* */
 };
@@ -296,11 +414,53 @@ static const struct rose_convert_error rose_etsi_errors[] = {
 	},
 
 	/*
+	 * localValue Errors from Diversion-Operations
+	 * {ccitt identified-organization etsi(0) 207 operations-and-errors(1)}
+	 */
+	{
+		ROSE_ERROR_Div_InvalidDivertedToNr,			NULL, 12,
+			NULL,									NULL
+	},
+	{
+		ROSE_ERROR_Div_SpecialServiceNr,			NULL, 14,
+			NULL,									NULL
+	},
+	{
+		ROSE_ERROR_Div_DiversionToServedUserNr,		NULL, 15,
+			NULL,									NULL
+	},
+	{
+		ROSE_ERROR_Div_IncomingCallAccepted,		NULL, 23,
+			NULL,									NULL
+	},
+	{
+		ROSE_ERROR_Div_NumberOfDiversionsExceeded,	NULL, 24,
+			NULL,									NULL
+	},
+	{
+		ROSE_ERROR_Div_NotActivated,				NULL, 46,
+			NULL,									NULL
+	},
+	{
+		ROSE_ERROR_Div_RequestAlreadyAccepted,		NULL, 48,
+			NULL,									NULL
+	},
+
+	/*
 	 * localValue Errors from Advice-of-Charge-Operations
 	 * {ccitt identified-organization etsi (0) 182 operations-and-errors (1)}
 	 */
 	{
 		ROSE_ERROR_AOC_NoChargingInfoAvailable,		NULL, 26,
+			NULL,									NULL
+	},
+
+	/*
+	 * globalValue Errors (OIDs) from Explicit-Call-Transfer-Operations-and-Errors
+	 * {ccitt identified-organization etsi(0) 369 operations-and-errors(1)}
+	 */
+	{
+		ROSE_ERROR_ECT_LinkIdNotAssignedByNetwork,	&rose_etsi_ect, 21,
 			NULL,									NULL
 	},
 /* *INDENT-ON* */
@@ -880,6 +1040,27 @@ const char *rose_operation2str(enum rose_operation operation)
 		{ ROSE_None,                                "ROSE_None" },
 		{ ROSE_Unknown,                             "ROSE_Unknown" },
 
+		{ ROSE_ETSI_ActivationDiversion,            "ROSE_ETSI_ActivationDiversion" },
+		{ ROSE_ETSI_DeactivationDiversion,          "ROSE_ETSI_DeactivationDiversion" },
+		{ ROSE_ETSI_ActivationStatusNotificationDiv,"ROSE_ETSI_ActivationStatusNotificationDiv" },
+		{ ROSE_ETSI_DeactivationStatusNotificationDiv,"ROSE_ETSI_DeactivationStatusNotificationDiv" },
+		{ ROSE_ETSI_InterrogationDiversion,         "ROSE_ETSI_InterrogationDiversion" },
+		{ ROSE_ETSI_DiversionInformation,           "ROSE_ETSI_DiversionInformation" },
+		{ ROSE_ETSI_CallDeflection,                 "ROSE_ETSI_CallDeflection" },
+		{ ROSE_ETSI_CallRerouting,                  "ROSE_ETSI_CallRerouting" },
+		{ ROSE_ETSI_DivertingLegInformation2,       "ROSE_ETSI_DivertingLegInformation2" },
+		{ ROSE_ETSI_InterrogateServedUserNumbers,   "ROSE_ETSI_InterrogateServedUserNumbers" },
+		{ ROSE_ETSI_DivertingLegInformation1,       "ROSE_ETSI_DivertingLegInformation1" },
+		{ ROSE_ETSI_DivertingLegInformation3,       "ROSE_ETSI_DivertingLegInformation3" },
+
+		{ ROSE_ETSI_EctExecute,                     "ROSE_ETSI_EctExecute" },
+		{ ROSE_ETSI_ExplicitEctExecute,             "ROSE_ETSI_ExplicitEctExecute" },
+		{ ROSE_ETSI_RequestSubaddress,              "ROSE_ETSI_RequestSubaddress" },
+		{ ROSE_ETSI_SubaddressTransfer,             "ROSE_ETSI_SubaddressTransfer" },
+		{ ROSE_ETSI_EctLinkIdRequest,               "ROSE_ETSI_EctLinkIdRequest" },
+		{ ROSE_ETSI_EctInform,                      "ROSE_ETSI_EctInform" },
+		{ ROSE_ETSI_EctLoopTest,                    "ROSE_ETSI_EctLoopTest" },
+
 		{ ROSE_ETSI_ChargingRequest,                "ROSE_ETSI_ChargingRequest" },
 		{ ROSE_ETSI_AOCSCurrency,                   "ROSE_ETSI_AOCSCurrency" },
 		{ ROSE_ETSI_AOCSSpecialArr,                 "ROSE_ETSI_AOCSSpecialArr" },
@@ -971,9 +1152,14 @@ const char *rose_error2str(enum rose_error_code code)
 		{ ROSE_ERROR_Div_InvalidDivertedToNr,         "Diversion: Invalid Diverted To Number" },
 		{ ROSE_ERROR_Div_SpecialServiceNr,            "Diversion: Special Service Number" },
 		{ ROSE_ERROR_Div_DiversionToServedUserNr,     "Diversion: Diversion To Served User Number" },
+		{ ROSE_ERROR_Div_IncomingCallAccepted,        "Diversion: Incoming Call Accepted" },
 		{ ROSE_ERROR_Div_NumberOfDiversionsExceeded,  "Diversion: Number Of Diversions Exceeded" },
+		{ ROSE_ERROR_Div_NotActivated,                "Diversion: Not Activated" },
+		{ ROSE_ERROR_Div_RequestAlreadyAccepted,      "Diversion: Request Already Accepted" },
 
 		{ ROSE_ERROR_AOC_NoChargingInfoAvailable,     "AOC: No Charging Info Available" },
+
+		{ ROSE_ERROR_ECT_LinkIdNotAssignedByNetwork,  "ECT: Link ID Not Assigned By Network" },
 
 		/* Q.SIG specific errors */
 		{ ROSE_ERROR_QSIG_Unspecified,                "Unspecified" },

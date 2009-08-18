@@ -104,6 +104,8 @@ struct pri {
 	struct timeval tv;
 	int schedev;
 	pri_event ev;		/* Static event thingy */
+	/*! Subcommands for static event thingy. */
+	struct pri_subcommands subcmds;
 	
 	/* Q.921 Re-transmission queue */
 	struct q921_frame *txqueue;
@@ -133,24 +135,163 @@ struct pri {
 	unsigned char sendfacility;
 };
 
+/*! \brief Maximum name length plus null terminator (From ECMA-164) */
+#define PRI_MAX_NAME_LEN		(50 + 1)
+
+/*! \brief Q.SIG name information. */
+struct q931_party_name {
+	/*! \brief TRUE if name data is valid */
+	unsigned char valid;
+	/*!
+	 * \brief Q.931 presentation-indicator encoded field
+	 * \note Must tollerate the Q.931 screening-indicator field values being present.
+	 */
+	unsigned char presentation;
+	/*!
+	 * \brief Character set the name is using.
+	 * \details
+	 * unknown(0),
+	 * iso8859-1(1),
+	 * enum-value-withdrawn-by-ITU-T(2)
+	 * iso8859-2(3),
+	 * iso8859-3(4),
+	 * iso8859-4(5),
+	 * iso8859-5(6),
+	 * iso8859-7(7),
+	 * iso10646-BmpString(8),
+	 * iso10646-utf-8String(9)
+	 */
+	unsigned char char_set;
+	/*! \brief Name data with null terminator. */
+	char str[PRI_MAX_NAME_LEN];
+};
+
+/*! \brief Maximum phone number (address) length plus null terminator */
+#define PRI_MAX_NUMBER_LEN		(31 + 1)
+
+struct q931_party_number {
+	/*! \brief TRUE if number data is valid */
+	unsigned char valid;
+	/*! \brief Q.931 presentation-indicator and screening-indicator encoded fields */
+	unsigned char presentation;
+	/*! \brief Q.931 Type-Of-Number and numbering-plan encoded fields */
+	unsigned char plan;
+	/*! \brief Number data with terminator. */
+	char str[PRI_MAX_NUMBER_LEN];
+};
+
+/*! \brief Maximum subaddress length plus null terminator */
+#define PRI_MAX_SUBADDRESS_LEN	(20 + 1)
+
+#if defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT)
+struct q931_party_subaddress {
+	/*! \brief TRUE if the subaddress information is valid/present */
+	unsigned char valid;
+	/*!
+	 * \brief Subaddress type.
+	 * \details
+	 * nsap(0),
+	 * user_specified(2)
+	 */
+	unsigned char type;
+	/*!
+	 * \brief TRUE if odd number of address signals
+	 * \note The odd/even indicator is used when the type of subaddress is
+	 * user_specified and the coding is BCD.
+	 */
+	unsigned char odd_even_indicator;
+	/*! \brief Length of the subaddress data */
+	unsigned char length;
+	/*!
+	 * \brief Subaddress data with null terminator.
+	 * \note The null terminator is a convenience only since the data could be
+	 * BCD/binary and thus have a null byte as part of the contents.
+	 */
+	char data[PRI_MAX_SUBADDRESS_LEN];
+};
+#endif	/* defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT) */
+
+struct q931_party_address {
+	/*! \brief Subscriber phone number */
+	struct q931_party_number number;
+#if defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT)
+	/*! \brief Subscriber subaddress */
+	struct q931_party_subaddress subaddress;
+#endif	/* defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT) */
+};
+
+/*! \brief Information needed to identify an endpoint in a call. */
+struct q931_party_id {
+	/*! \brief Subscriber name */
+	struct q931_party_name name;
+	/*! \brief Subscriber phone number */
+	struct q931_party_number number;
+#if defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT)
+	/*! \brief Subscriber subaddress */
+	struct q931_party_subaddress subaddress;
+#endif	/* defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT) */
+};
+
+enum Q931_REDIRECTING_STATE {
+	/*!
+	 * \details
+	 * CDO-Idle/CDF-Inv-Idle
+	 */
+	Q931_REDIRECTING_STATE_IDLE,
+	/*!
+	 * \details
+	 * CDF-Inv-Wait - A DivLeg2 has been received and
+	 * we are waiting for valid presentation restriction information to send.
+	 */
+	Q931_REDIRECTING_STATE_PENDING_TX_DIV_LEG_3,
+	/*!
+	 * \details
+	 * CDO-Divert - A DivLeg1 has been received and
+	 * we are waiting for the presentation restriction information to come in.
+	 */
+	Q931_REDIRECTING_STATE_EXPECTING_RX_DIV_LEG_3,
+};
+
+/*!
+ * \brief Do not increment above this count.
+ * \details
+ * It is not our responsibility to enforce the maximum number of redirects.
+ * However, we cannot allow an increment past this number without breaking things.
+ * Besides, more than 255 redirects is probably not a good thing.
+ */
+#define PRI_MAX_REDIRECTS	0xFF
+
+/*! \brief Redirecting information struct */
+struct q931_party_redirecting {
+	enum Q931_REDIRECTING_STATE state;
+	/*! \brief Who is redirecting the call (Sent to the party the call is redirected toward) */
+	struct q931_party_id from;
+	/*! \brief Call is redirecting to a new party (Sent to the caller) */
+	struct q931_party_id to;
+	/*! Originally called party (in cases of multiple redirects) */
+	struct q931_party_id orig_called;
+	/*!
+	 * \brief Number of times the call was redirected
+	 * \note The call is being redirected if the count is non-zero.
+	 */
+	unsigned char count;
+	/*! Original reason for redirect (in cases of multiple redirects) */
+	unsigned char orig_reason;
+	/*! \brief Redirection reasons */
+	unsigned char reason;
+};
+
 /*! \brief New call setup parameter structure */
 struct pri_sr {
 	int transmode;
 	int channel;
 	int exclusive;
 	int nonisdn;
-	char *caller;
-	int callerplan;
-	char *callername;
-	int callerpres;
-	char *called;
-	int calledplan;
+	struct q931_party_redirecting redirecting;
+	struct q931_party_id caller;
+	struct q931_party_address called;
 	int userl1;
 	int numcomplete;
-	char *redirectingnum;
-	int redirectingplan;
-	int redirectingpres;
-	int redirectingreason;
 	int justsignalling;
 	const char *useruserinfo;
 	int transferable;
@@ -171,8 +312,29 @@ struct apdu_event {
 	struct apdu_event *next;	/* Linked list pointer */
 };
 
-/* q931_call datastructure */
+/*! \brief Incoming call transfer states. */
+enum INCOMING_CT_STATE {
+	/*!
+	 * \details
+	 * Incoming call transfer is not active.
+	 */
+	INCOMING_CT_STATE_IDLE,
+	/*!
+	 * \details
+	 * We have seen an incoming CallTransferComplete(alerting)
+	 * so we are waiting for the expected CallTransferActive
+	 * before updating the connected line about the remote party id.
+	 */
+	INCOMING_CT_STATE_EXPECT_CT_ACTIVE,
+	/*!
+	 * \details
+	 * A call transfer message came in that updated the remote party id
+	 * that we need to post a connected line update.
+	 */
+	INCOMING_CT_STATE_POST_CONNECTED_LINE
+};
 
+/* q931_call datastructure */
 struct q931_call {
 	struct pri *pri;	/* PRI */
 	int cr;				/* Call Reference */
@@ -204,8 +366,7 @@ struct q931_call {
 	int userl2;
 	int userl3;
 	int rateadaption;
-	
-	int sentchannel;
+
 	int justsignalling;		/* for a signalling-only connection */
 
 	int progcode;			/* Progress coding */
@@ -213,7 +374,7 @@ struct q931_call {
 	int progress;			/* Progress indicator */
 	int progressmask;		/* Progress Indicator bitmask */
 	
-	int notify;				/* Notification */
+	int notify;				/* Notification indicator. */
 	
 	int causecode;			/* Cause Coding */
 	int causeloc;			/* Cause Location */
@@ -222,49 +383,76 @@ struct q931_call {
 	int peercallstate;		/* Call state of peer as reported */
 	int ourcallstate;		/* Our call state */
 	int sugcallstate;		/* Status call state */
-	
-	int callerplan;
-	int callerplanani;
-	int callerpres;			/* Caller presentation */
-	char callerani[256];	/* Caller */
-	char callernum[256];
-	char callername[256];
-
-	char keypad_digits[64];		/* Buffer for digits that come in KEYPAD_FACILITY */
 
 	int ani2;               /* ANI II */
-	
-	int calledplan;
+
+	/*! Buffer for digits that come in KEYPAD_FACILITY */
+	char keypad_digits[32 + 1];
+
+	/*! Current dialed digits to be sent or just received. */
+	char overlap_digits[PRI_MAX_NUMBER_LEN];
+
+	/*!
+	 * \brief Local party ID
+	 * \details
+	 * The Caller-ID and connected-line ID are just roles the local and remote party
+	 * play while a call is being established.  Which roll depends upon the direction
+	 * of the call.
+	 * Outgoing party info is to identify the local party to the other end.
+	 *    (Caller-ID for originated or connected-line for answered calls.)
+	 * Incoming party info is to identify the remote party to us.
+	 *    (Caller-ID for answered or connected-line for originated calls.)
+	 */
+	struct q931_party_id local_id;
+	/*!
+	 * \brief Remote party ID
+	 * \details
+	 * The Caller-ID and connected-line ID are just roles the local and remote party
+	 * play while a call is being established.  Which roll depends upon the direction
+	 * of the call.
+	 * Outgoing party info is to identify the local party to the other end.
+	 *    (Caller-ID for originated or connected-line for answered calls.)
+	 * Incoming party info is to identify the remote party to us.
+	 *    (Caller-ID for answered or connected-line for originated calls.)
+	 */
+	struct q931_party_id remote_id;
+
+	/*!
+	 * \brief Staging place for the Q.931 redirection number ie.
+	 * \note
+	 * The number could be the remote_id.number or redirecting.to.number
+	 * depending upon the notification indicator.
+	 */
+	struct q931_party_number redirection_number;
+
+	/*!
+	 * \brief Called party address.
+	 * \note The called.number.str is the accumulated overlap dial digits
+	 * and enbloc digits.
+	 * \note The called.number.presentation value is not used.
+	 */
+	struct q931_party_address called;
 	int nonisdn;
-	char callednum[256];	/* Called Number */
 	int complete;			/* no more digits coming */
 	int newcall;			/* if the received message has a new call reference value */
 
 	int retranstimer;		/* Timer for retransmitting DISC */
 	int t308_timedout;		/* Whether t308 timed out once */
 
-	int redirectingplan;
-	int redirectingpres;
-	int redirectingreason;	      
-	char redirectingnum[256];	/* Number of redirecting party */
-	char redirectingname[256];	/* Name of redirecting party */
+	struct q931_party_redirecting redirecting;
 
-	/* Filled in cases of multiple diversions */
-	int origcalledplan;
-	int origcalledpres;
-	int origredirectingreason;	/* Original reason for redirect (in cases of multiple redirects) */
-	char origcalledname[256];	/* Original name of person being called */
-	char origcallednum[256];	/* Orignal number of person being called */
+	/*! \brief Incoming call transfer state. */
+	enum INCOMING_CT_STATE incoming_ct_state;
 
 	int useruserprotocoldisc;
 	char useruserinfo[256];
-	char callingsubaddr[256];	/* Calling parties sub address */
+	char callingsubaddr[PRI_MAX_SUBADDRESS_LEN];	/* Calling party subaddress */
 	
 	long aoc_units;				/* Advice of Charge Units */
 
 	struct apdu_event *apdus;	/* APDU queue for call */
 
-	int transferable;
+	int transferable;			/* RLT call is transferable */
 	unsigned int rlt_call_id;	/* RLT call id */
 
 	/* Bridged call info */
@@ -293,5 +481,30 @@ void libpri_copy_string(char *dst, const char *src, size_t size);
 struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri);
 
 void __pri_free_tei(struct pri *p);
+
+void q931_party_name_init(struct q931_party_name *name);
+void q931_party_number_init(struct q931_party_number *number);
+void q931_party_address_init(struct q931_party_address *address);
+void q931_party_id_init(struct q931_party_id *id);
+void q931_party_redirecting_init(struct q931_party_redirecting *redirecting);
+
+int q931_party_name_cmp(const struct q931_party_name *left, const struct q931_party_name *right);
+int q931_party_number_cmp(const struct q931_party_number *left, const struct q931_party_number *right);
+int q931_party_id_cmp(const struct q931_party_id *left, const struct q931_party_id *right);
+
+void q931_party_name_copy_to_pri(struct pri_party_name *pri_name, const struct q931_party_name *q931_name);
+void q931_party_number_copy_to_pri(struct pri_party_number *pri_number, const struct q931_party_number *q931_number);
+void q931_party_id_copy_to_pri(struct pri_party_id *pri_id, const struct q931_party_id *q931_id);
+void q931_party_redirecting_copy_to_pri(struct pri_party_redirecting *pri_redirecting, const struct q931_party_redirecting *q931_redirecting);
+
+void q931_party_id_fixup(const struct pri *ctrl, struct q931_party_id *id);
+int q931_party_id_presentation(const struct q931_party_id *id);
+
+const char *q931_call_state_str(int callstate);
+
+int q931_is_ptmp(struct pri *ctrl);
+struct pri_subcommand *q931_alloc_subcommand(struct pri *ctrl);
+
+int q931_notify_redirection(struct pri *ctrl, q931_call *call, int notify, const struct q931_party_number *number);
 
 #endif

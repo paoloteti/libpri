@@ -80,7 +80,8 @@
 #define PRI_EVENT_ANSWER		 8	/* Call has been answered (CONNECT) */
 #define PRI_EVENT_HANGUP_ACK	 9	/* Call hangup has been acknowledged */
 #define PRI_EVENT_RESTART_ACK	10	/* Restart complete on a given channel (RESTART_ACKNOWLEDGE) */
-#define PRI_EVENT_FACNAME		11	/* Caller*ID Name received on Facility */
+#define PRI_EVENT_FACNAME		11	/* Caller*ID Name received on Facility (DEPRECATED) */
+#define PRI_EVENT_FACILITY		11	/* Facility received (FACILITY) */
 #define PRI_EVENT_INFO_RECEIVED 12	/* Additional info (digits) received (INFORMATION) */
 #define PRI_EVENT_PROCEEDING	13	/* When we get CALL_PROCEEDING */
 #define PRI_EVENT_SETUP_ACK		14	/* When we get SETUP_ACKNOWLEDGE */
@@ -301,8 +302,8 @@
 #define PRI_RATE_ADAPT_ASYNC		0x40
 
 /* Notifications */
-#define PRI_NOTIFY_USER_SUSPENDED		0x00	/* User suspended */
-#define PRI_NOTIFY_USER_RESUMED			0x01	/* User resumed */
+#define PRI_NOTIFY_USER_SUSPENDED		0x00	/* User suspended (Q.931) (Call is placed on hold) */
+#define PRI_NOTIFY_USER_RESUMED			0x01	/* User resumed (Q.931) (Call is taken off hold) */
 #define PRI_NOTIFY_BEARER_CHANGE		0x02	/* Bearer service change (DSS1) */
 #define PRI_NOTIFY_ASN1_COMPONENT		0x03	/* ASN.1 encoded component (DSS1) */
 #define PRI_NOTIFY_COMPLETION_DELAY		0x04	/* Call completion delay */
@@ -317,12 +318,12 @@
 #define PRI_NOTIFY_CONF_OTHER_DISCONNECTED	0x4a	/* Other party disconnected */
 #define PRI_NOTIFY_CONF_FLOATING		0x4b	/* Conference floating */
 #define PRI_NOTIFY_WAITING_CALL			0x60	/* Call is waiting call */
-#define PRI_NOTIFY_DIVERSION_ACTIVATED		0x68	/* Diversion activated (DSS1) */
-#define PRI_NOTIFY_TRANSFER_ALERTING		0x69	/* Call transfer, alerting */
-#define PRI_NOTIFY_TRANSFER_ACTIVE		0x6a	/* Call transfer, active */
+#define PRI_NOTIFY_DIVERSION_ACTIVATED		0x68	/* Diversion activated (DSS1) (cfu, cfb, cfnr) (EN 300 207-1 Section 7.2.1) */
+#define PRI_NOTIFY_TRANSFER_ALERTING		0x69	/* Call transfer, alerting (EN 300 369-1 Section 7.2) */
+#define PRI_NOTIFY_TRANSFER_ACTIVE		0x6a	/* Call transfer, active(answered) (EN 300 369-1 Section 7.2) */
 #define PRI_NOTIFY_REMOTE_HOLD			0x79	/* Remote hold */
 #define PRI_NOTIFY_REMOTE_RETRIEVAL		0x7a	/* Remote retrieval */
-#define PRI_NOTIFY_CALL_DIVERTING		0x7b	/* Call is diverting */
+#define PRI_NOTIFY_CALL_DIVERTING		0x7b	/* Call is diverting (EN 300 207-1 Section 7.2.1) */
 
 #define PRI_COPY_DIGITS_CALLED_NUMBER
 
@@ -347,6 +348,151 @@
 
 typedef struct q931_call q931_call;
 
+/* Name character set enumeration values */
+#define PRI_CHAR_SET_UNKNOWN				0
+#define PRI_CHAR_SET_ISO8859_1				1
+#define PRI_CHAR_SET_WITHDRAWN				2
+#define PRI_CHAR_SET_ISO8859_2				3
+#define PRI_CHAR_SET_ISO8859_3				4
+#define PRI_CHAR_SET_ISO8859_4				5
+#define PRI_CHAR_SET_ISO8859_5				6
+#define PRI_CHAR_SET_ISO8859_7				7
+#define PRI_CHAR_SET_ISO10646_BMPSTRING		8
+#define PRI_CHAR_SET_ISO10646_UTF_8STRING	9
+
+/*! \brief Q.SIG name information. */
+struct pri_party_name {
+	/*! \brief TRUE if the name information is valid/present */
+	int valid;
+	/*!
+	 * \brief Q.931 presentation-indicator encoded field
+	 * \note Must tollerate the Q.931 screening-indicator field values being present.
+	 */
+	int presentation;
+	/*!
+	 * \brief Character set the name is using.
+	 * \details
+	 * unknown(0),
+	 * iso8859-1(1),
+	 * enum-value-withdrawn-by-ITU-T(2)
+	 * iso8859-2(3),
+	 * iso8859-3(4),
+	 * iso8859-4(5),
+	 * iso8859-5(6),
+	 * iso8859-7(7),
+	 * iso10646-BmpString(8),
+	 * iso10646-utf-8String(9)
+	 * \details
+	 * Set to iso8859-1(1) if unsure what to use.
+	 */
+	int char_set;
+	/*! \brief Name data with null terminator. */
+	char str[64];
+};
+
+struct pri_party_number {
+	/*! \brief TRUE if the number information is valid/present */
+	int valid;
+	/*! \brief Q.931 presentation-indicator and screening-indicator encoded fields */
+	int presentation;
+	/*! \brief Q.931 Type-Of-Number and numbering-plan encoded fields */
+	int plan;
+	/*! \brief Number data with null terminator. */
+	char str[64];
+};
+
+/*!
+ * \note This structure is a place holder for possible future subaddress support
+ * to maintain ABI compatibility.
+ */
+struct pri_party_subaddress {
+	/*! \brief TRUE if the subaddress information is valid/present */
+	int valid;
+	/*!
+	 * \brief Subaddress type.
+	 * \details
+	 * nsap(0),
+	 * user_specified(2)
+	 */
+	int type;
+	/*!
+	 * \brief TRUE if odd number of address signals
+	 * \note The odd/even indicator is used when the type of subaddress is
+	 * user_specified and the coding is BCD.
+	 */
+	int odd_even_indicator;
+	/*! \brief Length of the subaddress data */
+	int length;
+	/*!
+	 * \brief Subaddress data with null terminator.
+	 * \note The null terminator is a convenience only since the data could be
+	 * BCD/binary and thus have a null byte as part of the contents.
+	 */
+	char data[32];
+};
+
+/*! \brief Information needed to identify an endpoint in a call. */
+struct pri_party_id {
+	/*! \brief Subscriber name */
+	struct pri_party_name name;
+	/*! \brief Subscriber phone number */
+	struct pri_party_number number;
+	/*! \brief Subscriber subaddress */
+	struct pri_party_subaddress subaddress;
+};
+
+/*! \brief Connected Line/Party information */
+struct pri_party_connected_line {
+	/*! Connected party ID */
+	struct pri_party_id id;
+};
+
+/*!
+ * \brief Redirecting Line information.
+ * \details
+ * RDNIS (Redirecting Directory Number Information Service)
+ * Where a call diversion or transfer was invoked.
+ */
+struct pri_party_redirecting {
+	/*! Who is redirecting the call (Sent to the party the call is redirected toward) */
+	struct pri_party_id from;
+	/*! Call is redirecting to a new party (Sent to the caller) */
+	struct pri_party_id to;
+	/*! Originally called party (in cases of multiple redirects) */
+	struct pri_party_id orig_called;
+	/*! Number of times the call was redirected */
+	int count;
+	/*! Original reason for redirect (in cases of multiple redirects) */
+	int orig_reason;
+	/*! Redirection reason */
+	int reason;
+};
+
+/* Subcommands derived from supplementary services. */
+#define PRI_SUBCMD_REDIRECTING		1
+#define PRI_SUBCMD_CONNECTED_LINE	2
+
+
+struct pri_subcommand {
+	/*! PRI_SUBCMD_xxx defined values */
+	int cmd;
+	union {
+		/*! Reserve room for possible expansion to maintain ABI compatibility. */
+		char reserve_space[512];
+		struct pri_party_connected_line connected_line;
+		struct pri_party_redirecting redirecting;
+	} u;
+};
+
+/* Max number of subcommands per event message */
+#define PRI_MAX_SUBCOMMANDS	8
+
+struct pri_subcommands {
+	int counter_subcmd;
+	struct pri_subcommand subcmd[PRI_MAX_SUBCOMMANDS];
+};
+
+
 typedef struct pri_event_generic {
 	/* Events with no additional information fall in this category */
 	int e;
@@ -370,6 +516,7 @@ typedef struct pri_event_ringing {
 	int progressmask;
 	q931_call *call;
 	char useruserinfo[260];		/* User->User info */
+	struct pri_subcommands *subcmds;
 } pri_event_ringing;
 
 typedef struct pri_event_answer {
@@ -380,8 +527,10 @@ typedef struct pri_event_answer {
 	int progressmask;
 	q931_call *call;
 	char useruserinfo[260];		/* User->User info */
+	struct pri_subcommands *subcmds;
 } pri_event_answer;
 
+/*! Deprecated replaced by struct pri_event_facility. */
 typedef struct pri_event_facname {
 	int e;
 	char callingname[256];
@@ -392,6 +541,18 @@ typedef struct pri_event_facname {
 	int callingpres;			/* Presentation of Calling CallerID */
 	int callingplan;			/* Dialing plan of Calling entity */
 } pri_event_facname;
+
+struct pri_event_facility {
+	int e;
+	char callingname[256];		/*!< Deprecated, preserved for struct pri_event_facname compatibility */
+	char callingnum[256];		/*!< Deprecated, preserved for struct pri_event_facname compatibility */
+	int channel;
+	int cref;
+	q931_call *call;
+	int callingpres;			/*!< Presentation of Calling CallerID (Deprecated, preserved for struct pri_event_facname compatibility) */
+	int callingplan;			/*!< Dialing plan of Calling entity (Deprecated, preserved for struct pri_event_facname compatibility) */
+	struct pri_subcommands *subcmds;
+};
 
 #define PRI_CALLINGPLANANI
 #define PRI_CALLINGPLANRDNIS
@@ -426,6 +587,7 @@ typedef struct pri_event_ring {
 	int callingplanorigcalled;		/* Dialing plan of Originally Called Number */
 	int origredirectingreason;
 	int reversecharge;
+	struct pri_subcommands *subcmds;
 } pri_event_ring;
 
 typedef struct pri_event_hangup {
@@ -436,6 +598,7 @@ typedef struct pri_event_hangup {
 	q931_call *call;			/* Opaque call pointer */
 	long aoc_units;				/* Advise of Charge number of charged units */
 	char useruserinfo[260];		/* User->User info */
+	struct pri_subcommands *subcmds;
 } pri_event_hangup;	
 
 typedef struct pri_event_restart_ack {
@@ -452,18 +615,21 @@ typedef struct pri_event_proceeding {
 	int progressmask;
 	int cause;
 	q931_call *call;
+	struct pri_subcommands *subcmds;
 } pri_event_proceeding;
  
 typedef struct pri_event_setup_ack {
 	int e;
 	int channel;
 	q931_call *call;
+	struct pri_subcommands *subcmds;
 } pri_event_setup_ack;
 
 typedef struct pri_event_notify {
 	int e;
 	int channel;
 	int info;
+	struct pri_subcommands *subcmds;
 } pri_event_notify;
 
 typedef struct pri_event_keypad_digit {
@@ -471,6 +637,7 @@ typedef struct pri_event_keypad_digit {
 	int channel;
 	q931_call *call;
 	char digits[64];
+	struct pri_subcommands *subcmds;
 } pri_event_keypad_digit;
 
 typedef struct pri_event_service {
@@ -490,7 +657,7 @@ typedef union {
 	pri_event_generic gen;		/* Generic view */
 	pri_event_restart restart;	/* Restart view */
 	pri_event_error	  err;		/* Error view */
-	pri_event_facname facname;	/* Caller*ID Name on Facility */
+	pri_event_facname facname;	/* Caller*ID Name on Facility (Deprecated, use pri_event.facility) */
 	pri_event_ring	  ring;		/* Ring */
 	pri_event_hangup  hangup;	/* Hang up */
 	pri_event_ringing ringing;	/* Ringing */
@@ -502,6 +669,7 @@ typedef union {
 	pri_event_keypad_digit digit;			/* Digits that come during a call */
 	pri_event_service service;				/* service message */
 	pri_event_service_ack service_ack;		/* service acknowledgement message */
+	struct pri_event_facility facility;
 } pri_event;
 
 struct pri;
@@ -588,6 +756,18 @@ int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisd
    Set non-isdn to non-zero if you are not connecting to ISDN equipment */
 int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
+/*!
+ * \brief Give connected line information to a call
+ * \note Could be used instead of pri_sr_set_caller_party() before calling pri_setup().
+ */
+int pri_connected_line_update(struct pri *pri, q931_call *call, const struct pri_party_connected_line *connected);
+
+/*!
+ * \brief Give redirection information to a call
+ * \note Could be used instead of pri_sr_set_redirecting_parties() before calling pri_setup().
+ */
+int pri_redirecting_update(struct pri *pri, q931_call *call, const struct pri_party_redirecting *redirecting);
+
 /* Set CRV reference for GR-303 calls */
 
 
@@ -642,8 +822,31 @@ void pri_sr_free(struct pri_sr *sr);
 int pri_sr_set_channel(struct pri_sr *sr, int channel, int exclusive, int nonisdn);
 int pri_sr_set_bearer(struct pri_sr *sr, int transmode, int userl1);
 int pri_sr_set_called(struct pri_sr *sr, char *called, int calledplan, int complete);
+
+/*!
+ * \brief Set the caller party ID information in the call SETUP record.
+ *
+ * \param sr New call SETUP record.
+ * \param caller Caller party ID information to set.
+ *
+ * \return Nothing
+ */
+void pri_sr_set_caller_party(struct pri_sr *sr, const struct pri_party_id *caller);
+/*! \note Use pri_sr_set_caller_party() instead to pass more precise caller information. */
 int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int callerplan, int callerpres);
+
+/*!
+ * \brief Set the redirecting information in the call SETUP record.
+ *
+ * \param sr New call SETUP record.
+ * \param caller Redirecting information to set.
+ *
+ * \return Nothing
+ */
+void pri_sr_set_redirecting_parties(struct pri_sr *sr, const struct pri_party_redirecting *redirecting);
+/*! \note Use pri_sr_set_redirecting_parties() instead to pass more precise redirecting information. */
 int pri_sr_set_redirecting(struct pri_sr *sr, char *num, int plan, int pres, int reason);
+
 #define PRI_USER_USER_TX
 /* Set the user user field.  Warning!  don't send binary data accross this field */
 void pri_sr_set_useruser(struct pri_sr *sr, const char *userchars);

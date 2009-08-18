@@ -60,6 +60,11 @@
 #define Q932_TON_SUBSCRIBER				0x04
 #define Q932_TON_ABBREVIATED			0x06
 
+/* Q.SIG Subscription Option. Listed in ECMA-174 */
+#define QSIG_NO_NOTIFICATION						0x00
+#define QSIG_NOTIFICATION_WITHOUT_DIVERTED_TO_NR	0x01
+#define QSIG_NOTIFICATION_WITH_DIVERTED_TO_NR		0x02
+
 /* Queues an MWI apdu on a the given call */
 int mwi_message_send(struct pri *pri, q931_call *call, struct pri_sr *req, int activate);
 
@@ -72,6 +77,14 @@ int qsig_cf_callrerouting(struct pri *pri, q931_call *c, const char* dest, const
 
 /* starts a QSIG Path Replacement */
 int anfpr_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
+
+int send_call_transfer_complete(struct pri *pri, q931_call *call, int call_status);
+
+int rose_diverting_leg_information1_encode(struct pri *pri, q931_call *call);
+int rose_diverting_leg_information3_encode(struct pri *pri, q931_call *call, int messagetype);
+
+int rose_connected_name_encode(struct pri *pri, q931_call *call, int messagetype);
+int rose_called_name_encode(struct pri *pri, q931_call *call, int messagetype);
 
 /* Use this function to queue a facility-IE born APDU onto a call
  * call is the call to use, messagetype is any one of the Q931 messages,
