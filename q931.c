@@ -2030,25 +2030,28 @@ static int receive_call_state(int full_ie, struct pri *ctrl, q931_call *call, in
 const char *q931_call_state_str(int callstate)
 {
 	static struct msgtype callstates[] = {
-		{ 0, "Null" },
-		{ 1, "Call Initiated" },
-		{ 2, "Overlap sending" },
-		{ 3, "Outgoing call  Proceeding" },
-		{ 4, "Call Delivered" },
-		{ 6, "Call Present" },
-		{ 7, "Call Received" },
-		{ 8, "Connect Request" },
-		{ 9, "Incoming Call Proceeding" },
-		{ 10, "Active" },
-		{ 11, "Disconnect Request" },
-		{ 12, "Disconnect Indication" },
-		{ 15, "Suspend Request" },
-		{ 17, "Resume Request" },
-		{ 19, "Release Request" },
-		{ 22, "Call Abort" },
-		{ 25, "Overlap Receiving" },
-		{ 61, "Restart Request" },
-		{ 62, "Restart" },
+/* *INDENT-OFF* */
+		{ Q931_CALL_STATE_NULL,                     "Null" },
+		{ Q931_CALL_STATE_CALL_INITIATED,           "Call Initiated" },
+		{ Q931_CALL_STATE_OVERLAP_SENDING,          "Overlap Sending" },
+		{ Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING, "Outgoing Call Proceeding" },
+		{ Q931_CALL_STATE_CALL_DELIVERED,           "Call Delivered" },
+		{ Q931_CALL_STATE_CALL_PRESENT,             "Call Present" },
+		{ Q931_CALL_STATE_CALL_RECEIVED,            "Call Received" },
+		{ Q931_CALL_STATE_CONNECT_REQUEST,          "Connect Request" },
+		{ Q931_CALL_STATE_INCOMING_CALL_PROCEEDING, "Incoming Call Proceeding" },
+		{ Q931_CALL_STATE_ACTIVE,                   "Active" },
+		{ Q931_CALL_STATE_DISCONNECT_REQUEST,       "Disconnect Request" },
+		{ Q931_CALL_STATE_DISCONNECT_INDICATION,    "Disconnect Indication" },
+		{ Q931_CALL_STATE_SUSPEND_REQUEST,          "Suspend Request" },
+		{ Q931_CALL_STATE_RESUME_REQUEST,           "Resume Request" },
+		{ Q931_CALL_STATE_RELEASE_REQUEST,          "Release Request" },
+		{ Q931_CALL_STATE_CALL_ABORT,               "Call Abort" },
+		{ Q931_CALL_STATE_OVERLAP_RECEIVING,        "Overlap Receiving" },
+		{ Q931_CALL_STATE_CALL_INDEPENDENT_SERVICE, "Call Independent Service" },
+		{ Q931_CALL_STATE_RESTART_REQUEST,          "Restart Request" },
+		{ Q931_CALL_STATE_RESTART,                  "Restart" },
+/* *INDENT-ON* */
 	};
 	return code2str(callstate, callstates, sizeof(callstates) / sizeof(callstates[0]));
 }
