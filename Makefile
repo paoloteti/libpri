@@ -89,7 +89,7 @@ INSTALL_BASE=/usr
 libdir?=$(INSTALL_BASE)/lib
 SOFLAGS:=-Wl,-h$(DYNAMIC_LIBRARY)
 LDCONFIG = /sbin/ldconfig
-ifneq (,$(findstring X$(OSARCH)X, XLinuxX XGNU/kFreeBSDX))
+ifneq (,$(findstring X$(OSARCH)X, XLinuxX XGNU/kFreeBSDX XGNUX))
 LDCONFIG_FLAGS=-n
 else
 ifeq (${OSARCH},FreeBSD)
