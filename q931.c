@@ -2954,6 +2954,7 @@ static q931_call *q931_getcall(struct pri *ctrl, int cr)
 	cur->useruserprotocoldisc = -1;
 	cur->aoc_units = -1;
 	cur->changestatus = -1;
+	cur->reversecharge = -1;
 	q931_party_number_init(&cur->redirection_number);
 	q931_party_address_init(&cur->called);
 	q931_party_id_init(&cur->local_id);
