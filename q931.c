@@ -1792,6 +1792,18 @@ static int receive_display(int full_ie, struct pri *ctrl, q931_call *call, int m
 {
 	unsigned char *data;
 
+	switch (msgtype) {
+	case Q931_SETUP:
+	case Q931_CONNECT:
+		/*
+		 * Only keep the display message on SETUP and CONNECT messages
+		 * as the remote name.
+		 */
+		break;
+	default:
+		return 0;
+	}
+
 	call->remote_id.name.valid = 1;
 
 	data = ie->data;
@@ -3660,7 +3672,7 @@ static void pri_disconnect_timeout(void *data)
 	q931_release(ctrl, c, PRI_CAUSE_NORMAL_CLEARING);
 }
 
-static int connect_ies[] = { Q931_CHANNEL_IDENT, Q931_IE_FACILITY, Q931_PROGRESS_INDICATOR, Q931_IE_CONNECTED_NUM, -1 };
+static int connect_ies[] = { Q931_CHANNEL_IDENT, Q931_IE_FACILITY, Q931_PROGRESS_INDICATOR, Q931_DISPLAY, Q931_IE_CONNECTED_NUM, -1 };
 
 int q931_connect(struct pri *ctrl, q931_call *c, int channel, int nonisdn)
 {
