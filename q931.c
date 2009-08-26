@@ -263,6 +263,9 @@ struct ie {
  */
 int q931_is_ptmp(struct pri *ctrl)
 {
+	/* Check master control structure */
+	for (; ctrl->master; ctrl = ctrl->master) {
+	}
 	return ctrl->tei == Q921_TEI_GROUP;
 }
 
@@ -2997,7 +3000,7 @@ static q931_call *q931_getcall(struct pri *ctrl, int cr)
 	q931_party_redirecting_init(&cur->redirecting);
 
 	/* PRI is set to whoever called us */
-	if (ctrl->bri && (ctrl->localtype == PRI_CPE)) {
+	if (q931_is_ptmp(ctrl) && (ctrl->localtype == PRI_CPE)) {
 		/*
 		 * Point to the master to avoid stale pointer problems if
 		 * the TEI is removed later.
@@ -3321,7 +3324,7 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 	len = sizeof(buf) - len;
 
 	ctrl = call->pri;
-	if (ctrl->bri && (ctrl->localtype == PRI_CPE)) {
+	if (q931_is_ptmp(ctrl) && (ctrl->localtype == PRI_CPE)) {
 		/*
 		 * Must use the BRI subchannel structure to send with the correct TEI.
 		 * Note: If the subchannel is NULL then there is no TEI assigned and
