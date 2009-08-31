@@ -493,6 +493,25 @@ struct pri_subcommands {
 };
 
 
+/*
+ * Event channel parameter encoding:
+ * 3322 2222 2222 1111 1111 1100 0000 0000
+ * 1098 7654 3210 9876 5432 1098 7654 3210
+ * xxxx xxxx xxxx xxDC BBBBBBBBB AAAAAAAAA
+ *
+ * Bit field
+ * A - B channel
+ * B - Span (DS1) (0 - 127)
+ * C - DS1 Explicit bit
+ * D - D channel (cis_call) bit (status only)
+ *
+ * B channel values:
+ * 0     - No channel (ISDN uses for call waiting feature)
+ * 1-127 - B channel #
+ * 0xFF  - Any channel (Also if whole channel value is -1 in event)
+ */
+
+
 typedef struct pri_event_generic {
 	/* Events with no additional information fall in this category */
 	int e;

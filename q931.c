@@ -167,8 +167,9 @@ static struct msgtype facilities[] = {
        { PRI_NSF_CALL_REDIRECTION_SERVICE, "Call Redirection Service" }
 };
 
-#define FLAG_PREFERRED 2
-#define FLAG_EXCLUSIVE 4
+#define FLAG_WHOLE_INTERFACE	0x01
+#define FLAG_PREFERRED			0x02
+#define FLAG_EXCLUSIVE			0x04
 
 #define RESET_INDICATOR_CHANNEL	0
 #define RESET_INDICATOR_DS1		6
@@ -252,6 +253,20 @@ struct ie {
 	/* Add IE to a message, return the # of bytes added or -1 on failure */
 	FUNC_SEND(*transmit);
 };
+
+/*!
+ * \internal
+ * \brief Encode the channel id information to pass to upper level.
+ *
+ * \param call Q.931 call leg
+ *
+ * \return Encoded channel value.
+ */
+static int q931_encode_channel(const q931_call *call)
+{
+	return call->channelno | (call->ds1no << 8) | (call->ds1explicit << 16)
+		| (call->cis_call << 17);
+}
 
 /*!
  * \brief Determine if layer 2 is in PTMP mode.
@@ -640,48 +655,77 @@ static char *binary(int b, int len) {
 static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
 {	
 	int x;
-	int pos=0;
-#ifdef NO_BRI_SUPPORT
- 	if (!ie->data[0] & 0x20) {
-		pri_error(ctrl, "!! Not PRI type!?\n");
- 		return -1;
- 	}
-#endif
-#ifndef NOAUTO_CHANNEL_SELECTION_SUPPORT
-	if (ctrl->bri) {
-		if (!(ie->data[0] & 3))
-			call->cis_call = 1;
-		else
-			call->channelno = ie->data[0] & 3;
+	int pos = 0;
+	int need_extended_channel_octets;/*!< TRUE if octets 3.2 and 3.3 need to be present. */
+
+	if (ie->data[0] & 0x08) {
+		call->chanflags = FLAG_EXCLUSIVE;
 	} else {
-		switch (ie->data[0] & 3) {
-			case 0:
-				call->cis_call = 1;
-				break;
-			case 1:
-				break;
-			default:
-				pri_error(ctrl, "!! Unexpected Channel selection %d\n", ie->data[0] & 3);
-				return -1;
+		call->chanflags = FLAG_PREFERRED;
+	}
+
+	need_extended_channel_octets = 0;
+	if (ie->data[0] & 0x20) {
+		/* PRI encoded interface type */
+		switch (ie->data[0] & 0x03) {
+		case 0x00:
+			/* No channel */
+			call->channelno = 0;
+			call->chanflags = FLAG_PREFERRED;
+			break;
+		case 0x01:
+			/* As indicated in following octets */
+			need_extended_channel_octets = 1;
+			break;
+		case 0x03:
+			/* Any channel */
+			call->chanflags = FLAG_PREFERRED;
+			break;
+		default:
+			pri_error(ctrl, "!! Unexpected Channel selection %d\n", ie->data[0] & 0x03);
+			return -1;
+		}
+	} else {
+		/* BRI encoded interface type */
+		switch (ie->data[0] & 0x03) {
+		case 0x00:
+			/* No channel */
+			call->channelno = 0;
+			call->chanflags = FLAG_PREFERRED;
+			break;
+		case 0x03:
+			/* Any channel */
+			call->chanflags = FLAG_PREFERRED;
+			break;
+		default:
+			/* Specified B channel (B1 or B2) */
+			call->channelno = ie->data[0] & 0x03;
+			break;
 		}
 	}
-#endif
-	if (ie->data[0] & 0x08)
-		call->chanflags = FLAG_EXCLUSIVE;
-	else
-		call->chanflags = FLAG_PREFERRED;
+
 	pos++;
 	if (ie->data[0] & 0x40) {
 		/* DS1 specified -- stop here */
 		call->ds1no = ie->data[1] & 0x7f;
 		call->ds1explicit = 1;
 		pos++;
-	} else
+	} else {
 		call->ds1explicit = 0;
+	}
 
-	if (pos+2 < len) {
+	if (ie->data[0] & 0x04) {
+		/* D channel call.  Signaling only. */
+		call->cis_call = 1;
+		call->chanflags = FLAG_EXCLUSIVE;/* For safety mark this channel as exclusive. */
+		call->channelno = 0;
+		return 0;
+	}
+
+	if (need_extended_channel_octets && pos + 2 < len) {
 		/* More coming */
 		if ((ie->data[pos] & 0x0f) != 3) {
+			/* Channel type/mapping is not for B channel units. */
 			pri_error(ctrl, "!! Unexpected Channel Type %d\n", ie->data[1] & 0x0f);
 			return -1;
 		}
@@ -697,25 +741,21 @@ static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, in
 				call->slotmap <<= 8;
 				call->slotmap |= ie->data[x + pos];
 			}
-			return 0;
 		} else {
 			pos++;
 			/* Only expect a particular channel */
 			call->channelno = ie->data[pos] & 0x7f;
 			if (ctrl->chan_mapping_logical && call->channelno > 15)
 				call->channelno++;
-			return 0;
 		}
-	} else
-		return 0;
-	return -1;
+	}
+	return 0;
 }
 
 static int transmit_channel_id(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
-	int pos=0;
+	int pos = 0;
 
-	
 	/* We are ready to transmit single IE only */
 	if (order > 1)
 		return 0;
@@ -729,61 +769,69 @@ static int transmit_channel_id(int full_ie, struct pri *ctrl, q931_call *call, i
 		ie->data[pos++] = ctrl->bri ? 0x8c : 0xac;
 		return pos + 2;
 	}
-		
+
 	/* Start with standard stuff */
 	if (ctrl->switchtype == PRI_SWITCH_GR303_TMC)
 		ie->data[pos] = 0x69;
 	else if (ctrl->bri) {
 		ie->data[pos] = 0x80;
-		if (call->channelno > -1)
-			ie->data[pos] |= (call->channelno & 0x3);
-	} else
-		ie->data[pos] = 0xa1;
-	/* Add exclusive flag if necessary */
-	if (call->chanflags & FLAG_EXCLUSIVE)
+		ie->data[pos] |= (call->channelno & 0x3);
+	} else {
+		/* PRI */
+		if (call->slotmap != -1 || (call->chanflags & FLAG_WHOLE_INTERFACE)) {
+			/* Specified channel */
+			ie->data[pos] = 0xa1;
+		} else if (call->channelno < 0 || call->channelno == 0xff) {
+			/* Any channel */
+			ie->data[pos] = 0xa3;
+		} else if (!call->channelno) {
+			/* No channel */
+			ie->data[pos] = 0xa0;
+		} else {
+			/* Specified channel */
+			ie->data[pos] = 0xa1;
+		}
+	}
+	if (call->chanflags & FLAG_EXCLUSIVE) {
+		/* Channel is exclusive */
 		ie->data[pos] |= 0x08;
-	else if (!(call->chanflags & FLAG_PREFERRED)) {
+	} else if (!call->chanflags) {
 		/* Don't need this IE */
 		return 0;
 	}
 
 	if (((ctrl->switchtype != PRI_SWITCH_QSIG) && (call->ds1no > 0)) || call->ds1explicit) {
-		/* Note that we are specifying the identifier */
+		/* We are specifying the interface.  Octet 3.1 */
 		ie->data[pos++] |= 0x40;
-		/* We need to use the Channel Identifier Present thingy.  Just specify it and we're done */
 		ie->data[pos++] = 0x80 | call->ds1no;
-	} else
-		pos++;
+	} else {
+		++pos;
+	}
 
-	if (ctrl->bri)
-		return pos + 2;
-
-	if ((call->channelno > -1) || (call->slotmap != -1)) {
-		/* We'll have the octet 8.2 and 8.3's present */
-		ie->data[pos++] = 0x83;
-		if (call->channelno > -1) {
-			/* Channel number specified */
-			if (ctrl->chan_mapping_logical && call->channelno > 16)
-				ie->data[pos++] = 0x80 | (call->channelno - 1);
-			else
-				ie->data[pos++] = 0x80 | call->channelno;
-			return pos + 2;
-		}
-		/* We have to send a channel map */
+	if (!ctrl->bri && (ie->data[0] & 0x03) == 0x01 /* Specified channel */
+		&& !(call->chanflags & FLAG_WHOLE_INTERFACE)) {
+		/* The 3.2 and 3.3 octets need to be present */
+		ie->data[pos] = 0x83;
 		if (call->slotmap != -1) {
-			ie->data[pos-1] |= 0x10;
-			ie->data[pos++] = (call->slotmap & 0xff0000) >> 16;
-			ie->data[pos++] = (call->slotmap & 0xff00) >> 8;
-			ie->data[pos++] = (call->slotmap & 0xff);
-			return pos + 2;
+			int octet;
+
+			/* We have to send a channel map */
+			ie->data[pos++] |= 0x10;
+			for (octet = 3; octet--;) {
+				ie->data[pos++] = (call->slotmap >> (8 * octet)) & 0xff;
+			}
+		} else {
+			/* Channel number specified */
+			++pos;
+			if (ctrl->chan_mapping_logical && call->channelno > 16) {
+				ie->data[pos++] = 0x80 | (call->channelno - 1);
+			} else {
+				ie->data[pos++] = 0x80 | call->channelno;
+			}
 		}
 	}
-	if (call->ds1no > 0) {
-		/* We're done */
-		return pos + 2;
-	}
-	pri_error(ctrl, "!! No channel map, no channel, and no ds1?  What am I supposed to identify?\n");
-	return -1;
+
+	return pos + 2;
 }
 
 static void dump_channel_id(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
@@ -3359,11 +3407,14 @@ int maintenance_service(struct pri *ctrl, int span, int channel, int changestatu
 		return -1;
 	}
 	if (channel > -1) {
-		channel &= 0xff;
+		c->channelno = channel & 0xff;
+		c->chanflags = FLAG_EXCLUSIVE;
+	} else {
+		c->channelno = channel;
+		c->chanflags = FLAG_EXCLUSIVE | FLAG_WHOLE_INTERFACE;
 	}
 	c->ds1no = span;
-	c->channelno = channel;
-	c->chanflags |= FLAG_EXCLUSIVE;
+	c->ds1explicit = 0;
 	c->changestatus = changestatus;
 	return send_message(ctrl, c, (MAINTENANCE_PROTOCOL_DISCRIMINATOR_1 << 8) | NATIONAL_SERVICE, maintenance_service_ies);
 }
@@ -3659,7 +3710,7 @@ static void pri_release_finaltimeout(void *data)
 	ctrl->schedev = 1;
 	ctrl->ev.e = PRI_EVENT_HANGUP_ACK;
 	ctrl->ev.hangup.subcmds = &ctrl->subcmds;
-	ctrl->ev.hangup.channel = c->channelno;
+	ctrl->ev.hangup.channel = q931_encode_channel(c);
 	ctrl->ev.hangup.cause = c->cause;
 	ctrl->ev.hangup.cref = c->cr;
 	ctrl->ev.hangup.call = c;
@@ -3825,23 +3876,24 @@ int q931_setup(struct pri *ctrl, q931_call *c, struct pri_sr *req)
 	c->userl3 = -1;
 	c->ds1no = (req->channel & 0xff00) >> 8;
 	c->ds1explicit = (req->channel & 0x10000) >> 16;
-	req->channel &= 0xff;
 	if ((ctrl->localtype == PRI_CPE) && ctrl->subchannel && !ctrl->bri) {
-		req->channel = 0;
-		req->exclusive = 0;
+		c->channelno = 0;
+		c->chanflags = 0;
+	} else {
+		c->channelno = req->channel & 0xff;
+		if (req->exclusive) {
+			c->chanflags = FLAG_EXCLUSIVE;
+		} else {
+			c->chanflags = FLAG_PREFERRED;
+		}
 	}
-		
-	c->channelno = req->channel;		
+
 	c->slotmap = -1;
 	c->nonisdn = req->nonisdn;
 	c->newcall = 0;
 	c->cis_call = req->cis_call;
 	c->cis_auto_disconnect = req->cis_auto_disconnect;
 	c->complete = req->numcomplete; 
-	if (req->exclusive) 
-		c->chanflags = FLAG_EXCLUSIVE;
-	else if (c->channelno)
-		c->chanflags = FLAG_PREFERRED;
 
 	if (req->caller.number.valid) {
 		c->local_id = req->caller;
@@ -4085,7 +4137,9 @@ static int prepare_to_handle_maintenance_message(struct pri *ctrl, q931_mh *mh, 
 			c->channelno = -1;
 			c->slotmap = -1;
 			c->chanflags = 0;
+			c->ds1explicit = 0;
 			c->ds1no = 0;
+			c->cis_call = 0;
 			c->ri = -1;
 			c->changestatus = -1;
 			break;
@@ -4111,6 +4165,8 @@ static int prepare_to_handle_q931_message(struct pri *ctrl, q931_mh *mh, q931_ca
 		c->slotmap = -1;
 		c->chanflags = 0;
 		c->ds1no = 0;
+		c->ds1explicit = 0;
+		c->cis_call = 0;
 		c->ri = -1;
 		break;
 	case Q931_FACILITY:
@@ -4184,6 +4240,9 @@ static int prepare_to_handle_q931_message(struct pri *ctrl, q931_mh *mh, q931_ca
 		break;
 	case Q931_RESTART_ACKNOWLEDGE:
 		c->channelno = -1;
+		c->ds1no = 0;
+		c->ds1explicit = 0;
+		c->cis_call = 0;
 		break;
 	case Q931_INFORMATION:
 		/*
@@ -4381,7 +4440,7 @@ static int post_handle_maintenance_message(struct pri *ctrl, struct q931_mh *mh,
 	case NATIONAL_SERVICE:	
 		if (c->channelno > 0) {
 			ctrl->ev.e = PRI_EVENT_SERVICE;
-			ctrl->ev.service.channel = c->channelno | (c->ds1no << 8);
+			ctrl->ev.service.channel = q931_encode_channel(c);
 			ctrl->ev.service.changestatus = 0x0f & c->changestatus;
 		} else {
 			switch (0x0f & c->changestatus) {
@@ -4403,7 +4462,7 @@ static int post_handle_maintenance_message(struct pri *ctrl, struct q931_mh *mh,
 	case NATIONAL_SERVICE_ACKNOWLEDGE:
 		if (c->channelno > 0) {
 			ctrl->ev.e = PRI_EVENT_SERVICE_ACK;
-			ctrl->ev.service_ack.channel = c->channelno | (c->ds1no << 8);
+			ctrl->ev.service_ack.channel = q931_encode_channel(c);
 			ctrl->ev.service_ack.changestatus = 0x0f & c->changestatus;
 		} else {
 			switch (0x0f & c->changestatus) {
@@ -4440,8 +4499,7 @@ static void q931_fill_facility_event(struct pri *ctrl, struct q931_call *call)
 {
 	ctrl->ev.e = PRI_EVENT_FACILITY;
 	ctrl->ev.facility.subcmds = &ctrl->subcmds;
-	ctrl->ev.facility.channel =
-		call->channelno | (call->ds1no << 8) | (call->ds1explicit << 16);
+	ctrl->ev.facility.channel = q931_encode_channel(call);
 	ctrl->ev.facility.cref = call->cr;
 	ctrl->ev.facility.call = call;
 
@@ -4486,7 +4544,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		restart_ack(ctrl, c);
 		/* Notify user of restart event */
 		ctrl->ev.e = PRI_EVENT_RESTART;
-		ctrl->ev.restart.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		ctrl->ev.restart.channel = q931_encode_channel(c);
 		return Q931_RES_HAVEEVENT;
 	case Q931_SETUP:
 		if (missingmand) {
@@ -4536,7 +4594,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 
 		ctrl->ev.e = PRI_EVENT_RING;
 		ctrl->ev.ring.subcmds = &ctrl->subcmds;
-		ctrl->ev.ring.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		ctrl->ev.ring.channel = q931_encode_channel(c);
 
 		/* Calling party information */
 		ctrl->ev.ring.callingpres = q931_party_id_presentation(&c->remote_id);
@@ -4611,7 +4669,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		c->peercallstate = Q931_CALL_STATE_CALL_RECEIVED;
 		ctrl->ev.e = PRI_EVENT_RINGING;
 		ctrl->ev.ringing.subcmds = &ctrl->subcmds;
-		ctrl->ev.ringing.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		ctrl->ev.ringing.channel = q931_encode_channel(c);
 		ctrl->ev.ringing.cref = c->cr;
 		ctrl->ev.ringing.call = c;
 		ctrl->ev.ringing.progress = c->progress;
@@ -4644,7 +4702,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 
 		ctrl->ev.e = PRI_EVENT_ANSWER;
 		ctrl->ev.answer.subcmds = &ctrl->subcmds;
-		ctrl->ev.answer.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		ctrl->ev.answer.channel = q931_encode_channel(c);
 		ctrl->ev.answer.cref = c->cr;
 		ctrl->ev.answer.call = c;
 		ctrl->ev.answer.progress = c->progress;
@@ -4714,7 +4772,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			q931_status(ctrl,c,PRI_CAUSE_WRONG_MESSAGE);
 			break;
 		}
-		ctrl->ev.proceeding.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		ctrl->ev.proceeding.channel = q931_encode_channel(c);
 		if (mh->msg == Q931_CALL_PROCEEDING) {
 			ctrl->ev.e = PRI_EVENT_PROCEEDING;
 			UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING);
@@ -4775,7 +4833,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		if (!c->sugcallstate) {
 #endif
 			ctrl->ev.hangup.subcmds = &ctrl->subcmds;
-			ctrl->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+			ctrl->ev.hangup.channel = q931_encode_channel(c);
 			ctrl->ev.hangup.cause = c->cause;
 			ctrl->ev.hangup.cref = c->cr;
 			ctrl->ev.hangup.call = c;
@@ -4804,7 +4862,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_NULL);
 		c->peercallstate = Q931_CALL_STATE_NULL;
 		ctrl->ev.hangup.subcmds = &ctrl->subcmds;
-		ctrl->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		ctrl->ev.hangup.channel = q931_encode_channel(c);
 		ctrl->ev.hangup.cause = c->cause;
 		ctrl->ev.hangup.cref = c->cr;
 		ctrl->ev.hangup.call = c;
@@ -4840,7 +4898,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_NULL);
 		ctrl->ev.e = PRI_EVENT_HANGUP;
 		ctrl->ev.hangup.subcmds = &ctrl->subcmds;
-		ctrl->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		ctrl->ev.hangup.channel = q931_encode_channel(c);
 		ctrl->ev.hangup.cause = c->cause;
 		ctrl->ev.hangup.cref = c->cr;
 		ctrl->ev.hangup.call = c;
@@ -4875,7 +4933,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		/* Return such an event */
 		ctrl->ev.e = PRI_EVENT_HANGUP_REQ;
 		ctrl->ev.hangup.subcmds = &ctrl->subcmds;
-		ctrl->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		ctrl->ev.hangup.channel = q931_encode_channel(c);
 		ctrl->ev.hangup.cause = c->cause;
 		ctrl->ev.hangup.cref = c->cr;
 		ctrl->ev.hangup.call = c;
@@ -4891,7 +4949,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_NULL);
 		c->peercallstate = Q931_CALL_STATE_NULL;
 		ctrl->ev.e = PRI_EVENT_RESTART_ACK;
-		ctrl->ev.restartack.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		ctrl->ev.restartack.channel = q931_encode_channel(c);
 		return Q931_RES_HAVEEVENT;
 	case Q931_INFORMATION:
 		/* XXX We're handling only INFORMATION messages that contain
@@ -4906,14 +4964,14 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			ctrl->ev.e = PRI_EVENT_KEYPAD_DIGIT;
 			ctrl->ev.digit.subcmds = &ctrl->subcmds;
 			ctrl->ev.digit.call = c;
-			ctrl->ev.digit.channel = c->channelno | (c->ds1no << 8);
+			ctrl->ev.digit.channel = q931_encode_channel(c);
 			libpri_copy_string(ctrl->ev.digit.digits, c->keypad_digits, sizeof(ctrl->ev.digit.digits));
 			return Q931_RES_HAVEEVENT;
 		}
 		ctrl->ev.e = PRI_EVENT_INFO_RECEIVED;
 		ctrl->ev.ring.subcmds = &ctrl->subcmds;
 		ctrl->ev.ring.call = c;
-		ctrl->ev.ring.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		ctrl->ev.ring.channel = q931_encode_channel(c);
 		libpri_copy_string(ctrl->ev.ring.callednum, c->overlap_digits, sizeof(ctrl->ev.ring.callednum));
 		libpri_copy_string(ctrl->ev.ring.callingsubaddr, c->callingsubaddr, sizeof(ctrl->ev.ring.callingsubaddr));
 		ctrl->ev.ring.complete = c->complete; 	/* this covers IE 33 (Sending Complete) */
@@ -4933,7 +4991,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		c->peercallstate = Q931_CALL_STATE_OVERLAP_RECEIVING;
 		ctrl->ev.e = PRI_EVENT_SETUP_ACK;
 		ctrl->ev.setup_ack.subcmds = &ctrl->subcmds;
-		ctrl->ev.setup_ack.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+		ctrl->ev.setup_ack.channel = q931_encode_channel(c);
 		ctrl->ev.setup_ack.call = c;
 
 		cur = c->apdus;
@@ -5004,7 +5062,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		default:
 			ctrl->ev.e = PRI_EVENT_NOTIFY;
 			ctrl->ev.notify.subcmds = &ctrl->subcmds;
-			ctrl->ev.notify.channel = c->channelno;
+			ctrl->ev.notify.channel = q931_encode_channel(c);
 			ctrl->ev.notify.info = c->notify;
 			res = Q931_RES_HAVEEVENT;
 			break;
@@ -5057,7 +5115,7 @@ static int pri_internal_clear(void *data)
 	UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_NULL);
 	c->peercallstate = Q931_CALL_STATE_NULL;
 	ctrl->ev.hangup.subcmds = &ctrl->subcmds;
-	ctrl->ev.hangup.channel = c->channelno | (c->ds1no << 8) | (c->ds1explicit << 16);
+	ctrl->ev.hangup.channel = q931_encode_channel(c);
 	ctrl->ev.hangup.cause = c->cause;      		
 	ctrl->ev.hangup.cref = c->cr;          		
 	ctrl->ev.hangup.call = c;              		
