@@ -292,7 +292,8 @@ struct pri_sr {
 	struct q931_party_address called;
 	int userl1;
 	int numcomplete;
-	int justsignalling;
+	int cis_call;
+	int cis_auto_disconnect;
 	const char *useruserinfo;
 	int transferable;
 	int reversecharge;
@@ -367,7 +368,13 @@ struct q931_call {
 	int userl3;
 	int rateadaption;
 
-	int justsignalling;		/* for a signalling-only connection */
+	/*!
+	 * \brief TRUE if the call is a Call Independent Signalling connection.
+	 * \note The call has no B channel associated with it. (Just signalling)
+	 */
+	int cis_call;
+	/*! \brief TRUE if we will auto disconnect the cis_call we originated. */
+	int cis_auto_disconnect;
 
 	int progcode;			/* Progress coding */
 	int progloc;			/* Progress Location */	

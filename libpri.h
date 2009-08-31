@@ -599,7 +599,7 @@ typedef struct pri_event_hangup {
 	long aoc_units;				/* Advise of Charge number of charged units */
 	char useruserinfo[260];		/* User->User info */
 	struct pri_subcommands *subcmds;
-} pri_event_hangup;	
+} pri_event_hangup;
 
 typedef struct pri_event_restart_ack {
 	int e;
@@ -617,7 +617,7 @@ typedef struct pri_event_proceeding {
 	q931_call *call;
 	struct pri_subcommands *subcmds;
 } pri_event_proceeding;
- 
+
 typedef struct pri_event_setup_ack {
 	int e;
 	int channel;
@@ -681,7 +681,7 @@ typedef int (*pri_io_cb)(struct pri *pri, void *buf, int buflen);
 
 /* Create a D-channel on a given file descriptor.  The file descriptor must be a
    channel operating in HDLC mode with FCS computed by the fd's driver.  Also it
-   must be NON-BLOCKING! Frames received on the fd should include FCS.  Nodetype 
+   must be NON-BLOCKING! Frames received on the fd should include FCS.  Nodetype
    must be one of PRI_NETWORK or PRI_CPE.  switchtype should be PRI_SWITCH_* */
 struct pri *pri_new(int fd, int nodetype, int switchtype);
 struct pri *pri_new_bri(int fd, int ptpmode, int nodetype, int switchtype);
@@ -856,8 +856,17 @@ void pri_call_set_useruser(q931_call *sr, const char *userchars);
 
 int pri_setup(struct pri *pri, q931_call *call, struct pri_sr *req);
 
-/* Set a call has a call indpendent signalling connection (i.e. no bchan) */
+/*!
+ * \brief Set a call as a call indpendent signalling connection (i.e. no bchan)
+ * \note Call will automaticlly disconnect after signalling sent.
+ */
 int pri_sr_set_connection_call_independent(struct pri_sr *req);
+
+/*!
+ * \brief Set a call as a call indpendent signalling connection (i.e. no bchan)
+ * \note Call will stay connected until explicitly disconnected.
+ */
+int pri_sr_set_no_channel_call(struct pri_sr *req);
 
 /* Send an MWI indication to a remote location.  If activate is non zero, activates, if zero, deactivates */
 int pri_mwi_activate(struct pri *pri, q931_call *c, char *caller, int callerplan, char *callername, int callerpres, char *called, int calledplan);

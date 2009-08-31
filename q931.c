@@ -650,13 +650,13 @@ static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, in
 #ifndef NOAUTO_CHANNEL_SELECTION_SUPPORT
 	if (ctrl->bri) {
 		if (!(ie->data[0] & 3))
-			call->justsignalling = 1;
+			call->cis_call = 1;
 		else
 			call->channelno = ie->data[0] & 3;
 	} else {
 		switch (ie->data[0] & 3) {
 			case 0:
-				call->justsignalling = 1;
+				call->cis_call = 1;
 				break;
 			case 1:
 				break;
@@ -719,10 +719,14 @@ static int transmit_channel_id(int full_ie, struct pri *ctrl, q931_call *call, i
 	/* We are ready to transmit single IE only */
 	if (order > 1)
 		return 0;
-	
-	if (call->justsignalling) {
-		ie->data[pos++] = 0xac; /* Read the standards docs to figure this out
-					   ECMA-165 section 7.3 */
+
+	if (call->cis_call) {
+		/*
+		 * Read the standards docs to figure this out.
+		 * Q.SIG ECMA-165 section 7.3
+		 * ITU Q.931 section 4.5.13
+		 */
+		ie->data[pos++] = ctrl->bri ? 0x8c : 0xac;
 		return pos + 2;
 	}
 		
@@ -1178,20 +1182,20 @@ static int transmit_bearer_capability(int full_ie, struct pri *ctrl, q931_call *
 	if(order > 1)
 		return 0;
 
-	tc = call->transcapability;
 	if (ctrl->subchannel && !ctrl->bri) {
 		/* Bearer capability is *hard coded* in GR-303 */
 		ie->data[0] = 0x88;
 		ie->data[1] = 0x90;
 		return 4;
 	}
-	
-	if (call->justsignalling) {
+
+	if (call->cis_call) {
 		ie->data[0] = 0xa8;
 		ie->data[1] = 0x80;
 		return 4;
 	}
-	
+
+	tc = call->transcapability;
 	ie->data[0] = 0x80 | tc;
 	ie->data[1] = call->transmoderate | 0x80;
 
@@ -3804,7 +3808,8 @@ static int setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_IE_F
 
 static int gr303_setup_ies[] =  { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, -1 };
 
-static int cis_setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_IE_FACILITY, Q931_CALLED_PARTY_NUMBER, -1 };
+/*! Call Independent Signalling SETUP ie's */
+static int cis_setup_ies[] = { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT, Q931_IE_FACILITY, Q931_CALLING_PARTY_NUMBER, Q931_CALLED_PARTY_NUMBER, Q931_SENDING_COMPLETE, -1 };
 
 int q931_setup(struct pri *ctrl, q931_call *c, struct pri_sr *req)
 {
@@ -3830,7 +3835,8 @@ int q931_setup(struct pri *ctrl, q931_call *c, struct pri_sr *req)
 	c->slotmap = -1;
 	c->nonisdn = req->nonisdn;
 	c->newcall = 0;
-	c->justsignalling = req->justsignalling;		
+	c->cis_call = req->cis_call;
+	c->cis_auto_disconnect = req->cis_auto_disconnect;
 	c->complete = req->numcomplete; 
 	if (req->exclusive) 
 		c->chanflags = FLAG_EXCLUSIVE;
@@ -3871,7 +3877,7 @@ int q931_setup(struct pri *ctrl, q931_call *c, struct pri_sr *req)
 
 	if (ctrl->subchannel && !ctrl->bri)
 		res = send_message(ctrl, c, Q931_SETUP, gr303_setup_ies);
-	else if (c->justsignalling)
+	else if (c->cis_call)
 		res = send_message(ctrl, c, Q931_SETUP, cis_setup_ies);
 	else
 		res = send_message(ctrl, c, Q931_SETUP, setup_ies);
@@ -3936,15 +3942,29 @@ int q931_hangup(struct pri *ctrl, q931_call *c, int cause)
 	/* If mandatory IE was missing, insist upon that cause code */
 	if (c->cause == PRI_CAUSE_MANDATORY_IE_MISSING)
 		cause = c->cause;
-	if (cause == 34 || cause == 44 || cause == 82 || cause == 1 || cause == 81) {
+	switch (cause) {
+	case PRI_CAUSE_NORMAL_CIRCUIT_CONGESTION:
+	case PRI_CAUSE_REQUESTED_CHAN_UNAVAIL:
+	case PRI_CAUSE_IDENTIFIED_CHANNEL_NOTEXIST:
+	case PRI_CAUSE_UNALLOCATED:
+	case PRI_CAUSE_INVALID_CALL_REFERENCE:
 		/* We'll send RELEASE_COMPLETE with these causes */
 		disconnect = 0;
 		release_compl = 1;
-	}
-	if (cause == 6 || cause == 7 || cause == 26) {
+		break;
+	case PRI_CAUSE_CHANNEL_UNACCEPTABLE:
+	case PRI_CAUSE_CALL_AWARDED_DELIVERED:
+	case 26:
 		/* We'll send RELEASE with these causes */
 		disconnect = 0;
+		break;
+	default:
+		break;
 	}
+	if (c->cis_call) {
+		disconnect = 0;
+	}
+
 	/* All other causes we send with DISCONNECT */
 	switch(c->ourcallstate) {
 	case Q931_CALL_STATE_NULL:
@@ -3973,21 +3993,34 @@ int q931_hangup(struct pri *ctrl, q931_call *c, int cause)
 	case Q931_CALL_STATE_OVERLAP_RECEIVING:
 		/* received SETUP_ACKNOWLEDGE */
 		/* send DISCONNECT in general */
-		if (c->peercallstate != Q931_CALL_STATE_NULL && c->peercallstate != Q931_CALL_STATE_DISCONNECT_REQUEST && c->peercallstate != Q931_CALL_STATE_DISCONNECT_INDICATION && c->peercallstate != Q931_CALL_STATE_RELEASE_REQUEST && c->peercallstate != Q931_CALL_STATE_RESTART_REQUEST && c->peercallstate != Q931_CALL_STATE_RESTART) {
+		switch (c->peercallstate) {
+		default:
 			if (disconnect)
 				q931_disconnect(ctrl,c,cause);
 			else if (release_compl)
 				q931_release_complete(ctrl,c,cause);
 			else
 				q931_release(ctrl,c,cause);
-		} else 
+			break;
+		case Q931_CALL_STATE_NULL:
+		case Q931_CALL_STATE_DISCONNECT_REQUEST:
+		case Q931_CALL_STATE_DISCONNECT_INDICATION:
+		case Q931_CALL_STATE_RELEASE_REQUEST:
+		case Q931_CALL_STATE_RESTART_REQUEST:
+		case Q931_CALL_STATE_RESTART:
 			pri_error(ctrl,
 				"Wierd, doing nothing but this shouldn't happen, ourstate %s, peerstate %s\n",
 				q931_call_state_str(c->ourcallstate),
 				q931_call_state_str(c->peercallstate));
+			break;
+		}
 		break;
 	case Q931_CALL_STATE_ACTIVE:
 		/* received CONNECT */
+		if (c->cis_call) {
+			q931_release(ctrl, c, cause);
+			break;
+		}
 		q931_disconnect(ctrl,c,cause);
 		break;
 	case Q931_CALL_STATE_DISCONNECT_REQUEST:
@@ -4621,8 +4654,9 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 
 		q931_connect_acknowledge(ctrl, c);
 
-		if (c->justsignalling) {  /* Make sure WE release when we initiatie a signalling only connection */
-			q931_release(ctrl, c, PRI_CAUSE_NORMAL_CLEARING);
+		if (c->cis_auto_disconnect && c->cis_call) {
+			/* Make sure WE release when we initiate a signalling only connection */
+			q931_hangup(ctrl, c, PRI_CAUSE_NORMAL_CLEARING);
 			break;
 		} else {
 			c->incoming_ct_state = INCOMING_CT_STATE_IDLE;
