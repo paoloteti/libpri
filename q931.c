@@ -3116,8 +3116,7 @@ static void q931_destroy(struct pri *ctrl, int cr, q931_call *c)
 					"NEW_HANGUP DEBUG: Destroying the call, ourstate %s, peerstate %s\n",
 					q931_call_state_str(cur->ourcallstate),
 					q931_call_state_str(cur->peercallstate));
-			if (cur->retranstimer)
-				pri_schedule_del(ctrl, cur->retranstimer);
+			pri_schedule_del(ctrl, cur->retranstimer);
 			pri_call_apdu_queue_cleanup(cur);
 			free(cur);
 			return;
@@ -3754,8 +3753,7 @@ int q931_connect(struct pri *ctrl, q931_call *c, int channel, int nonisdn)
 	c->peercallstate = Q931_CALL_STATE_ACTIVE;
 	c->alive = 1;
 	/* Connect request timer */
-	if (c->retranstimer)
-		pri_schedule_del(ctrl, c->retranstimer);
+	pri_schedule_del(ctrl, c->retranstimer);
 	c->retranstimer = 0;
 	if ((c->ourcallstate == Q931_CALL_STATE_CONNECT_REQUEST) && (ctrl->bri || (!ctrl->subchannel)))
 		c->retranstimer = pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T313], pri_connect_timeout, c);
@@ -3797,8 +3795,7 @@ int q931_release(struct pri *ctrl, q931_call *c, int cause)
 		c->causecode = CODE_CCITT;
 		c->causeloc = LOC_PRIV_NET_LOCAL_USER;
 		if (c->acked) {
-			if (c->retranstimer)
-				pri_schedule_del(ctrl, c->retranstimer);
+			pri_schedule_del(ctrl, c->retranstimer);
 			if (!c->t308_timedout) {
 				c->retranstimer = pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T308], pri_release_timeout, c);
 			} else {
@@ -3845,8 +3842,7 @@ int q931_disconnect(struct pri *ctrl, q931_call *c, int cause)
 		c->causecode = CODE_CCITT;
 		c->causeloc = LOC_PRIV_NET_LOCAL_USER;
 		c->sendhangupack = 1;
-		if (c->retranstimer)
-			pri_schedule_del(ctrl, c->retranstimer);
+		pri_schedule_del(ctrl, c->retranstimer);
 		c->retranstimer = pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T305], pri_disconnect_timeout, c);
 		return send_message(ctrl, c, Q931_DISCONNECT, disconnect_ies);
 	} else
@@ -4210,8 +4206,7 @@ static int prepare_to_handle_q931_message(struct pri *ctrl, q931_mh *mh, q931_ca
 		c->progressmask = 0;
 		break;
 	case Q931_CONNECT_ACKNOWLEDGE:
-		if (c->retranstimer)
-			pri_schedule_del(ctrl, c->retranstimer);
+		pri_schedule_del(ctrl, c->retranstimer);
 		c->retranstimer = 0;
 		break;
 	case Q931_RELEASE:
@@ -4220,14 +4215,12 @@ static int prepare_to_handle_q931_message(struct pri *ctrl, q931_mh *mh, q931_ca
 		c->causecode = -1;
 		c->causeloc = -1;
 		c->aoc_units = -1;
-		if (c->retranstimer)
-			pri_schedule_del(ctrl, c->retranstimer);
+		pri_schedule_del(ctrl, c->retranstimer);
 		c->retranstimer = 0;
 		c->useruserinfo[0] = '\0';
 		break;
 	case Q931_RELEASE_COMPLETE:
-		if (c->retranstimer)
-			pri_schedule_del(ctrl, c->retranstimer);
+		pri_schedule_del(ctrl, c->retranstimer);
 		c->retranstimer = 0;
 		c->useruserinfo[0] = '\0';
 		/* Fall through */
@@ -5102,8 +5095,7 @@ static int pri_internal_clear(void *data)
 	struct pri *ctrl = c->pri;
 	int res;
 
-	if (c->retranstimer)
-		pri_schedule_del(ctrl, c->retranstimer);
+	pri_schedule_del(ctrl, c->retranstimer);
 	c->retranstimer = 0;
 	c->useruserinfo[0] = '\0';
 	c->cause = -1;
@@ -5190,8 +5182,7 @@ void q931_dl_indication(struct pri *ctrl, int event)
 				pri_message(ctrl, DBGHEAD "cancel call %d on channel %d in state %d (%s)\n", DBGINFO,
 					cur->cr, cur->channelno, cur->ourcallstate,
 					q931_call_state_str(cur->ourcallstate));
-				if (cur->retranstimer)
-					pri_schedule_del(ctrl, cur->retranstimer);
+				pri_schedule_del(ctrl, cur->retranstimer);
 				cur->retranstimer = pri_schedule_event(ctrl, 0, pri_dl_down_cancelcall, cur);
 			}
 			cur = cur->next;

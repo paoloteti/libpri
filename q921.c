@@ -139,8 +139,7 @@ static void q921_tei_request(void *vpri)
 #endif
 	pri->ri = random() % 65535;
 	q921_send_tei(pri, Q921_TEI_IDENTITY_REQUEST, pri->ri, Q921_TEI_GROUP, 1);
-	if (pri->t202_timer)
-		pri_schedule_del(pri, pri->t202_timer);
+	pri_schedule_del(pri, pri->t202_timer);
 	pri->t202_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T202], q921_tei_request, pri);
 }
 
@@ -174,8 +173,8 @@ static void q921_send_sabme(void *vpri, int now)
 {
 	struct pri *pri = vpri;
 	q921_h h;
+
 	pri_schedule_del(pri, pri->sabme_timer);
-	pri->sabme_timer = 0;
 	pri->sabme_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], q921_send_sabme_now, pri);
 	if (!now)
 		return;
@@ -253,8 +252,7 @@ static void reschedule_t200(struct pri *pri)
 {
 	if (pri->debug & PRI_DEBUG_Q921_DUMP)
 		pri_message(pri, "-- Restarting T200 timer\n");
-	if (pri->t200_timer)
-		pri_schedule_del(pri, pri->t200_timer);
+	pri_schedule_del(pri, pri->t200_timer);
 	pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
 }
 
@@ -262,8 +260,7 @@ static void reschedule_t203(struct pri *pri)
 {
 	if (pri->debug & PRI_DEBUG_Q921_DUMP)
 		pri_message(pri, "-- Restarting T203 timer\n");
-	if (pri->t203_timer) 
-		pri_schedule_del(pri, pri->t203_timer);
+	pri_schedule_del(pri, pri->t203_timer);
 	pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
 }
 
@@ -311,10 +308,8 @@ static pri_event *q921_ack_rx(struct pri *pri, int ack, int send_untransmitted_f
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
 			pri_message(pri, "-- Since there was nothing left, stopping T200 counter\n");
 		/* Something was ACK'd.  Stop T200 counter */
-		if (pri->t200_timer) {
-			pri_schedule_del(pri, pri->t200_timer);
-			pri->t200_timer = 0;
-		}
+		pri_schedule_del(pri, pri->t200_timer);
+		pri->t200_timer = 0;
 	}
 	if (pri->t203_timer) {
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
@@ -785,10 +780,8 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 pri_event *q921_dchannel_up(struct pri *pri)
 {
 	/* Stop any SABME retransmissions */
-	if (pri->sabme_timer) {
-		pri_schedule_del(pri, pri->sabme_timer);
-		pri->sabme_timer = 0;
-	}
+	pri_schedule_del(pri, pri->sabme_timer);
+	pri->sabme_timer = 0;
 	
 	/* Reset any rejects */
 	pri->sentrej = 0;
@@ -833,12 +826,9 @@ void q921_reset(struct pri *pri)
 	pri->v_na = 0;
 	pri->window = pri->timers[PRI_TIMER_K];
 	pri->windowlen = 0;
-	if (pri->sabme_timer)
-		pri_schedule_del(pri, pri->sabme_timer);
-	if (pri->t203_timer)
-		pri_schedule_del(pri, pri->t203_timer);
-	if (pri->t200_timer)
-		pri_schedule_del(pri, pri->t200_timer);
+	pri_schedule_del(pri, pri->sabme_timer);
+	pri_schedule_del(pri, pri->t203_timer);
+	pri_schedule_del(pri, pri->t200_timer);
 	pri->sabme_timer = 0;
 	pri->sabme_count = 0;
 	pri->t203_timer = 0;
@@ -909,10 +899,8 @@ static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
 			pri_message(pri, "TEI assignment received for invalid Ri %02x (our is %02x)\n", ri, pri->ri);
 			return NULL;
 		}
-		if (pri->t202_timer) {
-			pri_schedule_del(pri, pri->t202_timer);
-			pri->t202_timer = 0;
-		}
+		pri_schedule_del(pri, pri->t202_timer);
+		pri->t202_timer = 0;
 		if (pri->subchannel && (pri->subchannel->tei == tei)) {
 			pri_error(pri, "TEI already assigned (new is %d, current is %d)\n", tei, pri->subchannel->tei);
 			q921_tei_release_and_reacquire(pri);
@@ -1082,10 +1070,8 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 					}
 				}
 				/* Reset t200 timer if it was somehow going */
-				if (pri->t200_timer) {
-					pri_schedule_del(pri, pri->t200_timer);
-					pri->t200_timer = 0;
-				}
+				pri_schedule_del(pri, pri->t200_timer);
+				pri->t200_timer = 0;
 				/* Reset and restart t203 timer */
 				reschedule_t203(pri);
 			}
