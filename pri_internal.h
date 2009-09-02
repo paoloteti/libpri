@@ -32,6 +32,8 @@
 
 #include <stddef.h>
 #include <sys/time.h>
+#include "pri_q921.h"
+#include "pri_q931.h"
 
 #define ARRAY_LEN(arr)	(sizeof(arr) / sizeof((arr)[0]))
 
@@ -43,10 +45,6 @@ struct pri_sched {
 	void (*callback)(void *data);
 	void *data;
 };
-
-struct q921_frame;
-enum q931_state;
-enum q931_mode;
 
 /*! Maximum number of scheduled events active at the same time. */
 #define MAX_SCHED 128
@@ -387,9 +385,9 @@ struct q931_call {
 	int causeloc;			/* Cause Location */
 	int cause;				/* Cause of clearing */
 	
-	int peercallstate;		/* Call state of peer as reported */
-	int ourcallstate;		/* Our call state */
-	int sugcallstate;		/* Status call state */
+	enum Q931_CALL_STATE peercallstate;	/* Call state of peer as reported */
+	enum Q931_CALL_STATE ourcallstate;	/* Our call state */
+	enum Q931_CALL_STATE sugcallstate;	/* Status call state */
 
 	int ani2;               /* ANI II */
 

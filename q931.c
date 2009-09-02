@@ -68,7 +68,7 @@ static struct msgtype msgs[] = {
 	{ Q931_RESTART_ACKNOWLEDGE, "RESTART ACKNOWLEDGE", { Q931_RESTART_INDICATOR } },
 
 	/* Miscellaneous */
-	{ Q931_STATUS, "STATUS", { Q931_CAUSE, Q931_CALL_STATE } },
+	{ Q931_STATUS, "STATUS", { Q931_CAUSE, Q931_IE_CALL_STATE } },
 	{ Q931_STATUS_ENQUIRY, "STATUS ENQUIRY" },
 	{ Q931_USER_INFORMATION, "USER_INFORMATION" },
 	{ Q931_SEGMENT, "SEGMENT" },
@@ -2789,7 +2789,7 @@ static struct ie ies[] = {
 	{ 0, Q931_LOCKING_SHIFT, "Locking Shift", dump_shift },
 	{ 0, Q931_BEARER_CAPABILITY, "Bearer Capability", dump_bearer_capability, receive_bearer_capability, transmit_bearer_capability },
 	{ 0, Q931_CAUSE, "Cause", dump_cause, receive_cause, transmit_cause },
-	{ 1, Q931_CALL_STATE, "Call State", dump_call_state, receive_call_state, transmit_call_state },
+	{ 1, Q931_IE_CALL_STATE, "Call State", dump_call_state, receive_call_state, transmit_call_state },
 	{ 0, Q931_CHANNEL_IDENT, "Channel Identification", dump_channel_id, receive_channel_id, transmit_channel_id },
 	{ 0, Q931_PROGRESS_INDICATOR, "Progress Indicator", dump_progress_indicator, receive_progress_indicator, transmit_progress_indicator },
 	{ 0, Q931_NETWORK_SPEC_FAC, "Network-Specific Facilities", dump_network_spec_fac, receive_network_spec_fac, transmit_network_spec_fac },
@@ -3418,7 +3418,7 @@ int maintenance_service(struct pri *ctrl, int span, int channel, int changestatu
 	return send_message(ctrl, c, (MAINTENANCE_PROTOCOL_DISCRIMINATOR_1 << 8) | NATIONAL_SERVICE, maintenance_service_ies);
 }
 
-static int status_ies[] = { Q931_CAUSE, Q931_CALL_STATE, -1 };
+static int status_ies[] = { Q931_CAUSE, Q931_IE_CALL_STATE, -1 };
 
 static int q931_status(struct pri *ctrl, q931_call *c, int cause)
 {
