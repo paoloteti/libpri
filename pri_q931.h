@@ -75,7 +75,9 @@ typedef struct q931_ie {
 
 #define Q931_PROTOCOL_DISCRIMINATOR 0x08
 #define GR303_PROTOCOL_DISCRIMINATOR 0x4f
+/* AT&T Maintenance Protocol Discriminator */
 #define MAINTENANCE_PROTOCOL_DISCRIMINATOR_1 0x03
+/* National Maintenance Protocol Discriminator */
 #define MAINTENANCE_PROTOCOL_DISCRIMINATOR_2 0x43
 
 /* Q.931 / National ISDN Message Types */
@@ -121,8 +123,10 @@ typedef struct q931_ie {
 #define Q931_SUSPEND_REJECT			0x21
 
 /* Maintenance messages (codeset 0 only) */
-#define NATIONAL_SERVICE			0x0f
-#define NATIONAL_SERVICE_ACKNOWLEDGE	0x07
+#define ATT_SERVICE                 0x0f
+#define ATT_SERVICE_ACKNOWLEDGE     0x07
+#define NATIONAL_SERVICE            0x07
+#define NATIONAL_SERVICE_ACKNOWLEDGE 0x0f
 
 #define SERVICE_CHANGE_STATUS_INSERVICE           0
 #define SERVICE_CHANGE_STATUS_LOOPBACK            1  /* not supported */

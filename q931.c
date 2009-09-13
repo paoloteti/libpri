@@ -93,11 +93,16 @@ static struct msgtype msgs[] = {
 };
 static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct q931_call *c, int missingmand);
 
-struct msgtype maintenance_msgs[] = {
+struct msgtype att_maintenance_msgs[] = {
+	{ ATT_SERVICE, "SERVICE", { Q931_CHANNEL_IDENT } },
+	{ ATT_SERVICE_ACKNOWLEDGE, "SERVICE ACKNOWLEDGE", { Q931_CHANNEL_IDENT } },
+};
+
+struct msgtype national_maintenance_msgs[] = {
 	{ NATIONAL_SERVICE, "SERVICE", { Q931_CHANNEL_IDENT } },
 	{ NATIONAL_SERVICE_ACKNOWLEDGE, "SERVICE ACKNOWLEDGE", { Q931_CHANNEL_IDENT } },
 };
-static int post_handle_maintenance_message(struct pri *ctrl, struct q931_mh *mh, struct q931_call *c);
+static int post_handle_maintenance_message(struct pri *ctrl, int protodisc, struct q931_mh *mh, struct q931_call *c);
 
 static struct msgtype causes[] = {
 	{ PRI_CAUSE_UNALLOCATED, "Unallocated (unassigned) number" },
@@ -2915,12 +2920,23 @@ static char *msg2str(int msg)
 	return "Unknown Message Type";
 }
 
-static char *maintenance_msg2str(int msg)
+static char *maintenance_msg2str(int msg, int pd)
 {
-	unsigned int x;
-	for (x=0; x<sizeof(maintenance_msgs)/sizeof(maintenance_msgs[0]); x++) {
-		if (maintenance_msgs[x].msgnum == msg)
-			return maintenance_msgs[x].name;
+	unsigned int x, max;
+	struct msgtype *m = NULL;
+
+	if (pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) {
+		m = att_maintenance_msgs;
+		max = ARRAY_LEN(att_maintenance_msgs);
+	} else {
+		m = national_maintenance_msgs;
+		max = ARRAY_LEN(national_maintenance_msgs);
+	}
+
+	for (x = 0; x < max; x++) {
+		if (m[x].msgnum == msg) {
+			return m[x].name;
+		}
 	}
 	return "Unknown Message Type";
 }
@@ -3225,7 +3241,7 @@ void q931_dump(struct pri *ctrl, q931_h *h, int len, int txrx)
 	/* Message header begins at the end of the call reference number */
 	mh = (q931_mh *)(h->contents + h->crlen);
 	if ((h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) || (h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_2)) {
-		pri_message(ctrl, "%c Message Type: %s (%d)\n", c, maintenance_msg2str(mh->msg), mh->msg);
+		pri_message(ctrl, "%c Message Type: %s (%d)\n", c, maintenance_msg2str(mh->msg, h->pd), mh->msg);
 	} else {
 		pri_message(ctrl, "%c Message Type: %s (%d)\n", c, msg2str(mh->msg), mh->msg);
 	}
@@ -3394,12 +3410,21 @@ static int maintenance_service_ies[] = { Q931_IE_CHANGE_STATUS, Q931_CHANNEL_IDE
 
 int maintenance_service_ack(struct pri *ctrl, q931_call *c)
 {
-	return send_message(ctrl, c, (MAINTENANCE_PROTOCOL_DISCRIMINATOR_1 << 8) | NATIONAL_SERVICE_ACKNOWLEDGE, maintenance_service_ies);
+	int pd = MAINTENANCE_PROTOCOL_DISCRIMINATOR_1;
+	int mt = ATT_SERVICE_ACKNOWLEDGE;
+
+	if (ctrl->switchtype == PRI_SWITCH_NI2) {
+		pd = MAINTENANCE_PROTOCOL_DISCRIMINATOR_2;
+		mt = NATIONAL_SERVICE_ACKNOWLEDGE;
+	}
+	return send_message(ctrl, c, (pd << 8) | mt, maintenance_service_ies);
 }
 
 int maintenance_service(struct pri *ctrl, int span, int channel, int changestatus)
 {
 	struct q931_call *c;
+	int pd = MAINTENANCE_PROTOCOL_DISCRIMINATOR_1;
+	int mt = ATT_SERVICE;
 
 	c = q931_getcall(ctrl, 0 | 0x8000);
 	if (!c) {
@@ -3415,7 +3440,12 @@ int maintenance_service(struct pri *ctrl, int span, int channel, int changestatu
 	c->ds1no = span;
 	c->ds1explicit = 0;
 	c->changestatus = changestatus;
-	return send_message(ctrl, c, (MAINTENANCE_PROTOCOL_DISCRIMINATOR_1 << 8) | NATIONAL_SERVICE, maintenance_service_ies);
+
+	if (ctrl->switchtype == PRI_SWITCH_NI2) {
+		pd = MAINTENANCE_PROTOCOL_DISCRIMINATOR_2;
+		mt = NATIONAL_SERVICE;
+	}
+	return send_message(ctrl, c, (pd << 8) | mt, maintenance_service_ies);
 }
 
 static int status_ies[] = { Q931_CAUSE, Q931_IE_CALL_STATE, -1 };
@@ -4126,10 +4156,13 @@ static int prepare_to_handle_maintenance_message(struct pri *ctrl, q931_mh *mh, 
 		return -1;
 	}
 	/* SERVICE messages are a superset of messages that can take b-channels
- 	 * or entire d-channels in and out of service */
+	 * or entire d-channels in and out of service */
 	switch(mh->msg) {
-		case NATIONAL_SERVICE:
-		case NATIONAL_SERVICE_ACKNOWLEDGE:
+		/* the ATT_SERVICE/ATT_SERVICE_ACKNOWLEDGE and NATIONAL_SERVICE/NATIONAL_SERVICE_ACKNOWLEDGE
+		 * are mirrors of each other.  We only have to check for one type because they are pre-handled
+		 * the same way as each other */
+		case ATT_SERVICE:
+		case ATT_SERVICE_ACKNOWLEDGE:
 			c->channelno = -1;
 			c->slotmap = -1;
 			c->chanflags = 0;
@@ -4140,7 +4173,7 @@ static int prepare_to_handle_maintenance_message(struct pri *ctrl, q931_mh *mh, 
 			c->changestatus = -1;
 			break;
 		default:
-			pri_error(ctrl, "!! Don't know how to pre-handle maintenance message type '%s' (%d)\n", maintenance_msg2str(mh->msg), mh->msg);
+			pri_error(ctrl, "!! Don't know how to pre-handle maintenance message type '%d'\n", mh->msg);
 			return -1;
 	}
 	return 0;
@@ -4416,21 +4449,21 @@ int q931_receive(struct pri *ctrl, q931_h *h, int len)
 			}
 		}
 	}
-	
+
 	/* Post handling */
 	if ((h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) || (h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_2)) {
-		res = post_handle_maintenance_message(ctrl, mh, c);
+		res = post_handle_maintenance_message(ctrl, h->pd, mh, c);
 	} else {
 		res = post_handle_q931_message(ctrl, mh, c, missingmand);
 	}
 	return res;
 }
 
-static int post_handle_maintenance_message(struct pri *ctrl, struct q931_mh *mh, struct q931_call *c)
+static int post_handle_maintenance_message(struct pri *ctrl, int protodisc, struct q931_mh *mh, struct q931_call *c)
 {
 	/* Do some maintenance stuff */
-	switch (mh->msg) {
-	case NATIONAL_SERVICE:	
+	if (((protodisc == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) && (mh->msg == ATT_SERVICE))
+		|| ((protodisc == MAINTENANCE_PROTOCOL_DISCRIMINATOR_2) && (mh->msg == NATIONAL_SERVICE))) {
 		if (c->channelno > 0) {
 			ctrl->ev.e = PRI_EVENT_SERVICE;
 			ctrl->ev.service.channel = q931_encode_channel(c);
@@ -4452,7 +4485,9 @@ static int post_handle_maintenance_message(struct pri *ctrl, struct q931_mh *mh,
 		}
 		maintenance_service_ack(ctrl, c);
 		return Q931_RES_HAVEEVENT;
-	case NATIONAL_SERVICE_ACKNOWLEDGE:
+	}
+	if (((protodisc == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) && (mh->msg == ATT_SERVICE_ACKNOWLEDGE))
+		|| ((protodisc == MAINTENANCE_PROTOCOL_DISCRIMINATOR_2) && (mh->msg == NATIONAL_SERVICE_ACKNOWLEDGE))) {
 		if (c->channelno > 0) {
 			ctrl->ev.e = PRI_EVENT_SERVICE_ACK;
 			ctrl->ev.service_ack.channel = q931_encode_channel(c);
@@ -4473,9 +4508,9 @@ static int post_handle_maintenance_message(struct pri *ctrl, struct q931_mh *mh,
 			}
 		}
 		return Q931_RES_HAVEEVENT;
-	default:
-		pri_error(ctrl, "!! Don't know how to post-handle maintenance message type %s (%d)\n", maintenance_msg2str(mh->msg), mh->msg);
 	}
+
+	pri_error(ctrl, "!! Don't know how to post-handle maintenance message type %d\n", mh->msg);
 	return -1;
 }
 
