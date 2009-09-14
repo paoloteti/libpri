@@ -616,33 +616,34 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 		char *buf = malloc(len * 3 + 1);
 		int buflen = 0;
 		if (buf) {
+			pri_message(pri, "\n");
 			for (x=0;x<len;x++) 
 				buflen += sprintf(buf + buflen, "%02x ", h->raw[x]);
-			pri_message(pri, "\n%c [ %s]\n", direction_tag, buf);
+			pri_message(pri, "%c [ %s]\n", direction_tag, buf);
 			free(buf);
 		}
 	}
 
+	pri_message(pri, "\n");
 	switch (h->h.data[0] & Q921_FRAMETYPE_MASK) {
 	case 0:
 	case 2:
-		pri_message(pri, "\n%c Informational frame:\n", direction_tag);
+		pri_message(pri, "%c Informational frame:\n", direction_tag);
 		break;
 	case 1:
-		pri_message(pri, "\n%c Supervisory frame:\n", direction_tag);
+		pri_message(pri, "%c Supervisory frame:\n", direction_tag);
 		break;
 	case 3:
-		pri_message(pri, "\n%c Unnumbered frame:\n", direction_tag);
+		pri_message(pri, "%c Unnumbered frame:\n", direction_tag);
 		break;
 	}
 	
-	pri_message(pri, 
-"%c SAPI: %02d  C/R: %d EA: %d\n"
-"%c  TEI: %03d        EA: %d\n", 
+	pri_message(pri, "%c SAPI: %02d  C/R: %d EA: %d\n",
     	direction_tag,
 	h->h.sapi, 
 	h->h.c_r,
-	h->h.ea1,
+	h->h.ea1);
+	pri_message(pri, "%c  TEI: %03d        EA: %d\n", 
     	direction_tag,
 	h->h.tei,
 	h->h.ea2);
@@ -652,15 +653,17 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 	case 2:
 		/* Informational frame */
 		pri_message(pri, 
-"%c N(S): %03d   0: %d\n"
-"%c N(R): %03d   P: %d\n"
-"%c %d bytes of data\n",
+"%c N(S): %03d   0: %d\n",
     	direction_tag,
 	h->i.n_s,
-	h->i.ft,
+	h->i.ft);
+		pri_message(pri, 
+"%c N(R): %03d   P: %d\n",
     	direction_tag,
 	h->i.n_r,
-	h->i.p_f, 
+	h->i.p_f);
+		pri_message(pri, 
+"%c %d bytes of data\n",
     	direction_tag,
 	len - 4);
 		break;
@@ -679,17 +682,19 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 			break;
 		}
 		pri_message(pri, 
-"%c Zero: %d     S: %d 01: %d  [ %s ]\n"
-"%c N(R): %03d P/F: %d\n"
-"%c %d bytes of data\n",
+"%c Zero: %d     S: %d 01: %d  [ %s ]\n",
     	direction_tag,
 	h->s.x0,
 	h->s.ss,
 	h->s.ft,
-	type,
+	type);
+		pri_message(pri, 
+"%c N(R): %03d P/F: %d\n",
 	direction_tag,
 	h->s.n_r,
-	h->s.p_f, 
+	h->s.p_f);
+		pri_message(pri, 
+"%c %d bytes of data\n",
 	direction_tag,
 	len - 4);
 		break;
@@ -725,14 +730,15 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 			}
 		}
 		pri_message(pri, 
-"%c   M3: %d   P/F: %d M2: %d 11: %d  [ %s ]\n"
-"%c %d bytes of data\n",
+"%c   M3: %d   P/F: %d M2: %d 11: %d  [ %s ]\n",
 	direction_tag,
 	h->u.m3,
 	h->u.p_f,
 	h->u.m2,
 	h->u.ft,
-	type,
+	type);
+		pri_message(pri, 
+"%c %d bytes of data\n",
 	direction_tag,
 	len - 3);
 		break;
