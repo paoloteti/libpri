@@ -5142,6 +5142,7 @@ static int pri_internal_clear(void *data)
 
 	UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_NULL);
 	c->peercallstate = Q931_CALL_STATE_NULL;
+	q931_clr_subcommands(ctrl);
 	ctrl->ev.hangup.subcmds = &ctrl->subcmds;
 	ctrl->ev.hangup.channel = q931_encode_channel(c);
 	ctrl->ev.hangup.cause = c->cause;      		
