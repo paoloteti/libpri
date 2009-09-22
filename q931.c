@@ -3035,6 +3035,11 @@ static q931_call *q931_getcall(struct pri *ctrl, int cr)
 	prev = NULL;
 	while (cur) {
 		if (cur->cr == cr) {
+			if (!ctrl->bri && ctrl->switchtype != PRI_SWITCH_GR303_EOC_PATH
+				&& ctrl->switchtype != PRI_SWITCH_GR303_TMC_SWITCHING
+				&& cur->pri != ctrl) {
+				cur->pri = ctrl;
+			}
 			return cur;
 		}
 		prev = cur;
