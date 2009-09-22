@@ -355,44 +355,41 @@ void pri_set_nsf(struct pri *pri, int nsf)
 
 char *pri_event2str(int id)
 {
-	switch(id) {
-	case PRI_EVENT_DCHAN_UP:
-		return "D-Channel Up";
-	case PRI_EVENT_DCHAN_DOWN:
-		return "D-channel Down";
-	case PRI_EVENT_RESTART:
-		return "Restart channel";
-	case PRI_EVENT_RING:
-		return "Ring";
-	case PRI_EVENT_HANGUP:
-		return "Hangup";
-	case PRI_EVENT_RINGING:
-		return "Ringing";
-	case PRI_EVENT_ANSWER:
-		return "Answer";
-	case PRI_EVENT_HANGUP_ACK:
-		return "Hangup ACK";
-	case PRI_EVENT_RESTART_ACK:
-		return "Restart ACK";
-	case PRI_EVENT_FACILITY:
-		return "Facility";
-	case PRI_EVENT_INFO_RECEIVED:
-		return "Info Received";
-	case PRI_EVENT_PROCEEDING:
-		return "Proceeding";
-	case PRI_EVENT_SETUP_ACK:
-		return "Setup ACK";
-	case PRI_EVENT_HANGUP_REQ:
-		return "Hangup Req";
-	case PRI_EVENT_NOTIFY:
-		return "Notify";
-	case PRI_EVENT_PROGRESS:
-		return "Progress";
-	case PRI_EVENT_CONFIG_ERR:
-		return "Configuration Error";
-	default:
-		return "Unknown Event";
+	unsigned idx;
+	struct {
+		int id;
+		char *name;
+	} events[] = {
+/* *INDENT-OFF* */
+		{ PRI_EVENT_DCHAN_UP,       "D-Channel Up" },
+		{ PRI_EVENT_DCHAN_DOWN,     "D-channel Down" },
+		{ PRI_EVENT_RESTART,        "Restart channel" },
+		{ PRI_EVENT_CONFIG_ERR,     "Configuration Error" },
+		{ PRI_EVENT_RING,           "Ring" },
+		{ PRI_EVENT_HANGUP,         "Hangup" },
+		{ PRI_EVENT_RINGING,        "Ringing" },
+		{ PRI_EVENT_ANSWER,         "Answer" },
+		{ PRI_EVENT_HANGUP_ACK,     "Hangup ACK" },
+		{ PRI_EVENT_RESTART_ACK,    "Restart ACK" },
+		{ PRI_EVENT_FACILITY,       "Facility" },
+		{ PRI_EVENT_INFO_RECEIVED,  "Info Received" },
+		{ PRI_EVENT_PROCEEDING,     "Proceeding" },
+		{ PRI_EVENT_SETUP_ACK,      "Setup ACK" },
+		{ PRI_EVENT_HANGUP_REQ,     "Hangup Req" },
+		{ PRI_EVENT_NOTIFY,         "Notify" },
+		{ PRI_EVENT_PROGRESS,       "Progress" },
+		{ PRI_EVENT_KEYPAD_DIGIT,   "Keypad Digit" },
+		{ PRI_EVENT_SERVICE,        "Service" },
+		{ PRI_EVENT_SERVICE_ACK,    "Service ACK" },
+/* *INDENT-ON* */
+	};
+
+	for (idx = 0; idx < ARRAY_LEN(events); ++idx) {
+		if (events[idx].id == id) {
+			return events[idx].name;
+		}
 	}
+	return "Unknown Event";
 }
 
 pri_event *pri_check_event(struct pri *pri)
