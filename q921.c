@@ -799,6 +799,16 @@ static pri_event *q921_dchannel_up(struct pri *pri)
 		pri_message(pri, DBGHEAD "q921_state now is Q921_LINK_CONNECTION_ESTABLISHED\n", DBGINFO);
 	pri->q921_state = Q921_LINK_CONNECTION_ESTABLISHED;
 
+	/* Ensure that we do not have T200 or T203 running when the link comes up */
+	if (pri->t200_timer) {
+		pri_schedule_del(pri, pri->t200_timer);
+		pri->t200_timer = 0;
+	}
+
+	if (pri->t203_timer) {
+		pri_schedule_del(pri, pri->t203_timer);
+	}
+
 	/* Start the T203 timer */
 	pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
 	

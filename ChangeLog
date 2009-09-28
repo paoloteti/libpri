@@ -1,5 +1,13 @@
 2009-04-18 Matthew Fredrickson <creslin@digium.com>
 
+	* libpri 1.4.10.2 released.  A bug was found which was introduced
+	  during the PTMP rewrite, which causes timers to not be cleared
+	  before being set in certain situations.  This can cause the
+	  scheduler to be competely filled, as well as improper Q.921 link
+	  operation.
+
+2009-04-18 Matthew Fredrickson <creslin@digium.com>
+
 	* libpri 1.4.10.1 released.  Includes a fix for a regression found in
 	  the last few revisions of libpri, but fixed in revision 859 of
 	  branches/1.4.  The summary is as follows:
