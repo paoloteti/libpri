@@ -186,7 +186,7 @@ extern void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx
 /* Bring up the D-channel */
 extern void q921_start(struct pri *pri, int now);
 
-extern void q921_reset(struct pri *pri);
+extern void q921_reset(struct pri *pri, int reset_iqueue);
 
 extern pri_event *q921_receive(struct pri *pri, q921_h *h, int len);
 
