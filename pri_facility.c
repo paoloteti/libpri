@@ -1653,7 +1653,8 @@ int eect_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
  * \param ctrl D channel controller for diagnostic messages or global options.
  * \param pos Starting position to encode the facility ie contents.
  * \param end End of facility ie contents encoding data buffer.
- * \param calling Calling number.
+ * \param call Q.931 call leg.
+ * \param calling Calling party info.
  * \param dest Destination number.
  * \param original Original called number.
  * \param reason Rerouting reason: cfu, cfb, cfnr
@@ -1662,23 +1663,12 @@ int eect_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
  * \retval NULL on error.
  */
 static unsigned char *enc_qsig_call_rerouting(struct pri *ctrl, unsigned char *pos,
-	unsigned char *end, const char *calling, const char *dest, const char *original,
-	const char *reason)
+	unsigned char *end, q931_call *call, const struct q931_party_id *calling,
+	const char *dest, const char *original, const char *reason)
 {
 	struct fac_extension_header header;
 	struct rose_msg_invoke msg;
-
-	static const unsigned char q931ie[] = {
-		0x04,	/* Bearer Capability IE */
-		0x03,	/* len */
-		0x80,	/* ETSI Standard, Speech */
-		0x90,	/* circuit mode, 64kbit/s */
-		0xa3,	/* level1 protocol, a-law */
-		0x95,	/* locking shift to codeset 5 (national use) */
-		0x32,	/* Unknown ie */
-		0x01,	/* Unknown ie len */
-		0x81,	/* Unknown ie body */
-	};
+	unsigned char *q931ie_pos;
 
 	memset(&header, 0, sizeof(header));
 	header.nfe_present = 1;
@@ -1714,11 +1704,21 @@ static unsigned char *enc_qsig_call_rerouting(struct pri *ctrl, unsigned char *p
 	msg.args.qsig.CallRerouting.called.number.length = strlen((char *)
 		msg.args.qsig.CallRerouting.called.number.str);
 
-	msg.args.qsig.CallRerouting.diversion_counter = 1;
+	msg.args.qsig.CallRerouting.diversion_counter = call->redirecting.count + 1;
 
 	/* pSS1InfoElement */
-	msg.args.qsig.CallRerouting.q931ie.length = sizeof(q931ie);
-	memcpy(msg.args.qsig.CallRerouting.q931ie_contents, q931ie, sizeof(q931ie));
+	q931ie_pos = msg.args.qsig.CallRerouting.q931ie_contents;
+	*q931ie_pos++ = 0x04;	/* Bearer Capability IE */
+	*q931ie_pos++ = 0x03;	/* len */
+	*q931ie_pos++ = 0x80 | call->transcapability;	/* Rxed transfer capability. */
+	*q931ie_pos++ = 0x90;	/* circuit mode, 64kbit/s */
+	*q931ie_pos++ = 0xa3;	/* level1 protocol, a-law */
+	*q931ie_pos++ = 0x95;	/* locking shift to codeset 5 (national use) */
+	*q931ie_pos++ = 0x32;	/* Unknown ie */
+	*q931ie_pos++ = 0x01;	/* Unknown ie len */
+	*q931ie_pos++ = 0x81;	/* Unknown ie body */
+	msg.args.qsig.CallRerouting.q931ie.length = q931ie_pos
+		- msg.args.qsig.CallRerouting.q931ie_contents;
 
 	/* lastReroutingNr is the passed in original number */
 	msg.args.qsig.CallRerouting.last_rerouting.presentation = 0;	/* presentationAllowedNumber */
@@ -1731,15 +1731,15 @@ static unsigned char *enc_qsig_call_rerouting(struct pri *ctrl, unsigned char *p
 
 	msg.args.qsig.CallRerouting.subscription_option = 0;	/* noNotification */
 
-	/* callingNumber is the passed in calling number */
-	msg.args.qsig.CallRerouting.calling.presentation = 0;	/* presentationAllowedNumber */
-	msg.args.qsig.CallRerouting.calling.screened.number.plan = 1;	/* public */
-	msg.args.qsig.CallRerouting.calling.screened.number.ton = 0;	/* unknown */
-	libpri_copy_string((char *) msg.args.qsig.CallRerouting.calling.screened.number.str,
-		calling, sizeof(msg.args.qsig.CallRerouting.calling.screened.number.str));
-	msg.args.qsig.CallRerouting.calling.screened.number.length = strlen((char *)
-		msg.args.qsig.CallRerouting.calling.screened.number.str);
-	msg.args.qsig.CallRerouting.calling.screened.screening_indicator = 3;	/* networkProvided */
+	/* callingNumber is the passed in calling->number */
+	q931_copy_presented_number_screened_to_rose(ctrl,
+		&msg.args.qsig.CallRerouting.calling, &calling->number);
+
+	/* callingName is the passed in calling->name if valid */
+	if (calling->name.valid) {
+		msg.args.qsig.CallRerouting.calling_name_present = 1;
+		q931_copy_name_to_rose(ctrl, &msg.args.qsig.CallRerouting.calling_name, &calling->name);
+	}
 
 	pos = rose_encode_invoke(ctrl, pos, end, &msg);
 
@@ -1750,7 +1750,7 @@ static unsigned char *enc_qsig_call_rerouting(struct pri *ctrl, unsigned char *p
  * \brief Send the Q.SIG CallRerouting invoke message.
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
- * \param call Call leg from which to encode name.
+ * \param call Q.931 call leg.
  * \param dest Destination number.
  * \param original Original called number.
  * \param reason Rerouting reason: cfu, cfb, cfnr
@@ -1770,9 +1770,9 @@ int qsig_cf_callrerouting(struct pri *ctrl, q931_call *call, const char *dest,
 	 * Therefore, the Caller-ID is the remote party.
 	 */
 	end =
-		enc_qsig_call_rerouting(ctrl, buffer, buffer + sizeof(buffer),
-			call->remote_id.number.str, dest, original ? original :
-			call->called.number.str, reason);
+		enc_qsig_call_rerouting(ctrl, buffer, buffer + sizeof(buffer), call,
+			&call->remote_id, dest, original ? original : call->called.number.str,
+			reason);
 	if (!end) {
 		return -1;
 	}
