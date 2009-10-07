@@ -308,7 +308,7 @@ int pri_restart(struct pri *pri)
 {
 	/* Restart Q.921 layer */
 	if (pri) {
-		q921_reset(pri);
+		q921_reset(pri, 1);
 		q921_start(pri, pri->localtype == PRI_CPE);	
 	}
 	return 0;

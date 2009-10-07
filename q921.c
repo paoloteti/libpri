@@ -785,6 +785,12 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 
 pri_event *q921_dchannel_up(struct pri *pri)
 {
+	if (pri->tei == Q921_TEI_PRI) {
+		q921_reset(pri, 1);
+	} else {
+		q921_reset(pri, 0);
+	}
+
 	/* Stop any SABME retransmissions */
 	pri_schedule_del(pri, pri->sabme_timer);
 	pri->sabme_timer = 0;
@@ -797,7 +803,12 @@ pri_event *q921_dchannel_up(struct pri *pri)
 		pri_message(pri, DBGHEAD "q921_state now is Q921_LINK_CONNECTION_ESTABLISHED\n", DBGINFO);
 	pri->q921_state = Q921_LINK_CONNECTION_ESTABLISHED;
 
+	/* Ensure that we do not have T200 or T203 running when the link comes up */
+	pri_schedule_del(pri, pri->t200_timer);
+	pri->t200_timer = 0;
+
 	/* Start the T203 timer */
+	pri_schedule_del(pri, pri->t203_timer);
 	pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T203], t203_expire, pri);
 	
 	/* Notify Layer 3 */
@@ -813,7 +824,7 @@ pri_event *q921_dchannel_up(struct pri *pri)
 pri_event *q921_dchannel_down(struct pri *pri)
 {
 	/* Reset counters, reset sabme timer etc */
-	q921_reset(pri);
+	q921_reset(pri, 1);
 	
 	/* Notify Layer 3 */
 	q931_dl_indication(pri, PRI_EVENT_DCHAN_DOWN);
@@ -823,10 +834,12 @@ pri_event *q921_dchannel_down(struct pri *pri)
 	return &pri->ev;
 }
 
-void q921_reset(struct pri *pri)
+void q921_reset(struct pri *pri, int reset_iqueue)
 {
 	/* Having gotten a SABME we MUST reset our entire state */
-	pri->v_s = 0;
+	if (reset_iqueue)
+		pri->v_s = 0;
+
 	pri->v_a = 0;
 	pri->v_r = 0;
 	pri->v_na = 0;
@@ -848,7 +861,8 @@ void q921_reset(struct pri *pri)
 	pri->sentrej = 0;
 	
 	/* Discard anything waiting to go out */
-	q921_discard_retransmissions(pri);
+	if (reset_iqueue)
+		q921_discard_retransmissions(pri);
 }
 
 static void q921_tei_release_and_reacquire(struct pri *master)
@@ -1248,14 +1262,14 @@ static void q921_restart(struct pri *pri, int now)
 		return;
 	}
 	/* Reset our interface */
-	q921_reset(pri);
+	q921_reset(pri, 1);
 	/* Do the SABME XXX Maybe we should implement T_WAIT? XXX */
 	q921_send_sabme(pri, now);
 }
 
 void q921_start(struct pri *pri, int isCPE)
 {
-	q921_reset(pri);
+	q921_reset(pri, 1);
 	if ((pri->sapi == Q921_SAPI_LAYER2_MANAGEMENT) && (pri->tei == Q921_TEI_GROUP)) {
 		pri->q921_state = Q921_DOWN;
 		if (isCPE)
