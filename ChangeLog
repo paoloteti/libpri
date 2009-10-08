@@ -3,7 +3,7 @@
 	* libpri 1.4.10.2 released.  A bug was found which was introduced
 	  during the PTMP rewrite, which causes timers to not be cleared
 	  before being set in certain situations.  This can cause the
-	  scheduler to be competely filled, as well as improper Q.921 link
+	  scheduler to be completely filled, as well as improper Q.921 link
 	  operation.
 
 2009-04-18 Matthew Fredrickson <creslin@digium.com>
