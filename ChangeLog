@@ -1,4 +1,4 @@
-2009-04-18 Matthew Fredrickson <creslin@digium.com>
+2009-10-08 Matthew Fredrickson <creslin@digium.com>
 
 	* libpri 1.4.10.2 released.  A bug was found which was introduced
 	  during the PTMP rewrite, which causes timers to not be cleared
