@@ -2307,16 +2307,22 @@ static void dump_ie_data(struct pri *ctrl, unsigned char *c, int len)
 
 static void dump_facility(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
 {
-	int dataat = (ie->data[0] & 0x80) ? 1 : 2;
-
 	pri_message(ctrl, "%c Facility (len=%2d, codeset=%d) [ ", prefix, len, Q931_IE_CODESET(full_ie));
 	dump_ie_data(ctrl, ie->data, ie->len);
-	pri_message(NULL, " ]\n");
+	pri_message(ctrl, " ]\n");
+#if 0	/* Lets not dump parse of facility contents here anymore. */
+	/*
+	 * The ASN.1 decode dump has already been done when the facility ie was added to the outgoing
+	 * message or the ASN.1 decode dump will be done when the facility ie is processed on incoming
+	 * messages.  This dump is redundant and very noisy.
+	 */
 	if (ie->len > 1) {
+		int dataat = (ie->data[0] & 0x80) ? 1 : 2;
+
 		pri_message(ctrl, "PROTOCOL %02X\n", ie->data[0] & Q932_PROTOCOL_MASK);
 		asn1_dump(ctrl, ie->data + dataat, ie->data + ie->len);
 	}
-
+#endif	/* Lets not dump parse of facility contents here anymore. */
 }
 
 static void dump_network_spec_fac(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
