@@ -223,7 +223,7 @@ static int __pri_write(struct pri *pri, void *buf, int buflen)
 /* Pass in the master for this function */
 void __pri_free_tei(struct pri * p)
 {
-	free (p);
+	free(p);
 }
 
 struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri)
@@ -841,7 +841,7 @@ int pri_hangup(struct pri *pri, q931_call *call, int cause)
 		return -1;
 	if (cause == -1)
 		/* normal clear cause */
-		cause = 16;
+		cause = PRI_CAUSE_NORMAL_CLEARING;
 	return q931_hangup(pri, call, cause);
 }
 

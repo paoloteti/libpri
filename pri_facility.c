@@ -514,6 +514,7 @@ static void rose_copy_number_to_q931(struct pri *ctrl,
 		sizeof(q931_number->str));
 	q931_number->plan = numbering_plan_for_q931(ctrl, rose_number->plan)
 		| typeofnumber_for_q931(ctrl, rose_number->ton);
+	q931_number->valid = 1;
 }
 
 /*!
@@ -580,28 +581,29 @@ static void rose_copy_presented_number_unscreened_to_q931(struct pri *ctrl,
  * \brief Copy the given rose presented screened party address to the q931_party_number
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
- * \param q931_number Q.931 party number structure
+ * \param q931_address Q.931 party id structure to fill the address
  * \param rose_presented ROSE presented screened party address structure
  *
  * \return Nothing
  */
 static void rose_copy_presented_address_screened_to_q931(struct pri *ctrl,
-	struct q931_party_number *q931_number,
+	struct q931_party_id *q931_address,
 	const struct rosePresentedAddressScreened *rose_presented)
 {
-	q931_party_number_init(q931_number);
-	q931_number->valid = 1;
-	q931_number->presentation = presentation_for_q931(ctrl, rose_presented->presentation);
+	q931_party_number_init(&q931_address->number);
+	q931_address->number.valid = 1;
+	q931_address->number.presentation = presentation_for_q931(ctrl,
+		rose_presented->presentation);
 	switch (rose_presented->presentation) {
 	case 0:	/* presentationAllowedAddress */
 	case 3:	/* presentationRestrictedAddress */
-		q931_number->presentation |=
+		q931_address->number.presentation |=
 			(rose_presented->screened.screening_indicator & PRI_PRES_NUMBER_TYPE);
-		rose_copy_number_to_q931(ctrl, q931_number,
+		rose_copy_number_to_q931(ctrl, &q931_address->number,
 			&rose_presented->screened.number);
 		break;
 	default:
-		q931_number->presentation |= PRI_PRES_USER_NUMBER_UNSCREENED;
+		q931_address->number.presentation |= PRI_PRES_USER_NUMBER_UNSCREENED;
 		break;
 	}
 }
@@ -703,20 +705,22 @@ static void q931_copy_presented_number_unscreened_to_rose(struct pri *ctrl,
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
  * \param rose_presented ROSE presented screened party address structure
- * \param q931_number Q.931 party number structure
+ * \param q931_address Q.931 party id structure to get the address
  *
  * \return Nothing
  */
 static void q931_copy_presented_address_screened_to_rose(struct pri *ctrl,
 	struct rosePresentedAddressScreened *rose_presented,
-	const struct q931_party_number *q931_number)
+	const struct q931_party_id *q931_address)
 {
-	if (q931_number->valid) {
+	if (q931_address->number.valid) {
 		rose_presented->presentation =
-			presentation_from_q931(ctrl, q931_number->presentation, q931_number->str[0]);
+			presentation_from_q931(ctrl, q931_address->number.presentation,
+				q931_address->number.str[0]);
 		rose_presented->screened.screening_indicator =
-			q931_number->presentation & PRI_PRES_NUMBER_TYPE;
-		q931_copy_number_to_rose(ctrl, &rose_presented->screened.number, q931_number);
+			q931_address->number.presentation & PRI_PRES_NUMBER_TYPE;
+		q931_copy_number_to_rose(ctrl, &rose_presented->screened.number,
+			&q931_address->number);
 		rose_presented->screened.subaddress.length = 0;
 	} else {
 		rose_presented->presentation = 2;/* numberNotAvailableDueToInterworking */
@@ -2868,8 +2872,8 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie,
 	case ROSE_QSIG_CallTransferActive:
 		call->incoming_ct_state = INCOMING_CT_STATE_POST_CONNECTED_LINE;
 
-		/* connectedAddress is put in remote_id.number */
-		rose_copy_presented_address_screened_to_q931(ctrl, &call->remote_id.number,
+		/* connectedAddress is put in remote_id */
+		rose_copy_presented_address_screened_to_q931(ctrl, &call->remote_id,
 			&invoke->args.qsig.CallTransferActive.connected);
 
 		/* connectedName is put in remote_id.name */
@@ -2953,7 +2957,6 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie,
 			break;
 		case QSIG_NOTIFICATION_WITH_DIVERTED_TO_NR:
 			q931_party_number_init(&call->redirecting.to.number);
-			call->redirecting.to.number.valid = 1;
 			rose_copy_number_to_q931(ctrl, &call->redirecting.to.number,
 				&invoke->args.qsig.DivertingLegInformation1.nominated_number);
 			if (call->redirecting.to.number.str[0]) {

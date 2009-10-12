@@ -505,9 +505,9 @@ void q931_party_redirecting_copy_to_pri(struct pri_party_redirecting *pri_redire
 void q931_party_id_fixup(const struct pri *ctrl, struct q931_party_id *id);
 int q931_party_id_presentation(const struct q931_party_id *id);
 
-const char *q931_call_state_str(int callstate);
+const char *q931_call_state_str(enum Q931_CALL_STATE callstate);
 
-int q931_is_ptmp(struct pri *ctrl);
+int q931_is_ptmp(const struct pri *ctrl);
 struct pri_subcommand *q931_alloc_subcommand(struct pri *ctrl);
 
 int q931_notify_redirection(struct pri *ctrl, q931_call *call, int notify, const struct q931_party_number *number);

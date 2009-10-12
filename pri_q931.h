@@ -413,8 +413,15 @@ enum Q931_CALL_STATE {
 	Q931_CALL_STATE_CALL_INDEPENDENT_SERVICE = 31,
 	Q931_CALL_STATE_RESTART_REQUEST = 61,
 	Q931_CALL_STATE_RESTART = 62,
+	/*!
+	 * \details
+	 * Call state has not been set.
+	 * Call state does not exist.
+	 * Call state not initialized.
+	 * Call state internal use only.
+	 */
+	Q931_CALL_STATE_NOT_SET = 0xFF,
 };
-
 
 /* EuroISDN  */
 #define Q931_SENDING_COMPLETE		0xa1
