@@ -2657,6 +2657,29 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie,
 		break;
 #endif	/* Not handled yet */
 	case ROSE_ETSI_DivertingLegInformation1:
+		/*
+		 * Unless otherwise indicated by CONNECT, the divertedToNumber will be
+		 * the remote_id.number.
+		 *
+		 * Fortunately, the connected number ie is supposed to come after the
+		 * facility ie in the same message so it will be processed later.
+		 */
+		if (invoke->args.etsi.DivertingLegInformation1.diverted_to_present) {
+			rose_copy_presented_number_unscreened_to_q931(ctrl, &call->remote_id.number,
+				&invoke->args.etsi.DivertingLegInformation1.diverted_to);
+			/*
+			 * We set the presentation value since the sender cannot know the
+			 * presentation value preference of the destination party.
+			 */
+			if (call->remote_id.number.str[0]) {
+				call->remote_id.number.presentation =
+					PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
+			}
+		} else {
+			q931_party_number_init(&call->remote_id.number);
+			call->remote_id.number.valid = 1;
+		}
+
 		/* divertedToNumber is put in redirecting.to.number */
 		switch (invoke->args.etsi.DivertingLegInformation1.subscription_option) {
 		default:
@@ -2668,14 +2691,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie,
 				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
 			break;
 		case 2:	/* notificationWithDivertedToNr */
-			if (invoke->args.etsi.DivertingLegInformation1.diverted_to_present) {
-				rose_copy_presented_number_unscreened_to_q931(ctrl,
-					&call->redirecting.to.number,
-					&invoke->args.etsi.DivertingLegInformation1.diverted_to);
-			} else {
-				q931_party_number_init(&call->redirecting.to.number);
-				call->redirecting.to.number.valid = 1;
-			}
+			call->redirecting.to.number = call->remote_id.number;
 			break;
 		}
 
@@ -2719,7 +2735,16 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie,
 		}
 		break;
 	case ROSE_ETSI_DivertingLegInformation3:
+		/*
+		 * Unless otherwise indicated by CONNECT, this will be the
+		 * remote_id.number.presentation.
+		 *
+		 * Fortunately, the connected number ie is supposed to come after the
+		 * facility ie in the same message so it will be processed later.
+		 */
 		if (!invoke->args.etsi.DivertingLegInformation3.presentation_allowed_indicator) {
+			call->remote_id.number.presentation =
+				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
 			call->redirecting.to.number.presentation =
 				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
 		}
@@ -2945,6 +2970,21 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie,
 		break;
 #endif	/* Not handled yet */
 	case ROSE_QSIG_DivertingLegInformation1:
+		/*
+		 * Unless otherwise indicated by CONNECT, the nominatedNr will be
+		 * the remote_id.number.
+		 *
+		 * Fortunately, the connected number ie is supposed to come after the
+		 * facility ie in the same message so it will be processed later.
+		 */
+		q931_party_number_init(&call->remote_id.number);
+		rose_copy_number_to_q931(ctrl, &call->remote_id.number,
+			&invoke->args.qsig.DivertingLegInformation1.nominated_number);
+		if (call->remote_id.number.str[0]) {
+			call->remote_id.number.presentation =
+				PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
+		}
+
 		/* nominatedNr is put in redirecting.to.number */
 		switch (invoke->args.qsig.DivertingLegInformation1.subscription_option) {
 		default:
@@ -2956,13 +2996,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie,
 				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
 			break;
 		case QSIG_NOTIFICATION_WITH_DIVERTED_TO_NR:
-			q931_party_number_init(&call->redirecting.to.number);
-			rose_copy_number_to_q931(ctrl, &call->redirecting.to.number,
-				&invoke->args.qsig.DivertingLegInformation1.nominated_number);
-			if (call->redirecting.to.number.str[0]) {
-				call->redirecting.to.number.presentation =
-					PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
-			}
+			call->redirecting.to.number = call->remote_id.number;
 			break;
 		}
 
@@ -3026,7 +3060,16 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie,
 		}
 		break;
 	case ROSE_QSIG_DivertingLegInformation3:
+		/*
+		 * Unless otherwise indicated by CONNECT, this will be the
+		 * remote_id.number.presentation.
+		 *
+		 * Fortunately, the connected number ie is supposed to come after the
+		 * facility ie in the same message so it will be processed later.
+		 */
 		if (!invoke->args.qsig.DivertingLegInformation3.presentation_allowed_indicator) {
+			call->remote_id.number.presentation =
+				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
 			call->redirecting.to.number.presentation =
 				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
 		}
