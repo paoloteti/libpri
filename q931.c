@@ -2120,11 +2120,34 @@ static int transmit_progress_indicator(int full_ie, struct pri *ctrl, q931_call 
 }
 static int transmit_call_state(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
-	if (call->ourcallstate > -1 ) {
+	ie->data[0] = Q931_CALL_STATE_NULL;
+	switch (call->ourcallstate) {
+	case Q931_CALL_STATE_NULL:
+	case Q931_CALL_STATE_CALL_INITIATED:
+	case Q931_CALL_STATE_OVERLAP_SENDING:
+	case Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING:
+	case Q931_CALL_STATE_CALL_DELIVERED:
+	case Q931_CALL_STATE_CALL_PRESENT:
+	case Q931_CALL_STATE_CALL_RECEIVED:
+	case Q931_CALL_STATE_CONNECT_REQUEST:
+	case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
+	case Q931_CALL_STATE_ACTIVE:
+	case Q931_CALL_STATE_DISCONNECT_REQUEST:
+	case Q931_CALL_STATE_DISCONNECT_INDICATION:
+	case Q931_CALL_STATE_SUSPEND_REQUEST:
+	case Q931_CALL_STATE_RESUME_REQUEST:
+	case Q931_CALL_STATE_RELEASE_REQUEST:
+	case Q931_CALL_STATE_CALL_ABORT:
+	case Q931_CALL_STATE_OVERLAP_RECEIVING:
+	case Q931_CALL_STATE_CALL_INDEPENDENT_SERVICE:
+	case Q931_CALL_STATE_RESTART_REQUEST:
+	case Q931_CALL_STATE_RESTART:
 		ie->data[0] = call->ourcallstate;
-		return 3;
+		break;
+	case Q931_CALL_STATE_NOT_SET:
+		break;
 	}
-	return 0;
+	return 3;
 }
 
 static int receive_call_state(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
