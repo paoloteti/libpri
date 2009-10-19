@@ -381,6 +381,8 @@ int q931_party_name_cmp(const struct q931_party_name *left, const struct q931_pa
 			return 0;
 		}
 		return -1;
+	} else if (!right->valid) {
+		return 1;
 	}
 	cmp = left->char_set - right->char_set;
 	if (cmp) {
@@ -413,6 +415,8 @@ int q931_party_number_cmp(const struct q931_party_number *left, const struct q93
 			return 0;
 		}
 		return -1;
+	} else if (!right->valid) {
+		return 1;
 	}
 	cmp = left->plan - right->plan;
 	if (cmp) {
