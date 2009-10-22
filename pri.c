@@ -618,6 +618,40 @@ static void pri_copy_party_number_to_q931(struct q931_party_number *q931_number,
 
 /*!
  * \internal
+ * \brief Copy the PRI party subaddress to the Q.931 party subaddress structure.
+ *
+ * \param q931_subaddress Q.931 party subaddress structure
+ * \param pri_subaddress PRI party subaddress structure
+ *
+ * \return Nothing
+ */
+static void pri_copy_party_subaddress_to_q931(struct q931_party_subaddress *q931_subaddress, const struct pri_party_subaddress *pri_subaddress)
+{
+	int length;
+	int maxlen = sizeof(q931_subaddress->data) - 1;
+
+	q931_party_subaddress_init(q931_subaddress);
+
+	if (!pri_subaddress->valid) {
+		return;
+	}
+
+	q931_subaddress->valid = 1;
+	q931_subaddress->type = pri_subaddress->type;
+
+	length = pri_subaddress->length;
+	if (length > maxlen){
+		length = maxlen;
+	} else {
+		q931_subaddress->odd_even_indicator = pri_subaddress->odd_even_indicator;
+	}
+	q931_subaddress->length = length;
+	memcpy(q931_subaddress->data, pri_subaddress->data, length);
+	q931_subaddress->data[length] = '\0';
+}
+
+/*!
+ * \internal
  * \brief Copy the PRI party id to the Q.931 party id structure.
  *
  * \param q931_id Q.931 party id structure
@@ -629,6 +663,7 @@ static void pri_copy_party_id_to_q931(struct q931_party_id *q931_id, const struc
 {
 	pri_copy_party_name_to_q931(&q931_id->name, &pri_id->name);
 	pri_copy_party_number_to_q931(&q931_id->number, &pri_id->number);
+	pri_copy_party_subaddress_to_q931(&q931_id->subaddress, &pri_id->subaddress);
 }
 
 int pri_connected_line_update(struct pri *ctrl, q931_call *call, const struct pri_party_connected_line *connected)
@@ -974,7 +1009,7 @@ int pri_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 
 int pri_call(struct pri *pri, q931_call *c, int transmode, int channel, int exclusive, 
 					int nonisdn, char *caller, int callerplan, char *callername, int callerpres, char *called,
-					int calledplan,int ulayer1)
+					int calledplan, int ulayer1)
 {
 	struct pri_sr req;
 	if (!pri || !c)
@@ -1206,6 +1241,11 @@ int pri_sr_set_called(struct pri_sr *sr, char *called, int calledplan, int numco
 	return 0;
 }
 
+void pri_sr_set_called_subaddress(struct pri_sr *sr, const struct pri_party_subaddress *subaddress)
+{
+	pri_copy_party_subaddress_to_q931(&sr->called.subaddress, subaddress);
+}
+
 int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int callerplan, int callerpres)
 {
 	q931_party_id_init(&sr->caller);
@@ -1224,6 +1264,11 @@ int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int cal
 		}
 	}
 	return 0;
+}
+
+void pri_sr_set_caller_subaddress(struct pri_sr *sr, const struct pri_party_subaddress *subaddress)
+{
+	pri_copy_party_subaddress_to_q931(&sr->caller.subaddress, subaddress);
 }
 
 void pri_sr_set_caller_party(struct pri_sr *sr, const struct pri_party_id *caller)

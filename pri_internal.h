@@ -181,7 +181,6 @@ struct q931_party_number {
 /*! \brief Maximum subaddress length plus null terminator */
 #define PRI_MAX_SUBADDRESS_LEN	(20 + 1)
 
-#if defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT)
 struct q931_party_subaddress {
 	/*! \brief TRUE if the subaddress information is valid/present */
 	unsigned char valid;
@@ -205,17 +204,14 @@ struct q931_party_subaddress {
 	 * \note The null terminator is a convenience only since the data could be
 	 * BCD/binary and thus have a null byte as part of the contents.
 	 */
-	char data[PRI_MAX_SUBADDRESS_LEN];
+	unsigned char data[PRI_MAX_SUBADDRESS_LEN];
 };
-#endif	/* defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT) */
 
 struct q931_party_address {
 	/*! \brief Subscriber phone number */
 	struct q931_party_number number;
-#if defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT)
 	/*! \brief Subscriber subaddress */
 	struct q931_party_subaddress subaddress;
-#endif	/* defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT) */
 };
 
 /*! \brief Information needed to identify an endpoint in a call. */
@@ -224,10 +220,8 @@ struct q931_party_id {
 	struct q931_party_name name;
 	/*! \brief Subscriber phone number */
 	struct q931_party_number number;
-#if defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT)
 	/*! \brief Subscriber subaddress */
 	struct q931_party_subaddress subaddress;
-#endif	/* defined(POSSIBLE_FUTURE_SUBADDRESS_SUPPORT) */
 };
 
 enum Q931_REDIRECTING_STATE {
@@ -489,16 +483,19 @@ void __pri_free_tei(struct pri *p);
 
 void q931_party_name_init(struct q931_party_name *name);
 void q931_party_number_init(struct q931_party_number *number);
+void q931_party_subaddress_init(struct q931_party_subaddress *subaddr);
 void q931_party_address_init(struct q931_party_address *address);
 void q931_party_id_init(struct q931_party_id *id);
 void q931_party_redirecting_init(struct q931_party_redirecting *redirecting);
 
 int q931_party_name_cmp(const struct q931_party_name *left, const struct q931_party_name *right);
 int q931_party_number_cmp(const struct q931_party_number *left, const struct q931_party_number *right);
+int q931_party_subaddress_cmp(const struct q931_party_subaddress *left, const struct q931_party_subaddress *right);
 int q931_party_id_cmp(const struct q931_party_id *left, const struct q931_party_id *right);
 
 void q931_party_name_copy_to_pri(struct pri_party_name *pri_name, const struct q931_party_name *q931_name);
 void q931_party_number_copy_to_pri(struct pri_party_number *pri_number, const struct q931_party_number *q931_number);
+void q931_party_subaddress_copy_to_pri(struct pri_party_subaddress *pri_subaddress, const struct q931_party_subaddress *q931_subaddress);
 void q931_party_id_copy_to_pri(struct pri_party_id *pri_id, const struct q931_party_id *q931_id);
 void q931_party_redirecting_copy_to_pri(struct pri_party_redirecting *pri_redirecting, const struct q931_party_redirecting *q931_redirecting);
 

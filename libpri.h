@@ -428,7 +428,7 @@ struct pri_party_subaddress {
 	 * \note The null terminator is a convenience only since the data could be
 	 * BCD/binary and thus have a null byte as part of the contents.
 	 */
-	char data[32];
+	unsigned char data[32];
 };
 
 /*! \brief Information needed to identify an endpoint in a call. */
@@ -598,7 +598,7 @@ typedef struct pri_event_ring {
 	int layer1;					/* User layer 1 */
 	int complete;				/* Have we seen "Complete" i.e. no more number? */
 	q931_call *call;			/* Opaque call pointer */
-	char callingsubaddr[256];	/* Calling parties subaddress */
+	char callingsubaddr[256];	/* Calling parties subaddress, backwards compatibility */
 	int progress;
 	int progressmask;
 	char origcalledname[256];
@@ -607,6 +607,8 @@ typedef struct pri_event_ring {
 	int origredirectingreason;
 	int reversecharge;
 	struct pri_subcommands *subcmds;
+	struct pri_party_id calling;			/* Calling Party's info, initially subaddress' */
+	struct pri_party_subaddress called_subaddress;	/* Called party's subaddress */
 } pri_event_ring;
 
 typedef struct pri_event_hangup {
@@ -832,8 +834,8 @@ extern pri_event *pri_schedule_run(struct pri *pri);
 extern pri_event *pri_schedule_run_tv(struct pri *pri, const struct timeval *now);
 
 int pri_call(struct pri *pri, q931_call *c, int transmode, int channel,
-   int exclusive, int nonisdn, char *caller, int callerplan, char *callername, int callerpres,
-	 char *called,int calledplan, int ulayer1);
+    int exclusive, int nonisdn, char *caller, int callerplan, char *callername, int callerpres,
+    char *called, int calledplan, int ulayer1);
 
 struct pri_sr *pri_sr_new(void);
 void pri_sr_free(struct pri_sr *sr);
@@ -853,6 +855,26 @@ int pri_sr_set_called(struct pri_sr *sr, char *called, int calledplan, int compl
 void pri_sr_set_caller_party(struct pri_sr *sr, const struct pri_party_id *caller);
 /*! \note Use pri_sr_set_caller_party() instead to pass more precise caller information. */
 int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int callerplan, int callerpres);
+
+/*!
+ * \brief Set the calling subaddress information in the call SETUP record.
+ *
+ * \param sr New call SETUP record.
+ * \param subaddress information to set.
+ *
+ * \return Nothing
+ */
+void pri_sr_set_caller_subaddress(struct pri_sr *sr, const struct pri_party_subaddress *subaddress);
+
+/*!
+ * \brief Set the called subaddress information in the call SETUP record.
+ *
+ * \param sr New call SETUP record.
+ * \param subaddress information to set.
+ *
+ * \return Nothing
+ */
+void pri_sr_set_called_subaddress(struct pri_sr *sr, const struct pri_party_subaddress *subaddress);
 
 /*!
  * \brief Set the redirecting information in the call SETUP record.
