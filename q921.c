@@ -27,6 +27,7 @@
  * terms granted here.
  */
 
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -477,6 +478,45 @@ static void t200_expire(void *vpri)
 	}
 }
 
+int q921_transmit_uiframe(struct pri *pri, void *buf, int len)
+{
+	uint8_t ubuf[512];
+	q921_h *h = (void *)&ubuf[0];
+
+	if (len >= 512) {
+		pri_error(pri, "Requested to send UI frame larger than 512 bytes!\n");
+		return -1;
+	}
+
+	memset(ubuf, 0, sizeof(ubuf));
+	h->h.sapi = 0;
+	h->h.ea1 = 0;
+	h->h.ea2 = 1;
+	h->h.tei = pri->tei;
+	h->u.m3 = 0;
+	h->u.m2 = 0;
+	h->u.p_f = 0;	/* Poll bit set */
+	h->u.ft = Q921_FRAMETYPE_U;
+
+	switch(pri->localtype) {
+	case PRI_NETWORK:
+		h->h.c_r = 1;
+		break;
+	case PRI_CPE:
+		h->h.c_r = 0;
+		break;
+	default:
+		pri_error(pri, "Don't know how to U/A on a type %d node\n", pri->localtype);
+		return -1;
+	}
+
+	memcpy(h->u.data, buf, len);
+
+	q921_transmit(pri, h, len + 3);
+
+	return 0;
+}
+
 int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 {
 	q921_frame *f, *prev=NULL;
@@ -515,6 +555,10 @@ int q921_transmit_iframe(struct pri *pri, void *buf, int len, int cr)
 			pri->txqueue = f;
 		/* Immediately transmit unless we're in a recovery state, or the window
 		   size is too big */
+		if (pri->debug & PRI_DEBUG_Q921_DUMP) {
+			pri_message(pri, "TEI/SAPI: %d/%d state %d retran %d busy %d\n",
+				pri->tei, pri->sapi, pri->q921_state, pri->retrans, pri->busy);
+		}
 		if ((pri->q921_state == Q921_LINK_CONNECTION_ESTABLISHED) && (!pri->retrans && !pri->busy)) {
 			if (pri->windowlen < pri->window) {
 				q921_send_queued_iframes(pri);
@@ -558,11 +602,15 @@ static void t203_expire(void *vpri)
 		/* Start timer T200 to resend our RR if we don't get it */
 		pri->t203_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
 	} else {
-		if (pri->debug & PRI_DEBUG_Q921_DUMP)
-			pri_message(pri, "T203 counter expired in weird state %d\n", pri->q921_state);
+		if (pri->debug & PRI_DEBUG_Q921_DUMP) {
+			pri_message(pri,
+				"T203 counter expired in weird state %d on pri with SAPI/TEI of %d/%d\n",
+				pri->q921_state, pri->sapi, pri->tei);
+		}
 		pri->t203_timer = 0;
 	}
 }
+
 static pri_event *q921_handle_iframe(struct pri *pri, q921_i *i, int len)
 {
 	int res;
@@ -879,8 +927,14 @@ static void q921_tei_release_and_reacquire(struct pri *master)
 static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
 {
 	int ri;
-	struct pri *sub;
+	struct pri *sub = pri;
 	int tei;
+
+	if (!BRI_NT_PTMP(pri) && !BRI_TE_PTMP(pri)) {
+		pri_error(pri, "Received MDL/TEI managemement message, but configured for mode other than PTMP!\n");
+		return NULL;
+	}
+
 	if (pri->debug & PRI_DEBUG_Q921_STATE)
 		pri_message(pri, "Received MDL message\n");
 	if (h->data[0] != 0x0f) {
@@ -895,17 +949,19 @@ static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
 	tei = (h->data[4] >> 1);
 	switch(h->data[3]) {
 	case Q921_TEI_IDENTITY_REQUEST:
+		if (!BRI_NT_PTMP(pri)) {
+			return NULL;
+		}
+
 		if (tei != 127) {
 			pri_error(pri, "Received TEI identity request with invalid TEI %d\n", tei);
 			q921_send_tei(pri, Q921_TEI_IDENTITY_DENIED, ri, tei, 1);
 		}
-		/* Go to master */
-		for (sub = pri; sub->master; sub = sub->master);
 		tei = 64;
-/*! \todo XXX Error:  The following loop never terminates! */
-		while(sub->subchannel) {
-			if(sub->subchannel->tei == tei)
+		while (sub->subchannel) {
+			if (sub->subchannel->tei == tei)
 				++tei;
+			sub = sub->subchannel;
 		}
 		sub->subchannel = __pri_new_tei(-1, pri->localtype, pri->switchtype, pri, NULL, NULL, NULL, tei, 1);
 		if (!sub->subchannel) {
@@ -915,6 +971,9 @@ static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
 		q921_send_tei(pri, Q921_TEI_IDENTITY_ASSIGNED, ri, tei, 1);
 		break;
 	case Q921_TEI_IDENTITY_ASSIGNED:
+		if (!BRI_TE_PTMP(pri))
+			return NULL;
+
 		if (ri != pri->ri) {
 			pri_message(pri, "TEI assignment received for invalid Ri %02x (our is %02x)\n", ri, pri->ri);
 			return NULL;
@@ -936,6 +995,8 @@ static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
 		pri->q921_state = Q921_TEI_ASSIGNED;
 		break;
 	case Q921_TEI_IDENTITY_CHECK_REQUEST:
+		if (!BRI_TE_PTMP(pri))
+			return NULL;
 		/* We're assuming one TEI per PRI in TE PTMP mode */
 
 		/* If no subchannel (TEI) ignore */
@@ -948,6 +1009,8 @@ static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
 
 		break;
 	case Q921_TEI_IDENTITY_REMOVE:
+		if (!BRI_TE_PTMP(pri))
+			return NULL;
 		/* XXX: Assuming multiframe mode has been disconnected already */
 		if (!pri->subchannel)
 			return NULL;
@@ -989,6 +1052,10 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 			pri_error(pri, "!! Received short I-frame (expected 4, got %d)\n", len);
 			break;
 		}
+
+		/* T203 is rescheduled only on reception of I frames or S frames */
+		reschedule_t203(pri);
+
 		return q921_handle_iframe(pri, &h->i, len);	
 		break;
 	case 1:
@@ -1000,6 +1067,10 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 			pri_error(pri, "!! Received short S-frame (expected 4, got %d)\n", len);
 			break;
 		}
+
+		/* T203 is rescheduled only on reception of I frames or S frames */
+		reschedule_t203(pri);
+
 		switch(h->s.ss) {
 		case 0:
 			/* Receiver Ready */
@@ -1149,7 +1220,6 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 			/* Acknowledge */
 			q921_send_ua(pri, h->u.p_f);
 			ev = q921_dchannel_down(pri);
-			q921_restart(pri, 0);
 			return ev;
 		case 3:
 			if (h->u.m2 == 3) {
@@ -1209,6 +1279,34 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 	return NULL;
 }
 
+static pri_event *q921_handle_unmatched_frame(struct pri *pri, q921_h *h, int len)
+{
+	pri = PRI_MASTER(pri);
+
+	if (h->h.tei < 64) {
+		pri_error(pri, "Do not support manual TEI range. Discarding\n");
+		return NULL;
+	}
+
+	if (h->h.sapi != Q921_SAPI_CALL_CTRL) {
+		pri_error(pri, "Message with SAPI other than CALL CTRL is discarded\n");
+		return NULL;
+	}
+
+	if (pri->debug & PRI_DEBUG_Q921_DUMP) {
+		pri_message(pri,
+			"Could not find candidate subchannel for received frame with SAPI/TEI of %d/%d.\n",
+			h->h.sapi, h->h.tei);
+		pri_message(pri, "Sending TEI release, in order to re-establish TEI state\n");
+	}
+
+	/* Q.921 says we should send the remove message twice, in case of link corruption */
+	q921_send_tei(pri, Q921_TEI_IDENTITY_REMOVE, 0, h->h.tei, 1);
+	q921_send_tei(pri, Q921_TEI_IDENTITY_REMOVE, 0, h->h.tei, 1);
+
+	return NULL;
+}
+
 static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 {
 	pri_event *ev;
@@ -1222,26 +1320,22 @@ static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 	if (h->h.ea1 || !(h->h.ea2))
 		return NULL;
 
-#if 0 /* Will be rejected by subchannel analyzis */
-	/* Check for broadcasts - not yet handled */
-	if (h->h.tei == Q921_TEI_GROUP)
-		return NULL;
-#endif
-
 	if (!((h->h.sapi == pri->sapi) && ((h->h.tei == pri->tei) || (h->h.tei == Q921_TEI_GROUP)))) {
 		/* Check for SAPIs we don't yet handle */
 		/* If it's not us, try any subchannels we have */
 		if (pri->subchannel)
 			return q921_receive(pri->subchannel, h, len + 2);
 		else {
-			return NULL;
+			/* This means we couldn't find a candidate subchannel for it...
+			 * Time for some corrective action */
+
+			return q921_handle_unmatched_frame(pri, h, len);
 		}
 
 	}
 	if (pri->debug & PRI_DEBUG_Q921_DUMP)
 		pri_message(pri, "Handling message for SAPI/TEI=%d/%d\n", h->h.sapi, h->h.tei);
 	ev = __q921_receive_qualified(pri, h, len);
-	reschedule_t203(pri);
 	return ev;
 }
 

@@ -74,6 +74,7 @@ int eect_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
 int rlt_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
 
 int qsig_cf_callrerouting(struct pri *pri, q931_call *c, const char* dest, const char* original, const char* reason);
+int send_reroute_request(struct pri *ctrl, q931_call *call, const struct q931_party_id *caller, const struct q931_party_redirecting *deflection, int subscription_option);
 
 /* starts a QSIG Path Replacement */
 int anfpr_initiate_transfer(struct pri *pri, q931_call *c1, q931_call *c2);
@@ -106,9 +107,9 @@ struct rose_msg_result;
 struct rose_msg_error;
 struct rose_msg_reject;
 
-void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie, const struct fac_extension_header *header, const struct rose_msg_invoke *invoke);
-void rose_handle_result(struct pri *ctrl, q931_call *call, q931_ie *ie, const struct fac_extension_header *header, const struct rose_msg_result *result);
-void rose_handle_error(struct pri *ctrl, q931_call *call, q931_ie *ie, const struct fac_extension_header *header, const struct rose_msg_error *error);
-void rose_handle_reject(struct pri *ctrl, q931_call *call, q931_ie *ie, const struct fac_extension_header *header, const struct rose_msg_reject *reject);
+void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, const struct fac_extension_header *header, const struct rose_msg_invoke *invoke);
+void rose_handle_result(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, const struct fac_extension_header *header, const struct rose_msg_result *result);
+void rose_handle_error(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, const struct fac_extension_header *header, const struct rose_msg_error *error);
+void rose_handle_reject(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, const struct fac_extension_header *header, const struct rose_msg_reject *reject);
 
 #endif /* _PRI_FACILITY_H */

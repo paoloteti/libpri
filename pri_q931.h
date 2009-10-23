@@ -424,6 +424,22 @@ enum Q931_CALL_STATE {
 	Q931_CALL_STATE_NOT_SET = 0xFF,
 };
 
+/*! Q.931 call establishment state ranking for competing calls in PTMP NT mode. */
+enum Q931_RANKED_CALL_STATE {
+	/*! Call is present but has no response yet. */
+	Q931_RANKED_CALL_STATE_PRESENT,
+	/*! Call is collecting digits. */
+	Q931_RANKED_CALL_STATE_OVERLAP,
+	/*! Call routing is happening. */
+	Q931_RANKED_CALL_STATE_PROCEEDING,
+	/*! Called party is being alerted of the call. */
+	Q931_RANKED_CALL_STATE_ALERTING,
+	/*! Call is connected.  A winner has been declared. */
+	Q931_RANKED_CALL_STATE_CONNECT,
+	/*! Call is in some non-call establishment state (likely disconnecting). */
+	Q931_RANKED_CALL_STATE_OTHER,
+};
+
 /* EuroISDN  */
 #define Q931_SENDING_COMPLETE		0xa1
 
@@ -474,8 +490,16 @@ extern q931_call *q931_new_call(struct pri *pri);
 extern int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req);
 extern void q931_dump(struct pri *pri, q931_h *h, int len, int txrx);
 
-extern void __q931_destroycall(struct pri *pri, q931_call *c);
+void q931_destroycall(struct pri *pri, q931_call *c);
 
 extern void q931_dl_indication(struct pri *pri, int event);
+
+int q931_send_hold(struct pri *ctrl, struct q931_call *call);
+int q931_send_hold_ack(struct pri *ctrl, struct q931_call *call);
+int q931_send_hold_rej(struct pri *ctrl, struct q931_call *call, int cause);
+
+int q931_send_retrieve(struct pri *ctrl, struct q931_call *call, int channel);
+int q931_send_retrieve_ack(struct pri *ctrl, struct q931_call *call, int channel);
+int q931_send_retrieve_rej(struct pri *ctrl, struct q931_call *call, int cause);
 
 #endif

@@ -519,6 +519,24 @@ static void rose_copy_number_to_q931(struct pri *ctrl,
 
 /*!
  * \internal
+ * \brief Copy the given rose address to the q931_party_id address.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param q931_address Q.931 party id structure to fill address
+ * \param rose_address ROSE address structure
+ *
+ * \note It is assumed that the q931_address has been initialized before calling.
+ *
+ * \return Nothing
+ */
+static void rose_copy_address_to_q931(struct pri *ctrl,
+	struct q931_party_id *q931_address, const struct roseAddress *rose_address)
+{
+	rose_copy_number_to_q931(ctrl, &q931_address->number, &rose_address->number);
+}
+
+/*!
+ * \internal
  * \brief Copy the given rose presented screened party number to the q931_party_number
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -648,6 +666,22 @@ static void q931_copy_number_to_rose(struct pri *ctrl,
 	libpri_copy_string((char *) rose_number->str, q931_number->str,
 		sizeof(rose_number->str));
 	rose_number->length = strlen((char *) rose_number->str);
+}
+
+/*!
+ * \internal
+ * \brief Copy the given q931_party_id address to the rose address.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param rose_address ROSE address structure
+ * \param q931_address Q.931 party id structure to give address
+ *
+ * \return Nothing
+ */
+static void q931_copy_address_to_rose(struct pri *ctrl, struct roseAddress *rose_address,
+	const struct q931_party_id *q931_address)
+{
+	q931_copy_number_to_rose(ctrl, &rose_address->number, &q931_address->number);
 }
 
 /*!
@@ -1658,17 +1692,24 @@ int eect_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
  * \param pos Starting position to encode the facility ie contents.
  * \param end End of facility ie contents encoding data buffer.
  * \param call Q.931 call leg.
- * \param calling Calling party info.
- * \param dest Destination number.
- * \param original Original called number.
- * \param reason Rerouting reason: cfu, cfb, cfnr
+ * \param calling Call rerouting/deflecting updated caller data.
+ * \param deflection Call rerouting/deflecting redirection data.
+ * \param subscription_option Diverting user subscription option to specify if caller is notified.
+ *
+ * \note
+ * deflection->to is the new called number and must always be present.
+ * \note
+ * subscription option:
+ * noNotification(0),
+ * notificationWithoutDivertedToNr(1),
+ * notificationWithDivertedToNr(2)
  *
  * \retval Start of the next ASN.1 component to encode on success.
  * \retval NULL on error.
  */
 static unsigned char *enc_qsig_call_rerouting(struct pri *ctrl, unsigned char *pos,
 	unsigned char *end, q931_call *call, const struct q931_party_id *calling,
-	const char *dest, const char *original, const char *reason)
+	const struct q931_party_redirecting *deflection, int subscription_option)
 {
 	struct fac_extension_header header;
 	struct rose_msg_invoke msg;
@@ -1689,26 +1730,13 @@ static unsigned char *enc_qsig_call_rerouting(struct pri *ctrl, unsigned char *p
 	msg.operation = ROSE_QSIG_CallRerouting;
 	msg.invoke_id = get_invokeid(ctrl);
 
-	/* The rerouting_reason defaults to unknown */
-	if (reason) {
-		if (!strcasecmp(reason, "cfu")) {
-			msg.args.qsig.CallRerouting.rerouting_reason = 1;	/* cfu */
-		} else if (!strcasecmp(reason, "cfb")) {
-			msg.args.qsig.CallRerouting.rerouting_reason = 2;	/* cfb */
-		} else if (!strcasecmp(reason, "cfnr")) {
-			msg.args.qsig.CallRerouting.rerouting_reason = 3;	/* cfnr */
-		}
-	}
+	msg.args.qsig.CallRerouting.rerouting_reason =
+		redirectingreason_from_q931(ctrl, deflection->reason);
 
-	/* calledAddress is the passed in dest number */
-	msg.args.qsig.CallRerouting.called.number.plan = 1;	/* public */
-	msg.args.qsig.CallRerouting.called.number.ton = 0;	/* unknown */
-	libpri_copy_string((char *) msg.args.qsig.CallRerouting.called.number.str, dest,
-		sizeof(msg.args.qsig.CallRerouting.called.number.str));
-	msg.args.qsig.CallRerouting.called.number.length = strlen((char *)
-		msg.args.qsig.CallRerouting.called.number.str);
+	/* calledAddress is the passed in deflection->to address */
+	q931_copy_address_to_rose(ctrl, &msg.args.qsig.CallRerouting.called, &deflection->to);
 
-	msg.args.qsig.CallRerouting.diversion_counter = call->redirecting.count + 1;
+	msg.args.qsig.CallRerouting.diversion_counter = deflection->count;
 
 	/* pSS1InfoElement */
 	q931ie_pos = msg.args.qsig.CallRerouting.q931ie_contents;
@@ -1724,30 +1752,276 @@ static unsigned char *enc_qsig_call_rerouting(struct pri *ctrl, unsigned char *p
 	msg.args.qsig.CallRerouting.q931ie.length = q931ie_pos
 		- msg.args.qsig.CallRerouting.q931ie_contents;
 
-	/* lastReroutingNr is the passed in original number */
-	msg.args.qsig.CallRerouting.last_rerouting.presentation = 0;	/* presentationAllowedNumber */
-	msg.args.qsig.CallRerouting.last_rerouting.number.plan = 1;	/* public */
-	msg.args.qsig.CallRerouting.last_rerouting.number.ton = 0;	/* unknown */
-	libpri_copy_string((char *) msg.args.qsig.CallRerouting.last_rerouting.number.str,
-		original, sizeof(msg.args.qsig.CallRerouting.last_rerouting.number.str));
-	msg.args.qsig.CallRerouting.last_rerouting.number.length = strlen((char *)
-		msg.args.qsig.CallRerouting.last_rerouting.number.str);
+	/* lastReroutingNr is the passed in deflection->from.number */
+	q931_copy_presented_number_unscreened_to_rose(ctrl,
+		&msg.args.qsig.CallRerouting.last_rerouting, &deflection->from.number);
 
-	msg.args.qsig.CallRerouting.subscription_option = 0;	/* noNotification */
+	msg.args.qsig.CallRerouting.subscription_option = subscription_option;
 
 	/* callingNumber is the passed in calling->number */
 	q931_copy_presented_number_screened_to_rose(ctrl,
 		&msg.args.qsig.CallRerouting.calling, &calling->number);
 
+	/* callingPartySubaddress is the passed in calling->subaddress if valid */
+
 	/* callingName is the passed in calling->name if valid */
 	if (calling->name.valid) {
 		msg.args.qsig.CallRerouting.calling_name_present = 1;
-		q931_copy_name_to_rose(ctrl, &msg.args.qsig.CallRerouting.calling_name, &calling->name);
+		q931_copy_name_to_rose(ctrl, &msg.args.qsig.CallRerouting.calling_name,
+			&calling->name);
+	}
+
+	if (1 < deflection->count) {
+		/* originalCalledNr is the deflection->orig_called.number */
+		msg.args.qsig.CallRerouting.original_called_present = 1;
+		q931_copy_presented_number_unscreened_to_rose(ctrl,
+			&msg.args.qsig.CallRerouting.original_called,
+			&deflection->orig_called.number);
+
+		msg.args.qsig.CallRerouting.original_rerouting_reason_present = 1;
+		if (deflection->orig_called.number.valid) {
+			msg.args.qsig.CallRerouting.original_rerouting_reason =
+				redirectingreason_from_q931(ctrl, deflection->orig_reason);
+		} else {
+			msg.args.qsig.CallRerouting.original_rerouting_reason =
+				QSIG_DIVERT_REASON_UNKNOWN;
+		}
+
+		/* originalCalledName is the deflection->orig_called.name */
+		if (deflection->orig_called.name.valid) {
+			msg.args.qsig.CallRerouting.original_called_name_present = 1;
+			q931_copy_name_to_rose(ctrl,
+				&msg.args.qsig.CallRerouting.original_called_name,
+				&deflection->orig_called.name);
+		}
 	}
 
 	pos = rose_encode_invoke(ctrl, pos, end, &msg);
 
 	return pos;
+}
+
+/*!
+ * \internal
+ * \brief Encode the ETSI CallRerouting invoke message.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param pos Starting position to encode the facility ie contents.
+ * \param end End of facility ie contents encoding data buffer.
+ * \param call Q.931 call leg.
+ * \param calling Call rerouting/deflecting updated caller data.
+ * \param deflection Call rerouting/deflecting redirection data.
+ * \param subscription_option Diverting user subscription option to specify if caller is notified.
+ *
+ * \note
+ * deflection->to is the new called number and must always be present.
+ * \note
+ * subscription option:
+ * noNotification(0),
+ * notificationWithoutDivertedToNr(1),
+ * notificationWithDivertedToNr(2)
+ *
+ * \retval Start of the next ASN.1 component to encode on success.
+ * \retval NULL on error.
+ */
+static unsigned char *enc_etsi_call_rerouting(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, q931_call *call, const struct q931_party_id *calling,
+	const struct q931_party_redirecting *deflection, int subscription_option)
+{
+	struct rose_msg_invoke msg;
+	unsigned char *q931ie_pos;
+
+	pos = facility_encode_header(ctrl, pos, end, NULL);
+	if (!pos) {
+		return NULL;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.operation = ROSE_ETSI_CallRerouting;
+	msg.invoke_id = get_invokeid(ctrl);
+
+	msg.args.etsi.CallRerouting.rerouting_reason =
+		redirectingreason_from_q931(ctrl, deflection->reason);
+
+	/* calledAddress is the passed in deflection->to address */
+	q931_copy_address_to_rose(ctrl, &msg.args.etsi.CallRerouting.called_address,
+		&deflection->to);
+
+	msg.args.etsi.CallRerouting.rerouting_counter = deflection->count;
+
+	/* q931InfoElement */
+	q931ie_pos = msg.args.etsi.CallRerouting.q931ie_contents;
+	*q931ie_pos++ = 0x04;	/* Bearer Capability IE */
+	*q931ie_pos++ = 0x03;	/* len */
+	*q931ie_pos++ = 0x80 | call->transcapability;	/* Rxed transfer capability. */
+	*q931ie_pos++ = 0x90;	/* circuit mode, 64kbit/s */
+	*q931ie_pos++ = 0xa3;	/* level1 protocol, a-law */
+	msg.args.etsi.CallRerouting.q931ie.length = q931ie_pos
+		- msg.args.etsi.CallRerouting.q931ie_contents;
+
+	/* lastReroutingNr is the passed in deflection->from.number */
+	q931_copy_presented_number_unscreened_to_rose(ctrl,
+		&msg.args.etsi.CallRerouting.last_rerouting, &deflection->from.number);
+
+	msg.args.etsi.CallRerouting.subscription_option = subscription_option;
+
+	/* callingPartySubaddress is the passed in calling->subaddress if valid */
+
+	pos = rose_encode_invoke(ctrl, pos, end, &msg);
+
+	return pos;
+}
+
+/*!
+ * \internal
+ * \brief Encode the ETSI CallDeflection invoke message.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param pos Starting position to encode the facility ie contents.
+ * \param end End of facility ie contents encoding data buffer.
+ * \param call Q.931 call leg.
+ * \param deflection Call deflection address.
+ *
+ * \note
+ * deflection is the new called number and must always be present.
+ *
+ * \retval Start of the next ASN.1 component to encode on success.
+ * \retval NULL on error.
+ */
+static unsigned char *enc_etsi_call_deflection(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, q931_call *call, const struct q931_party_id *deflection)
+{
+	struct rose_msg_invoke msg;
+
+	pos = facility_encode_header(ctrl, pos, end, NULL);
+	if (!pos) {
+		return NULL;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.operation = ROSE_ETSI_CallDeflection;
+	msg.invoke_id = get_invokeid(ctrl);
+
+	/* deflectionAddress is the passed in deflection->to address */
+	q931_copy_address_to_rose(ctrl, &msg.args.etsi.CallDeflection.deflection,
+		deflection);
+
+	msg.args.etsi.CallDeflection.presentation_allowed_to_diverted_to_user_present = 1;
+	switch (deflection->number.presentation & PRI_PRES_RESTRICTION) {
+	case PRI_PRES_ALLOWED:
+		msg.args.etsi.CallDeflection.presentation_allowed_to_diverted_to_user = 1;
+		break;
+	default:
+	case PRI_PRES_UNAVAILABLE:
+	case PRI_PRES_RESTRICTED:
+		break;
+	}
+
+	pos = rose_encode_invoke(ctrl, pos, end, &msg);
+
+	return pos;
+}
+
+/*!
+ * \internal
+ * \brief Encode and queue the CallRerouting/CallDeflection message.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param caller Call rerouting/deflecting updated caller data. (NULL if data not updated.)
+ * \param deflection Call rerouting/deflecting redirection data.
+ * \param subscription_option Diverting user subscription option to specify if caller is notified.
+ *
+ * \note
+ * deflection->to is the new called number and must always be present.
+ * \note
+ * subscription option:
+ * noNotification(0),
+ * notificationWithoutDivertedToNr(1),
+ * notificationWithDivertedToNr(2)
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int rose_reroute_request_encode(struct pri *ctrl, q931_call *call,
+	const struct q931_party_id *caller, const struct q931_party_redirecting *deflection,
+	int subscription_option)
+{
+	unsigned char buffer[256];
+	unsigned char *end;
+
+	if (!caller) {
+		/*
+		 * We are deflecting an incoming call back to the network.
+		 * Therefore, the Caller-ID is the remote party.
+		 */
+		caller = &call->remote_id;
+	}
+
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_EUROISDN_E1:
+	case PRI_SWITCH_EUROISDN_T1:
+		if (q931_is_ptmp(ctrl)) {
+			end =
+				enc_etsi_call_deflection(ctrl, buffer, buffer + sizeof(buffer), call,
+					&deflection->to);
+		} else {
+			end =
+				enc_etsi_call_rerouting(ctrl, buffer, buffer + sizeof(buffer), call,
+					caller, deflection, subscription_option);
+		}
+		break;
+	case PRI_SWITCH_QSIG:
+		end =
+			enc_qsig_call_rerouting(ctrl, buffer, buffer + sizeof(buffer), call, caller,
+				deflection, subscription_option);
+		break;
+	default:
+		return -1;
+	}
+	if (!end) {
+		return -1;
+	}
+
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL, NULL);
+}
+
+/*!
+ * \brief Send the CallRerouting/CallDeflection message.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param caller Call rerouting/deflecting updated caller data. (NULL if data not updated.)
+ * \param deflection Call rerouting/deflecting redirection data.
+ * \param subscription_option Diverting user subscription option to specify if caller is notified.
+ *
+ * \note
+ * deflection->to is the new called number and must always be present.
+ * \note
+ * subscription option:
+ * noNotification(0),
+ * notificationWithoutDivertedToNr(1),
+ * notificationWithDivertedToNr(2)
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+int send_reroute_request(struct pri *ctrl, q931_call *call,
+	const struct q931_party_id *caller, const struct q931_party_redirecting *deflection,
+	int subscription_option)
+{
+	if (!deflection->to.number.str[0]) {
+		/* Must have a deflect to number.  That is the point of deflection. */
+		return -1;
+	}
+	if (rose_reroute_request_encode(ctrl, call, caller, deflection, subscription_option)
+		|| q931_facility(ctrl, call)) {
+		pri_message(ctrl,
+			"Could not schedule facility message for CallRerouting/CallDeflection message.\n");
+		return -1;
+	}
+
+	return 0;
 }
 
 /*!
@@ -1765,38 +2039,57 @@ static unsigned char *enc_qsig_call_rerouting(struct pri *ctrl, unsigned char *p
 int qsig_cf_callrerouting(struct pri *ctrl, q931_call *call, const char *dest,
 	const char *original, const char *reason)
 {
-	unsigned char buffer[255];
-	unsigned char *end;
-	int res;
+	struct q931_party_redirecting reroute;
 
-	/*
-	 * We are deflecting an incoming call back to the network.
-	 * Therefore, the Caller-ID is the remote party.
-	 */
-	end =
-		enc_qsig_call_rerouting(ctrl, buffer, buffer + sizeof(buffer), call,
-			&call->remote_id, dest, original ? original : call->called.number.str,
-			reason);
-	if (!end) {
-		return -1;
+	q931_party_redirecting_init(&reroute);
+
+	/* Rerouting to the dest number. */
+	reroute.to.number.valid = 1;
+	reroute.to.number.plan = (PRI_TON_UNKNOWN << 4) | PRI_NPI_E163_E164;
+	reroute.to.number.presentation = PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
+	libpri_copy_string(reroute.to.number.str, dest, sizeof(reroute.to.number.str));
+
+	/* Rerouting from the original number. */
+	if (original) {
+		reroute.from.number.valid = 1;
+		reroute.from.number.plan = (PRI_TON_UNKNOWN << 4) | PRI_NPI_E163_E164;
+		libpri_copy_string(reroute.from.number.str, original, sizeof(reroute.from.number.str));
+	} else {
+		reroute.from.number = call->called.number;
+	}
+	reroute.from.number.presentation = PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
+
+	/* Decode the rerouting reason. */
+	reroute.reason = PRI_REDIR_UNKNOWN;
+	if (!reason) {
+		/* No reason for rerouting given. */
+	} else if (!strcasecmp(reason, "cfu")) {
+		reroute.reason = PRI_REDIR_UNCONDITIONAL;
+	} else if (!strcasecmp(reason, "cfb")) {
+		reroute.reason = PRI_REDIR_FORWARD_ON_BUSY;
+	} else if (!strcasecmp(reason, "cfnr")) {
+		reroute.reason = PRI_REDIR_FORWARD_ON_NO_REPLY;
 	}
 
-	res = pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL, NULL);
-	if (res) {
-		pri_message(ctrl, "Could not queue ADPU in facility message\n");
-		return -1;
+	reroute.count = (call->redirecting.count < PRI_MAX_REDIRECTS)
+		? call->redirecting.count + 1 : PRI_MAX_REDIRECTS;
+
+	if (!call->redirecting.orig_called.number.valid) {
+		/*
+		 * Since we do not already have an originally called party, we
+		 * must either be the first redirected to party or this call
+		 * has not been redirected before.
+		 *
+		 * Preserve who redirected to us as the originally called party.
+		 */
+		reroute.orig_called = call->redirecting.from;
+		reroute.orig_reason = call->redirecting.reason;
+	} else {
+		reroute.orig_called = call->redirecting.orig_called;
+		reroute.orig_reason = call->redirecting.orig_reason;
 	}
 
-	/* Remember that if we queue a facility IE for a facility message we
-	 * have to explicitly send the facility message ourselves */
-
-	res = q931_facility(call->pri, call);
-	if (res) {
-		pri_message(ctrl, "Could not schedule facility message for call %d\n", call->cr);
-		return -1;
-	}
-
-	return 0;
+	return send_reroute_request(ctrl, call, NULL, &reroute, 0 /* noNotification */);
 }
 /* End QSIG CC-CallRerouting */
 
@@ -2430,17 +2723,326 @@ int send_call_transfer_complete(struct pri *ctrl, q931_call *call, int call_stat
 }
 
 /*!
+ * \internal
+ * \brief Encode a plain facility ETSI error code.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param pos Starting position to encode the facility ie contents.
+ * \param end End of facility ie contents encoding data buffer.
+ * \param call Call leg from which to encode error message response.
+ * \param invoke_id Invoke id to put in error message response.
+ * \param code Error code to put in error message response.
+ *
+ * \retval Start of the next ASN.1 component to encode on success.
+ * \retval NULL on error.
+ */
+static unsigned char *enc_etsi_error(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, q931_call *call, int invoke_id, enum rose_error_code code)
+{
+	struct rose_msg_error msg;
+
+	pos = facility_encode_header(ctrl, pos, end, NULL);
+	if (!pos) {
+		return NULL;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.invoke_id = invoke_id;
+	msg.code = code;
+
+	pos = rose_encode_error(ctrl, pos, end, &msg);
+
+	return pos;
+}
+
+/*!
+ * \internal
+ * \brief Encode a plain facility Q.SIG error code.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param pos Starting position to encode the facility ie contents.
+ * \param end End of facility ie contents encoding data buffer.
+ * \param call Call leg from which to encode error message response.
+ * \param invoke_id Invoke id to put in error message response.
+ * \param code Error code to put in error message response.
+ *
+ * \retval Start of the next ASN.1 component to encode on success.
+ * \retval NULL on error.
+ */
+static unsigned char *enc_qsig_error(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, q931_call *call, int invoke_id, enum rose_error_code code)
+{
+	struct fac_extension_header header;
+	struct rose_msg_error msg;
+
+	memset(&header, 0, sizeof(header));
+	header.nfe_present = 1;
+	header.nfe.source_entity = 0;	/* endPINX */
+	header.nfe.destination_entity = 0;	/* endPINX */
+	header.interpretation_present = 1;
+	header.interpretation = 0;	/* discardAnyUnrecognisedInvokePdu */
+	pos = facility_encode_header(ctrl, pos, end, &header);
+	if (!pos) {
+		return NULL;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.invoke_id = invoke_id;
+	msg.code = code;
+
+	pos = rose_encode_error(ctrl, pos, end, &msg);
+
+	return pos;
+}
+
+/*!
+ * \internal
+ * \brief Encode and queue a plain facility error code.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param call Call leg from which to encode error message response.
+ * \param invoke_id Invoke id to put in error message response.
+ * \param code Error code to put in error message response.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int rose_facility_error_encode(struct pri *ctrl, q931_call *call, int invoke_id,
+	enum rose_error_code code)
+{
+	unsigned char buffer[256];
+	unsigned char *end;
+
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_EUROISDN_E1:
+	case PRI_SWITCH_EUROISDN_T1:
+		end =
+			enc_etsi_error(ctrl, buffer, buffer + sizeof(buffer), call, invoke_id, code);
+		break;
+	case PRI_SWITCH_QSIG:
+		end =
+			enc_qsig_error(ctrl, buffer, buffer + sizeof(buffer), call, invoke_id, code);
+		break;
+	default:
+		return -1;
+	}
+	if (!end) {
+		return -1;
+	}
+
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL, NULL);
+}
+
+/*!
+ * \brief Encode and send a plain facility error code.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param call Call leg from which to encode error message response.
+ * \param invoke_id Invoke id to put in error message response.
+ * \param code Error code to put in error message response.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int send_facility_error(struct pri *ctrl, q931_call *call, int invoke_id,
+	enum rose_error_code code)
+{
+	if (rose_facility_error_encode(ctrl, call, invoke_id, code)
+		|| q931_facility(ctrl, call)) {
+		pri_message(ctrl,
+			"Could not schedule facility message for error message.\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+/*!
+ * \internal
+ * \brief Encode a plain facility ETSI result ok.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param pos Starting position to encode the facility ie contents.
+ * \param end End of facility ie contents encoding data buffer.
+ * \param call Call leg from which to encode result ok message response.
+ * \param invoke_id Invoke id to put in result ok message response.
+ *
+ * \retval Start of the next ASN.1 component to encode on success.
+ * \retval NULL on error.
+ */
+static unsigned char *enc_etsi_result_ok(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, q931_call *call, int invoke_id)
+{
+	struct rose_msg_result msg;
+
+	pos = facility_encode_header(ctrl, pos, end, NULL);
+	if (!pos) {
+		return NULL;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.invoke_id = invoke_id;
+	msg.operation = ROSE_None;
+
+	pos = rose_encode_result(ctrl, pos, end, &msg);
+
+	return pos;
+}
+
+/*!
+ * \internal
+ * \brief Encode a plain facility Q.SIG result ok.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param pos Starting position to encode the facility ie contents.
+ * \param end End of facility ie contents encoding data buffer.
+ * \param call Call leg from which to encode result ok message response.
+ * \param invoke_id Invoke id to put in result ok message response.
+ *
+ * \retval Start of the next ASN.1 component to encode on success.
+ * \retval NULL on error.
+ */
+static unsigned char *enc_qsig_result_ok(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, q931_call *call, int invoke_id)
+{
+	struct fac_extension_header header;
+	struct rose_msg_result msg;
+
+	memset(&header, 0, sizeof(header));
+	header.nfe_present = 1;
+	header.nfe.source_entity = 0;	/* endPINX */
+	header.nfe.destination_entity = 0;	/* endPINX */
+	header.interpretation_present = 1;
+	header.interpretation = 0;	/* discardAnyUnrecognisedInvokePdu */
+	pos = facility_encode_header(ctrl, pos, end, &header);
+	if (!pos) {
+		return NULL;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.invoke_id = invoke_id;
+	msg.operation = ROSE_None;
+
+	pos = rose_encode_result(ctrl, pos, end, &msg);
+
+	return pos;
+}
+
+/*!
+ * \internal
+ * \brief Encode and queue a plain ROSE result ok.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param call Call leg from which to encode result ok message response.
+ * \param msgtype Q.931 message type to put facility ie in.
+ * \param invoke_id Invoke id to put in result ok message response.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int rose_result_ok_encode(struct pri *ctrl, q931_call *call, int msgtype, int invoke_id)
+{
+	unsigned char buffer[256];
+	unsigned char *end;
+
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_EUROISDN_E1:
+	case PRI_SWITCH_EUROISDN_T1:
+		end =
+			enc_etsi_result_ok(ctrl, buffer, buffer + sizeof(buffer), call, invoke_id);
+		break;
+	case PRI_SWITCH_QSIG:
+		end =
+			enc_qsig_result_ok(ctrl, buffer, buffer + sizeof(buffer), call, invoke_id);
+		break;
+	default:
+		return -1;
+	}
+	if (!end) {
+		return -1;
+	}
+
+	return pri_call_apdu_queue(call, msgtype, buffer, end - buffer, NULL, NULL);
+}
+
+/*!
+ * \brief Encode and send a FACILITY message with a plain ROSE result ok.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param call Call leg from which to encode result ok message response.
+ * \param invoke_id Invoke id to put in result ok message response.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int send_facility_result_ok(struct pri *ctrl, q931_call *call, int invoke_id)
+{
+	if (rose_result_ok_encode(ctrl, call, Q931_FACILITY, invoke_id)
+		|| q931_facility(ctrl, call)) {
+		pri_message(ctrl,
+			"Could not schedule facility message for result OK message.\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+int pri_rerouting_rsp(struct pri *ctrl, q931_call *call, int invoke_id, enum PRI_REROUTING_RSP_CODE code)
+{
+	enum rose_error_code rose_err;
+
+	if (!ctrl || !call) {
+		return -1;
+	}
+
+	/* Convert the public rerouting response code to an error code or result ok. */
+	rose_err = ROSE_ERROR_Gen_ResourceUnavailable;
+	switch (code) {
+	case PRI_REROUTING_RSP_OK_CLEAR:
+		return rose_result_ok_encode(ctrl, call, Q931_DISCONNECT, invoke_id);
+	case PRI_REROUTING_RSP_OK_RETAIN:
+		return send_facility_result_ok(ctrl, call, invoke_id);
+	case PRI_REROUTING_RSP_NOT_SUBSCRIBED:
+		rose_err = ROSE_ERROR_Gen_NotSubscribed;
+		break;
+	case PRI_REROUTING_RSP_NOT_AVAILABLE:
+		rose_err = ROSE_ERROR_Gen_NotAvailable;
+		break;
+	case PRI_REROUTING_RSP_NOT_ALLOWED:
+		rose_err = ROSE_ERROR_Gen_SupplementaryServiceInteractionNotAllowed;
+		break;
+	case PRI_REROUTING_RSP_INVALID_NUMBER:
+		rose_err = ROSE_ERROR_Div_InvalidDivertedToNr;
+		break;
+	case PRI_REROUTING_RSP_SPECIAL_SERVICE_NUMBER:
+		rose_err = ROSE_ERROR_Div_SpecialServiceNr;
+		break;
+	case PRI_REROUTING_RSP_DIVERSION_TO_SELF:
+		rose_err = ROSE_ERROR_Div_DiversionToServedUserNr;
+		break;
+	case PRI_REROUTING_RSP_MAX_DIVERSIONS_EXCEEDED:
+		rose_err = ROSE_ERROR_Div_NumberOfDiversionsExceeded;
+		break;
+	case PRI_REROUTING_RSP_RESOURCE_UNAVAILABLE:
+		rose_err = ROSE_ERROR_Gen_ResourceUnavailable;
+		break;
+	}
+	return send_facility_error(ctrl, call, invoke_id, rose_err);
+}
+
+/*!
  * \brief Handle the ROSE reject message.
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
  * \param call Call leg from which the message came.
+ * \param msgtype Q.931 message type ie is in.
  * \param ie Raw ie contents.
  * \param header Decoded facility header before ROSE.
  * \param reject Decoded ROSE reject message contents.
  *
  * \return Nothing
  */
-void rose_handle_reject(struct pri *ctrl, q931_call *call, q931_ie *ie,
+void rose_handle_reject(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie,
 	const struct fac_extension_header *header, const struct rose_msg_reject *reject)
 {
 	pri_error(ctrl, "ROSE REJECT:\n");
@@ -2455,13 +3057,14 @@ void rose_handle_reject(struct pri *ctrl, q931_call *call, q931_ie *ie,
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
  * \param call Call leg from which the message came.
+ * \param msgtype Q.931 message type ie is in.
  * \param ie Raw ie contents.
  * \param header Decoded facility header before ROSE.
  * \param error Decoded ROSE error message contents.
  *
  * \return Nothing
  */
-void rose_handle_error(struct pri *ctrl, q931_call *call, q931_ie *ie,
+void rose_handle_error(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie,
 	const struct fac_extension_header *header, const struct rose_msg_error *error)
 {
 	const char *dms100_operation;
@@ -2497,13 +3100,14 @@ void rose_handle_error(struct pri *ctrl, q931_call *call, q931_ie *ie,
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
  * \param call Call leg from which the message came.
+ * \param msgtype Q.931 message type ie is in.
  * \param ie Raw ie contents.
  * \param header Decoded facility header before ROSE.
  * \param result Decoded ROSE result message contents.
  *
  * \return Nothing
  */
-void rose_handle_result(struct pri *ctrl, q931_call *call, q931_ie *ie,
+void rose_handle_result(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie,
 	const struct fac_extension_header *header, const struct rose_msg_result *result)
 {
 	switch (ctrl->switchtype) {
@@ -2535,7 +3139,6 @@ void rose_handle_result(struct pri *ctrl, q931_call *call, q931_ie *ie,
 	}
 
 	switch (result->operation) {
-#if 0	/* Not handled yet */
 	case ROSE_None:
 		/*
 		 * This is simply a positive ACK to the invoke request.
@@ -2543,7 +3146,6 @@ void rose_handle_result(struct pri *ctrl, q931_call *call, q931_ie *ie,
 		 * invoke requests.
 		 */
 		break;
-#endif	/* Not handled yet */
 #if 0	/* Not handled yet */
 	case ROSE_ETSI_ActivationDiversion:
 		break;
@@ -2551,10 +3153,14 @@ void rose_handle_result(struct pri *ctrl, q931_call *call, q931_ie *ie,
 		break;
 	case ROSE_ETSI_InterrogationDiversion:
 		break;
+#endif	/* Not handled yet */
 	case ROSE_ETSI_CallDeflection:
+		/* Successfully completed call deflection.  Nothing to do. */
 		break;
 	case ROSE_ETSI_CallRerouting:
+		/* Successfully completed call rerouting.  Nothing to do. */
 		break;
+#if 0	/* Not handled yet */
 	case ROSE_ETSI_InterrogateServedUserNumbers:
 		break;
 #endif	/* Not handled yet */
@@ -2597,9 +3203,7 @@ void rose_handle_result(struct pri *ctrl, q931_call *call, q931_ie *ie,
 		break;
 #endif	/* Not handled yet */
 	case ROSE_QSIG_CallRerouting:
-		if (ctrl->debug & PRI_DEBUG_APDU) {
-			pri_message(ctrl, "Successfully completed QSIG CF callRerouting!\n");
-		}
+		/* Successfully completed call rerouting.  Nothing to do. */
 		break;
 #if 0	/* Not handled yet */
 	case ROSE_QSIG_MWIActivate:
@@ -2623,17 +3227,19 @@ void rose_handle_result(struct pri *ctrl, q931_call *call, q931_ie *ie,
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
  * \param call Call leg from which the message came.
+ * \param msgtype Q.931 message type ie is in.
  * \param ie Raw ie contents.
  * \param header Decoded facility header before ROSE.
  * \param invoke Decoded ROSE invoke message contents.
  *
  * \return Nothing
  */
-void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie,
+void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie,
 	const struct fac_extension_header *header, const struct rose_msg_invoke *invoke)
 {
 	struct pri_subcommand *subcmd;
 	struct q931_party_id party_id;
+	struct q931_party_redirecting deflection;
 
 	switch (invoke->operation) {
 #if 0	/* Not handled yet */
@@ -2649,10 +3255,135 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie,
 		break;
 	case ROSE_ETSI_DiversionInformation:
 		break;
+#endif	/* Not handled yet */
 	case ROSE_ETSI_CallDeflection:
+		if (!PRI_MASTER(ctrl)->deflection_support) {
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Gen_NotSubscribed);
+			break;
+		}
+		if (!q931_master_pass_event(ctrl, call, msgtype)) {
+			/* Some other user is further along to connecting than this call. */
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Div_IncomingCallAccepted);
+			break;
+		}
+		if (call->master_call->deflection_in_progress) {
+			/* Someone else is already doing a call deflection. */
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Div_RequestAlreadyAccepted);
+			break;
+		}
+		subcmd = q931_alloc_subcommand(ctrl);
+		if (!subcmd) {
+			/*
+			 * ROSE_ERROR_Gen_ResourceUnavailable was not in the list of allowed codes,
+			 * but we will send it anyway.
+			 */
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Gen_ResourceUnavailable);
+			pri_error(ctrl, "ERROR: Too many facility subcommands\n");
+			break;
+		}
+
+		call->master_call->deflection_in_progress = 1;
+
+		q931_party_redirecting_init(&deflection);
+
+		/* Deflecting from the called address. */
+		q931_party_address_to_id(&deflection.from, &call->called);
+		if (invoke->args.etsi.CallDeflection.presentation_allowed_to_diverted_to_user_present) {
+			deflection.from.number.presentation =
+				invoke->args.etsi.CallDeflection.presentation_allowed_to_diverted_to_user
+				? PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED
+				: PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
+		} else {
+			deflection.from.number.presentation =
+				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
+		}
+
+		/* Deflecting to the new address. */
+		rose_copy_address_to_q931(ctrl, &deflection.to,
+			&invoke->args.etsi.CallDeflection.deflection);
+		deflection.to.number.presentation = deflection.from.number.presentation;
+
+		deflection.count = (call->redirecting.count < PRI_MAX_REDIRECTS)
+			? call->redirecting.count + 1 : PRI_MAX_REDIRECTS;
+		deflection.reason = PRI_REDIR_DEFLECTION;
+		if (deflection.count == 1) {
+			deflection.orig_called = deflection.from;
+			deflection.orig_reason = deflection.reason;
+		} else {
+			deflection.orig_called = call->redirecting.orig_called;
+			deflection.orig_reason = call->redirecting.orig_reason;
+		}
+
+		subcmd->cmd = PRI_SUBCMD_REROUTING;
+		subcmd->u.rerouting.invoke_id = invoke->invoke_id;
+		subcmd->u.rerouting.subscription_option = 3;/* notApplicable */
+		q931_party_id_copy_to_pri(&subcmd->u.rerouting.caller, &call->local_id);
+		q931_party_redirecting_copy_to_pri(&subcmd->u.rerouting.deflection,
+			&deflection);
 		break;
 	case ROSE_ETSI_CallRerouting:
+		if (!PRI_MASTER(ctrl)->deflection_support) {
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Gen_NotSubscribed);
+			break;
+		}
+		subcmd = q931_alloc_subcommand(ctrl);
+		if (!subcmd) {
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Gen_ResourceUnavailable);
+			pri_error(ctrl, "ERROR: Too many facility subcommands\n");
+			break;
+		}
+
+		q931_party_redirecting_init(&deflection);
+
+		/* Rerouting from the last address. */
+		rose_copy_presented_number_unscreened_to_q931(ctrl, &deflection.from.number,
+			&invoke->args.etsi.CallRerouting.last_rerouting);
+
+		/* Rerouting to the new address. */
+		rose_copy_address_to_q931(ctrl, &deflection.to,
+			&invoke->args.etsi.CallRerouting.called_address);
+		switch (invoke->args.etsi.CallRerouting.subscription_option) {
+		default:
+		case 0: /* noNotification */
+		case 1: /* notificationWithoutDivertedToNr */
+			deflection.to.number.presentation =
+				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
+			break;
+		case 2: /* notificationWithDivertedToNr */
+			deflection.to.number.presentation =
+				PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
+			break;
+		}
+
+		/* Calling party subaddress update. */
+		party_id = call->local_id;
+
+		deflection.count = invoke->args.etsi.CallRerouting.rerouting_counter;
+		deflection.reason = redirectingreason_for_q931(ctrl,
+			invoke->args.etsi.CallRerouting.rerouting_reason);
+		if (deflection.count == 1) {
+			deflection.orig_called = deflection.from;
+			deflection.orig_reason = deflection.reason;
+		} else {
+			deflection.orig_called = call->redirecting.orig_called;
+			deflection.orig_reason = call->redirecting.orig_reason;
+		}
+
+		subcmd->cmd = PRI_SUBCMD_REROUTING;
+		subcmd->u.rerouting.invoke_id = invoke->invoke_id;
+		subcmd->u.rerouting.subscription_option =
+			invoke->args.etsi.CallRerouting.subscription_option;
+		q931_party_id_copy_to_pri(&subcmd->u.rerouting.caller, &party_id);
+		q931_party_redirecting_copy_to_pri(&subcmd->u.rerouting.deflection,
+			&deflection);
 		break;
+#if 0	/* Not handled yet */
 	case ROSE_ETSI_InterrogateServedUserNumbers:
 		break;
 #endif	/* Not handled yet */
@@ -2966,9 +3697,90 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, q931_ie *ie,
 		break;
 	case ROSE_QSIG_CheckRestriction:
 		break;
-	case ROSE_QSIG_CallRerouting:
-		break;
 #endif	/* Not handled yet */
+	case ROSE_QSIG_CallRerouting:
+		if (!PRI_MASTER(ctrl)->deflection_support) {
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Gen_NotSubscribed);
+			break;
+		}
+		subcmd = q931_alloc_subcommand(ctrl);
+		if (!subcmd) {
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Gen_ResourceUnavailable);
+			pri_error(ctrl, "ERROR: Too many facility subcommands\n");
+			break;
+		}
+
+		q931_party_redirecting_init(&deflection);
+
+		/* Rerouting from the last address. */
+		rose_copy_presented_number_unscreened_to_q931(ctrl, &deflection.from.number,
+			&invoke->args.qsig.CallRerouting.last_rerouting);
+		if (invoke->args.qsig.CallRerouting.redirecting_name_present) {
+			rose_copy_name_to_q931(ctrl, &deflection.from.name,
+				&invoke->args.qsig.CallRerouting.redirecting_name);
+		}
+
+		/* Rerouting to the new address. */
+		rose_copy_address_to_q931(ctrl, &deflection.to,
+			&invoke->args.qsig.CallRerouting.called);
+		switch (invoke->args.qsig.CallRerouting.subscription_option) {
+		default:
+		case 0: /* noNotification */
+		case 1: /* notificationWithoutDivertedToNr */
+			deflection.to.number.presentation =
+				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
+			break;
+		case 2: /* notificationWithDivertedToNr */
+			deflection.to.number.presentation =
+				PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
+			break;
+		}
+
+		/* Calling party update. */
+		party_id = call->local_id;
+		rose_copy_presented_number_screened_to_q931(ctrl, &party_id.number,
+			&invoke->args.qsig.CallRerouting.calling);
+		if (invoke->args.qsig.CallRerouting.calling_name_present) {
+			rose_copy_name_to_q931(ctrl, &party_id.name,
+				&invoke->args.qsig.CallRerouting.calling_name);
+		}
+
+		deflection.count = invoke->args.qsig.CallRerouting.diversion_counter;
+		deflection.reason = redirectingreason_for_q931(ctrl,
+			invoke->args.qsig.CallRerouting.rerouting_reason);
+
+		/* Original called party update. */
+		if (deflection.count == 1) {
+			deflection.orig_called = deflection.from;
+			deflection.orig_reason = deflection.reason;
+		} else {
+			deflection.orig_called = call->redirecting.orig_called;
+			deflection.orig_reason = call->redirecting.orig_reason;
+		}
+		if (invoke->args.qsig.CallRerouting.original_called_present) {
+			rose_copy_presented_number_unscreened_to_q931(ctrl,
+				&deflection.orig_called.number,
+				&invoke->args.qsig.CallRerouting.original_called);
+		}
+		if (invoke->args.qsig.CallRerouting.original_called_name_present) {
+			rose_copy_name_to_q931(ctrl, &deflection.orig_called.name,
+				&invoke->args.qsig.CallRerouting.original_called_name);
+		}
+		if (invoke->args.qsig.CallRerouting.original_rerouting_reason_present) {
+			deflection.orig_reason = redirectingreason_for_q931(ctrl,
+				invoke->args.qsig.CallRerouting.original_rerouting_reason);
+		}
+
+		subcmd->cmd = PRI_SUBCMD_REROUTING;
+		subcmd->u.rerouting.invoke_id = invoke->invoke_id;
+		subcmd->u.rerouting.subscription_option =
+			invoke->args.qsig.CallRerouting.subscription_option;
+		q931_party_id_copy_to_pri(&subcmd->u.rerouting.caller, &party_id);
+		q931_party_redirecting_copy_to_pri(&subcmd->u.rerouting.deflection,
+			&deflection);
+		break;
 	case ROSE_QSIG_DivertingLegInformation1:
 		/*
 		 * Unless otherwise indicated by CONNECT, the nominatedNr will be

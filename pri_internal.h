@@ -70,7 +70,9 @@ struct pri {
 	int protodisc;
 	unsigned int bri:1;
 	unsigned int acceptinbanddisconnect:1;	/* Should we allow inband progress after DISCONNECT? */
-	
+	unsigned int hold_support:1;/* TRUE if upper layer supports call hold. */
+	unsigned int deflection_support:1;/* TRUE if upper layer supports call deflection/rerouting. */
+
 	/* Q.921 State */
 	int q921_state;	
 	int window;			/* Max window size */
@@ -287,6 +289,7 @@ struct pri_sr {
 	int cis_call;
 	int cis_auto_disconnect;
 	const char *useruserinfo;
+	const char *keypad_digits;
 	int transferable;
 	int reversecharge;
 };
@@ -294,6 +297,8 @@ struct pri_sr {
 /* Internal switch types */
 #define PRI_SWITCH_GR303_EOC_PATH	19
 #define PRI_SWITCH_GR303_TMC_SWITCHING	20
+
+#define Q931_MAX_TEI	8
 
 struct apdu_event {
 	int message;			/* What message to send the ADPU in */
@@ -325,6 +330,22 @@ enum INCOMING_CT_STATE {
 	 * that we need to post a connected line update.
 	 */
 	INCOMING_CT_STATE_POST_CONNECTED_LINE
+};
+
+/*! Call hold supplementary states. */
+enum Q931_HOLD_STATE {
+	/*! \brief No call hold activity. */
+	Q931_HOLD_STATE_IDLE,
+	/*! \brief Request made to hold call. */
+	Q931_HOLD_STATE_HOLD_REQ,
+	/*! \brief Request received to hold call. */
+	Q931_HOLD_STATE_HOLD_IND,
+	/*! \brief Call is held. */
+	Q931_HOLD_STATE_CALL_HELD,
+	/*! \brief Request made to retrieve call. */
+	Q931_HOLD_STATE_RETRIEVE_REQ,
+	/*! \brief Request received to retrieve call. */
+	Q931_HOLD_STATE_RETRIEVE_IND,
 };
 
 /* q931_call datastructure */
@@ -442,6 +463,12 @@ struct q931_call {
 
 	/*! \brief Incoming call transfer state. */
 	enum INCOMING_CT_STATE incoming_ct_state;
+	/*! Call hold supplementary state. */
+	enum Q931_HOLD_STATE hold_state;
+	/*! Call hold event timer */
+	int hold_timer;
+
+	int deflection_in_progress;	/*!< CallDeflection for NT PTMP in progress. */
 
 	int useruserprotocoldisc;
 	char useruserinfo[256];
@@ -462,6 +489,22 @@ struct q931_call {
 							   -1 - No reverse charging
 							    1 - Reverse charging
 							0,2-7 - Reserved for future use */
+	int t303_timer;
+	int t303_expirycnt;
+
+	int hangupinitiated;
+	/*! \brief TRUE if we broadcast this call's SETUP message. */
+	int outboundbroadcast;
+	int performing_fake_clearing;
+	/*!
+	 * \brief Master call controlling this call.
+	 * \note Always valid.  Master and normal calls point to self.
+	 */
+	struct q931_call *master_call;
+
+	/* These valid in master call only */
+	struct q931_call *subcalls[Q931_MAX_TEI];
+	int pri_winner;
 };
 
 extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);
@@ -484,6 +527,11 @@ void __pri_free_tei(struct pri *p);
 void q931_party_name_init(struct q931_party_name *name);
 void q931_party_number_init(struct q931_party_number *number);
 void q931_party_subaddress_init(struct q931_party_subaddress *subaddr);
+#define q931_party_address_to_id(q931_id, q931_address)			\
+	do {														\
+		(q931_id)->number = (q931_address)->number;				\
+		/*(q931_id)->subaddress = (q931_address)->subaddress;*/	\
+	} while (0)
 void q931_party_address_init(struct q931_party_address *address);
 void q931_party_id_init(struct q931_party_id *id);
 void q931_party_redirecting_init(struct q931_party_redirecting *redirecting);
@@ -505,8 +553,40 @@ int q931_party_id_presentation(const struct q931_party_id *id);
 const char *q931_call_state_str(enum Q931_CALL_STATE callstate);
 
 int q931_is_ptmp(const struct pri *ctrl);
+int q931_master_pass_event(struct pri *ctrl, struct q931_call *subcall, int msg_type);
 struct pri_subcommand *q931_alloc_subcommand(struct pri *ctrl);
 
 int q931_notify_redirection(struct pri *ctrl, q931_call *call, int notify, const struct q931_party_number *number);
+
+static inline struct pri * PRI_MASTER(struct pri *mypri)
+{
+	struct pri *pri = mypri;
+	
+	if (!pri)
+		return NULL;
+
+	while (pri->master)
+		pri = pri->master;
+
+	return pri;
+}
+
+static inline int BRI_NT_PTMP(struct pri *mypri)
+{
+	struct pri *pri;
+
+	pri = PRI_MASTER(mypri);
+
+	return pri->bri && (((pri)->localtype == PRI_NETWORK) && ((pri)->tei == Q921_TEI_GROUP));
+}
+
+static inline int BRI_TE_PTMP(struct pri *mypri)
+{
+	struct pri *pri;
+
+	pri = PRI_MASTER(mypri);
+
+	return pri->bri && (((pri)->localtype == PRI_CPE) && ((pri)->tei == Q921_TEI_GROUP));
+}
 
 #endif
