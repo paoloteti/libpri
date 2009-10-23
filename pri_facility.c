@@ -510,11 +510,63 @@ static int presentation_to_subscription(struct pri *ctrl, int presentation)
 static void rose_copy_number_to_q931(struct pri *ctrl,
 	struct q931_party_number *q931_number, const struct rosePartyNumber *rose_number)
 {
+	//q931_party_number_init(q931_number);
 	libpri_copy_string(q931_number->str, (char *) rose_number->str,
 		sizeof(q931_number->str));
 	q931_number->plan = numbering_plan_for_q931(ctrl, rose_number->plan)
 		| typeofnumber_for_q931(ctrl, rose_number->ton);
 	q931_number->valid = 1;
+}
+
+/*!
+ * \internal
+ * \brief Copy the given rose subaddress to the q931_party_subaddress.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param q931_subaddress Q.931 party subaddress structure
+ * \param rose_subaddress ROSE subaddress structure
+ *
+ * \note It is assumed that the q931_subaddress has been initialized before calling.
+ *
+ * \return Nothing
+ */
+static void rose_copy_subaddress_to_q931(struct pri *ctrl,
+	struct q931_party_subaddress *q931_subaddress,
+	const struct rosePartySubaddress *rose_subaddress)
+{
+	//q931_party_subaddress_init(q931_subaddress);
+	if (!rose_subaddress->length) {
+		/* Subaddress is not present. */
+		return;
+	}
+
+	switch (rose_subaddress->type) {
+	case 0:/* UserSpecified */
+		q931_subaddress->type = 2;/* user_specified */
+		q931_subaddress->valid = 1;
+		q931_subaddress->length = rose_subaddress->length;
+		if (sizeof(q931_subaddress->data) <= q931_subaddress->length) {
+			q931_subaddress->length = sizeof(q931_subaddress->data) - 1;
+		}
+		memcpy(q931_subaddress->data, rose_subaddress->u.user_specified.information,
+			q931_subaddress->length);
+		q931_subaddress->data[q931_subaddress->length] = '\0';
+		if (rose_subaddress->u.user_specified.odd_count_present) {
+			q931_subaddress->odd_even_indicator =
+				rose_subaddress->u.user_specified.odd_count;
+		}
+		break;
+	case 1:/* NSAP */
+		q931_subaddress->type = 0;/* nsap */
+		q931_subaddress->valid = 1;
+		libpri_copy_string((char *) q931_subaddress->data,
+			(char *) rose_subaddress->u.nsap, sizeof(q931_subaddress->data));
+		q931_subaddress->length = strlen((char *) q931_subaddress->data);
+		break;
+	default:
+		/* Don't know how to encode so assume it is not present. */
+		break;
+	}
 }
 
 /*!
@@ -533,6 +585,8 @@ static void rose_copy_address_to_q931(struct pri *ctrl,
 	struct q931_party_id *q931_address, const struct roseAddress *rose_address)
 {
 	rose_copy_number_to_q931(ctrl, &q931_address->number, &rose_address->number);
+	rose_copy_subaddress_to_q931(ctrl, &q931_address->subaddress,
+		&rose_address->subaddress);
 }
 
 /*!
@@ -609,6 +663,7 @@ static void rose_copy_presented_address_screened_to_q931(struct pri *ctrl,
 	const struct rosePresentedAddressScreened *rose_presented)
 {
 	q931_party_number_init(&q931_address->number);
+	q931_party_subaddress_init(&q931_address->subaddress);
 	q931_address->number.valid = 1;
 	q931_address->number.presentation = presentation_for_q931(ctrl,
 		rose_presented->presentation);
@@ -619,6 +674,8 @@ static void rose_copy_presented_address_screened_to_q931(struct pri *ctrl,
 			(rose_presented->screened.screening_indicator & PRI_PRES_NUMBER_TYPE);
 		rose_copy_number_to_q931(ctrl, &q931_address->number,
 			&rose_presented->screened.number);
+		rose_copy_subaddress_to_q931(ctrl, &q931_address->subaddress,
+			&rose_presented->screened.subaddress);
 		break;
 	default:
 		q931_address->number.presentation |= PRI_PRES_USER_NUMBER_UNSCREENED;
@@ -670,6 +727,57 @@ static void q931_copy_number_to_rose(struct pri *ctrl,
 
 /*!
  * \internal
+ * \brief Copy the given q931_party_subaddress to the rose subaddress.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param rose_subaddress ROSE subaddress structure
+ * \param q931_subaddress Q.931 party subaddress structure
+ *
+ * \return Nothing
+ */
+static void q931_copy_subaddress_to_rose(struct pri *ctrl,
+	struct rosePartySubaddress *rose_subaddress,
+	const struct q931_party_subaddress *q931_subaddress)
+{
+	if (!q931_subaddress->valid) {
+		/* Subaddress is not present. */
+		rose_subaddress->length = 0;
+		return;
+	}
+
+	switch (q931_subaddress->type) {
+	case 0:	/* NSAP */
+		rose_subaddress->type = 1;/* NSAP */
+		libpri_copy_string((char *) rose_subaddress->u.nsap,
+			(char *) q931_subaddress->data, sizeof(rose_subaddress->u.nsap));
+		rose_subaddress->length = strlen((char *) rose_subaddress->u.nsap);
+		break;
+	case 2:	/* user_specified */
+		rose_subaddress->type = 0;/* UserSpecified */
+		rose_subaddress->length = q931_subaddress->length;
+		if (sizeof(rose_subaddress->u.user_specified.information)
+			<= rose_subaddress->length) {
+			rose_subaddress->length =
+				sizeof(rose_subaddress->u.user_specified.information) - 1;
+		} else {
+			if (q931_subaddress->odd_even_indicator) {
+				rose_subaddress->u.user_specified.odd_count_present = 1;
+				rose_subaddress->u.user_specified.odd_count = 1;
+			}
+		}
+		memcpy(rose_subaddress->u.user_specified.information, q931_subaddress->data,
+			rose_subaddress->length);
+		rose_subaddress->u.user_specified.information[rose_subaddress->length] = '\0';
+		break;
+	default:
+		/* Don't know how to encode so assume it is not present. */
+		rose_subaddress->length = 0;
+		break;
+	}
+}
+
+/*!
+ * \internal
  * \brief Copy the given q931_party_id address to the rose address.
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -682,6 +790,8 @@ static void q931_copy_address_to_rose(struct pri *ctrl, struct roseAddress *rose
 	const struct q931_party_id *q931_address)
 {
 	q931_copy_number_to_rose(ctrl, &rose_address->number, &q931_address->number);
+	q931_copy_subaddress_to_rose(ctrl, &rose_address->subaddress,
+		&q931_address->subaddress);
 }
 
 /*!
@@ -755,7 +865,8 @@ static void q931_copy_presented_address_screened_to_rose(struct pri *ctrl,
 			q931_address->number.presentation & PRI_PRES_NUMBER_TYPE;
 		q931_copy_number_to_rose(ctrl, &rose_presented->screened.number,
 			&q931_address->number);
-		rose_presented->screened.subaddress.length = 0;
+		q931_copy_subaddress_to_rose(ctrl, &rose_presented->screened.subaddress,
+			&q931_address->subaddress);
 	} else {
 		rose_presented->presentation = 2;/* numberNotAvailableDueToInterworking */
 	}
@@ -1763,6 +1874,8 @@ static unsigned char *enc_qsig_call_rerouting(struct pri *ctrl, unsigned char *p
 		&msg.args.qsig.CallRerouting.calling, &calling->number);
 
 	/* callingPartySubaddress is the passed in calling->subaddress if valid */
+	q931_copy_subaddress_to_rose(ctrl, &msg.args.qsig.CallRerouting.calling_subaddress,
+		&calling->subaddress);
 
 	/* callingName is the passed in calling->name if valid */
 	if (calling->name.valid) {
@@ -1866,6 +1979,8 @@ static unsigned char *enc_etsi_call_rerouting(struct pri *ctrl, unsigned char *p
 	msg.args.etsi.CallRerouting.subscription_option = subscription_option;
 
 	/* callingPartySubaddress is the passed in calling->subaddress if valid */
+	q931_copy_subaddress_to_rose(ctrl, &msg.args.etsi.CallRerouting.calling_subaddress,
+		&calling->subaddress);
 
 	pos = rose_encode_invoke(ctrl, pos, end, &msg);
 
@@ -2055,7 +2170,7 @@ int qsig_cf_callrerouting(struct pri *ctrl, q931_call *call, const char *dest,
 		reroute.from.number.plan = (PRI_TON_UNKNOWN << 4) | PRI_NPI_E163_E164;
 		libpri_copy_string(reroute.from.number.str, original, sizeof(reroute.from.number.str));
 	} else {
-		reroute.from.number = call->called.number;
+		q931_party_address_to_id(&reroute.from, &call->called);
 	}
 	reroute.from.number.presentation = PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
 

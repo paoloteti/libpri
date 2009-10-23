@@ -527,14 +527,15 @@ void __pri_free_tei(struct pri *p);
 void q931_party_name_init(struct q931_party_name *name);
 void q931_party_number_init(struct q931_party_number *number);
 void q931_party_subaddress_init(struct q931_party_subaddress *subaddr);
-#define q931_party_address_to_id(q931_id, q931_address)			\
-	do {														\
-		(q931_id)->number = (q931_address)->number;				\
-		/*(q931_id)->subaddress = (q931_address)->subaddress;*/	\
-	} while (0)
 void q931_party_address_init(struct q931_party_address *address);
 void q931_party_id_init(struct q931_party_id *id);
 void q931_party_redirecting_init(struct q931_party_redirecting *redirecting);
+
+static inline void q931_party_address_to_id(struct q931_party_id *id, struct q931_party_address *address)
+{
+	id->number = address->number;
+	id->subaddress = address->subaddress;
+}
 
 int q931_party_name_cmp(const struct q931_party_name *left, const struct q931_party_name *right);
 int q931_party_number_cmp(const struct q931_party_number *left, const struct q931_party_number *right);
