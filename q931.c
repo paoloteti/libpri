@@ -4473,7 +4473,10 @@ static void t303_expiry(void *data)
 	c->t303_expirycnt++;
 	c->t303_timer = 0;
 
-	if (c->t303_expirycnt < 2) {
+	if (c->cause != -1) {
+		/* We got a DISCONNECT, RELEASE, or RELEASE_COMPLETE and no other responses. */
+		pri_fake_clearing(c);
+	} else if (c->t303_expirycnt < 2) {
 		if (ctrl->subchannel && !ctrl->bri)
 			res = send_message(ctrl, c, Q931_SETUP, gr303_setup_ies);
 		else if (c->cis_call)
@@ -6581,7 +6584,6 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		}
 		break;
 	case Q931_RELEASE_COMPLETE:
-		stop_t303(c);
 		c->hangupinitiated = 1;
 		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_NULL);
 		c->peercallstate = Q931_CALL_STATE_NULL;
