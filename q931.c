@@ -1510,6 +1510,30 @@ static char *subaddrtype2str(int plan)
 	return code2str(plan, plans, sizeof(plans) / sizeof(plans[0]));
 }
 
+/* Calling Party Category (Definitions from Q.763) */
+static char *cpc2str(int plan)
+{
+	static struct msgtype plans[] = {
+		{ 0, "Unknown Source" },
+		{ 1, "Operator French" },
+		{ 2, "Operator English" },
+		{ 3, "Operator German" },
+		{ 4, "Operator Russian" },
+		{ 5, "Operator Spanish" },
+		{ 6, "Mut Agree Chinese" },
+		{ 7, "Mut Agreement" },
+		{ 8, "Mut Agree Japanese" },
+		{ 9, "National Operator" },
+		{ 10, "Ordinary Toll Caller" },
+		{ 11, "Priority Toll Caller" },
+		{ 12, "Data Call" },
+		{ 13, "Test Call" },
+		{ 14, "Spare" },
+		{ 15, "Pay Phone" },
+	};
+	return code2str(plan, plans, ARRAY_LEN(plans));
+}
+
 char *pri_pres2str(int pres)
 {
 	static struct msgtype press[] = {
@@ -1654,6 +1678,12 @@ static void dump_calling_party_number(int full_ie, struct pri *ctrl, q931_ie *ie
 static void dump_calling_party_subaddr(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
 {
 	dump_subaddr_helper(full_ie, ctrl, ie, 1 , len, len - 3, prefix, "Calling");
+}
+
+static void dump_calling_party_category(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
+{
+	pri_message(ctrl, "%c Calling Party Category (len=%2d) [ Ext: %d  Cat: %s (%d) ]\n",
+		prefix, len, ie->data[0] >> 7, cpc2str(ie->data[0] & 0x0F), ie->data[0] & 0x0F);
 }
 
 static void dump_redirecting_number(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
@@ -3177,6 +3207,8 @@ static struct ie ies[] = {
 	{ 1, Q931_SENDING_COMPLETE, "Sending Complete", dump_sending_complete, receive_sending_complete, transmit_sending_complete },
 	/* Codeset 4 - Q.SIG specific */
 	{ 1, QSIG_IE_TRANSIT_COUNT | Q931_CODESET(4), "Transit Count", dump_transit_count },
+	/* Codeset 5 - National specific (ETSI PISN specific) */
+	{ 1, Q931_CALLING_PARTY_CATEGORY, "Calling Party Category", dump_calling_party_category },
 	/* Codeset 6 - Network specific */
 	{ 1, Q931_IE_ORIGINATING_LINE_INFO, "Originating Line Information", dump_line_information, receive_line_information, transmit_line_information },
 	{ 1, Q931_IE_FACILITY | Q931_CODESET(6), "Facility", dump_facility, receive_facility, transmit_facility },
