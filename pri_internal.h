@@ -472,7 +472,6 @@ struct q931_call {
 
 	int useruserprotocoldisc;
 	char useruserinfo[256];
-	char callingsubaddr[PRI_MAX_SUBADDRESS_LEN];	/* Calling party subaddress */
 	
 	long aoc_units;				/* Advice of Charge Units */
 
