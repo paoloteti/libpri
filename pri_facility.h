@@ -87,10 +87,7 @@ int rose_diverting_leg_information3_encode(struct pri *pri, q931_call *call, int
 int rose_connected_name_encode(struct pri *pri, q931_call *call, int messagetype);
 int rose_called_name_encode(struct pri *pri, q931_call *call, int messagetype);
 
-/* Use this function to queue a facility-IE born APDU onto a call
- * call is the call to use, messagetype is any one of the Q931 messages,
- * apdu is the apdu data, apdu_len is the length of the apdu data  */
-int pri_call_apdu_queue(q931_call *call, int messagetype, void *apdu, int apdu_len, void (*function)(void *data), void *data);
+int pri_call_apdu_queue(q931_call *call, int messagetype, const unsigned char *apdu, int apdu_len);
 
 /* Used by q931.c to cleanup the apdu queue upon destruction of a call */
 int pri_call_apdu_queue_cleanup(q931_call *call);

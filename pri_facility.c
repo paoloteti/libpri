@@ -1022,7 +1022,7 @@ int rose_diverting_leg_information1_encode(struct pri *ctrl, q931_call *call)
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL, NULL);
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer);
 }
 
 /*!
@@ -1191,7 +1191,7 @@ static int rose_diverting_leg_information2_encode(struct pri *ctrl, q931_call *c
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer, NULL, NULL);
+	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer);
 }
 
 /*!
@@ -1313,7 +1313,7 @@ int rose_diverting_leg_information3_encode(struct pri *ctrl, q931_call *call,
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer, NULL, NULL);
+	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer);
 }
 
 /*!
@@ -1384,7 +1384,7 @@ int rlt_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
 		return -1;
 	}
 
-	if (pri_call_apdu_queue(apdubearer, Q931_FACILITY, buffer, end - buffer, NULL, NULL)) {
+	if (pri_call_apdu_queue(apdubearer, Q931_FACILITY, buffer, end - buffer)) {
 		return -1;
 	}
 
@@ -1447,7 +1447,7 @@ static int add_dms100_transfer_ability_apdu(struct pri *ctrl, q931_call *call)
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer, NULL, NULL);
+	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer);
 }
 
 /*!
@@ -1556,7 +1556,7 @@ static int add_callername_facility_ies(struct pri *ctrl, q931_call *call, int cp
 			return -1;
 		}
 
-		if (pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer, NULL, NULL)) {
+		if (pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer)) {
 			return -1;
 		}
 
@@ -1579,15 +1579,11 @@ static int add_callername_facility_ies(struct pri *ctrl, q931_call *call, int cp
 		mymessage = Q931_FACILITY;
 	}
 
-	return pri_call_apdu_queue(call, mymessage, buffer, end - buffer, NULL, NULL);
+	return pri_call_apdu_queue(call, mymessage, buffer, end - buffer);
 }
 /* End Callername */
 
 /* MWI related encode and decode functions */
-static void mwi_activate_encode_cb(void *data)
-{
-	return;
-}
 
 /*!
  * \internal
@@ -1717,8 +1713,7 @@ int mwi_message_send(struct pri *ctrl, q931_call *call, struct pri_sr *req, int 
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer,
-		mwi_activate_encode_cb, NULL);
+	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer);
 }
 /* End MWI */
 
@@ -1777,7 +1772,7 @@ int eect_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
 		return -1;
 	}
 
-	if (pri_call_apdu_queue(c1, Q931_FACILITY, buffer, end - buffer, NULL, NULL)) {
+	if (pri_call_apdu_queue(c1, Q931_FACILITY, buffer, end - buffer)) {
 		pri_message(ctrl, "Could not queue APDU in facility message\n");
 		return -1;
 	}
@@ -2098,7 +2093,7 @@ static int rose_reroute_request_encode(struct pri *ctrl, q931_call *call,
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL, NULL);
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer);
 }
 
 /*!
@@ -2232,9 +2227,7 @@ static int anfpr_pathreplacement_respond(struct pri *ctrl, q931_call *call, q931
 	}
 
 	/* Send message */
-	res =
-		pri_call_apdu_queue(call->bridged_call, Q931_FACILITY, ie->data, ie->len, NULL,
-		NULL);
+	res = pri_call_apdu_queue(call->bridged_call, Q931_FACILITY, ie->data, ie->len);
 	if (res) {
 		pri_message(ctrl, "Could not queue ADPU in facility message\n");
 		return -1;
@@ -2302,7 +2295,7 @@ int anfpr_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
 		return -1;
 	}
 
-	res = pri_call_apdu_queue(c1, Q931_FACILITY, buffer, pos - buffer, NULL, NULL);
+	res = pri_call_apdu_queue(c1, Q931_FACILITY, buffer, pos - buffer);
 	if (res) {
 		pri_message(ctrl, "Could not queue ADPU in facility message\n");
 		return -1;
@@ -2331,7 +2324,7 @@ int anfpr_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
 		return -1;
 	}
 
-	res = pri_call_apdu_queue(c2, Q931_FACILITY, buffer, pos - buffer, NULL, NULL);
+	res = pri_call_apdu_queue(c2, Q931_FACILITY, buffer, pos - buffer);
 	if (res) {
 		pri_message(ctrl, "Could not queue ADPU in facility message\n");
 		return -1;
@@ -2416,7 +2409,7 @@ static int aoc_aoce_charging_unit_encode(struct pri *ctrl, q931_call *call,
 
 	/* Remember that if we queue a facility IE for a facility message we
 	 * have to explicitly send the facility message ourselves */
-	if (pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL, NULL)
+	if (pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer)
 		|| q931_facility(call->pri, call)) {
 		pri_message(ctrl, "Could not schedule facility message for call %d\n", call->cr);
 		return -1;
@@ -2562,7 +2555,7 @@ static int rose_call_transfer_complete_encode(struct pri *ctrl, q931_call *call,
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL, NULL);
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer);
 }
 
 /* ===== End Call Transfer Supplementary Service (ECMA-178) ===== */
@@ -2630,7 +2623,7 @@ int rose_called_name_encode(struct pri *ctrl, q931_call *call, int messagetype)
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer, NULL, NULL);
+	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer);
 }
 
 /*!
@@ -2696,7 +2689,7 @@ int rose_connected_name_encode(struct pri *ctrl, q931_call *call, int messagetyp
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer, NULL, NULL);
+	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer);
 }
 
 /*!
@@ -2706,40 +2699,49 @@ int rose_connected_name_encode(struct pri *ctrl, q931_call *call, int messagetyp
  * \param messagetype Q.931 message type.
  * \param apdu Facility ie contents buffer.
  * \param apdu_len Length of the contents buffer.
- * \param function Callback function for when response is received. (Not implemented)
- * \param data Parameter to callback function.
  *
  * \retval 0 on success.
  * \retval -1 on error.
  */
-int pri_call_apdu_queue(q931_call *call, int messagetype, void *apdu, int apdu_len,
-	void (*function)(void *data), void *data)
+int pri_call_apdu_queue(q931_call *call, int messagetype, const unsigned char *apdu, int apdu_len)
 {
 	struct apdu_event *cur = NULL;
 	struct apdu_event *new_event = NULL;
 
-	if (!call || !messagetype || !apdu || (apdu_len < 1) || (apdu_len > 255))
+	if (!call || !messagetype || !apdu
+		|| apdu_len < 1 || sizeof(new_event->apdu) < apdu_len) {
 		return -1;
+	}
+	switch (messagetype) {
+	case Q931_FACILITY:
+		break;
+	default:
+		if (q931_is_dummy_call(call)) {
+			pri_error(call->pri, "!! Cannot send %s message on dummy call reference.\n",
+				msg2str(messagetype));
+			return -1;
+		}
+		break;
+	}
 
-	if (!(new_event = calloc(1, sizeof(*new_event)))) {
+	new_event = calloc(1, sizeof(*new_event));
+	if (!new_event) {
 		pri_error(call->pri, "!! Malloc failed!\n");
 		return -1;
 	}
 
 	new_event->message = messagetype;
-	new_event->callback = function;
-	new_event->data = data;
-	memcpy(new_event->apdu, apdu, apdu_len);
 	new_event->apdu_len = apdu_len;
+	memcpy(new_event->apdu, apdu, apdu_len);
 
+	/* Append APDU to the end of the list. */
 	if (call->apdus) {
-		cur = call->apdus;
-		while (cur->next) {
-			cur = cur->next;
+		for (cur = call->apdus; cur->next; cur = cur->next) {
 		}
 		cur->next = new_event;
-	} else
+	} else {
 		call->apdus = new_event;
+	}
 
 	return 0;
 }
@@ -2750,13 +2752,13 @@ int pri_call_apdu_queue_cleanup(q931_call *call)
 
 	if (call && call->apdus) {
 		cur_event = call->apdus;
+		call->apdus = NULL;
 		while (cur_event) {
 			/* TODO: callbacks, some way of giving return res on status of apdu */
 			free_event = cur_event;
 			cur_event = cur_event->next;
 			free(free_event);
 		}
-		call->apdus = NULL;
 	}
 
 	return 0;
@@ -2945,7 +2947,7 @@ static int rose_facility_error_encode(struct pri *ctrl, q931_call *call, int inv
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL, NULL);
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer);
 }
 
 /*!
@@ -3077,7 +3079,7 @@ static int rose_result_ok_encode(struct pri *ctrl, q931_call *call, int msgtype,
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, msgtype, buffer, end - buffer, NULL, NULL);
+	return pri_call_apdu_queue(call, msgtype, buffer, end - buffer);
 }
 
 /*!

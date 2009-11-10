@@ -228,7 +228,6 @@ static struct msgtype facilities[] = {
 #define LOC_NETWORK_BEYOND_INTERWORKING	0xa
 
 static char *ie2str(int ie);
-static char *msg2str(int msg);
 
 
 #define FUNC_DUMP(name) void (name)(int full_ie, struct pri *pri, q931_ie *ie, int len, char prefix)
@@ -2269,32 +2268,41 @@ static int receive_progress_indicator(int full_ie, struct pri *ctrl, q931_call *
 
 static int transmit_facility(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
-	struct apdu_event *tmp;
-	int i = 0;
+	struct apdu_event **prev;
+	struct apdu_event *cur;
+	int apdu_len;
 
-	for (tmp = call->apdus; tmp; tmp = tmp->next) {
-		if ((tmp->message == msgtype) && !tmp->sent)
+	for (prev = &call->apdus, cur = call->apdus;
+		cur;
+		prev = &cur->next, cur = cur->next) {
+		if (cur->message == msgtype) {
+			/* Remove APDU from list. */
+			*prev = cur->next;
 			break;
+		}
 	}
-	if (!tmp)	/* No APDU found */
+	if (!cur) {
+		/* No APDU found */
 		return 0;
+	}
 
 	if (ctrl->debug & PRI_DEBUG_APDU) {
 		pri_message(ctrl, "Adding facility ie contents to send in %s message:\n",
 			msg2str(msgtype));
-		facility_decode_dump(ctrl, tmp->apdu, tmp->apdu_len);
+		facility_decode_dump(ctrl, cur->apdu, cur->apdu_len);
 	}
 
-	if (tmp->apdu_len > 235) { /* TODO: find out how much space we can use */
-		pri_message(ctrl, "Requested APDU (%d bytes) is too long\n", tmp->apdu_len);
+	if (cur->apdu_len > 235) { /* TODO: find out how much space we can use */
+		pri_message(ctrl, "Requested APDU (%d bytes) is too long\n", cur->apdu_len);
+		free(cur);
 		return 0;
 	}
 
-	memcpy(&ie->data[i], tmp->apdu, tmp->apdu_len);
-	i += tmp->apdu_len;
-	tmp->sent = 1;
+	memcpy(ie->data, cur->apdu, cur->apdu_len);
+	apdu_len = cur->apdu_len;
+	free(cur);
 
-	return i + 2;
+	return apdu_len + 2;
 }
 
 static int receive_facility(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
@@ -3277,7 +3285,7 @@ static inline unsigned int ielen(q931_ie *ie)
 		return 2 + ie->len;
 }
 
-static char *msg2str(int msg)
+const char *msg2str(int msg)
 {
 	unsigned int x;
 	for (x=0;x<sizeof(msgs) / sizeof(msgs[0]); x++) 
@@ -6501,13 +6509,11 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		libpri_copy_string(ctrl->ev.ringing.useruserinfo, c->useruserinfo, sizeof(ctrl->ev.ringing.useruserinfo));
 		c->useruserinfo[0] = '\0';
 
-		cur = c->apdus;
-		while (cur) {
-			if (!cur->sent && cur->message == Q931_FACILITY) {
+		for (cur = c->apdus; cur; cur = cur->next) {
+			if (cur->message == Q931_FACILITY) {
 				q931_facility(ctrl, c);
 				break;
 			}
-			cur = cur->next;
 		}
 
 		return Q931_RES_HAVEEVENT;
@@ -6608,13 +6614,11 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		ctrl->ev.proceeding.cref = c->cr;
 		ctrl->ev.proceeding.call = c->master_call;
 
-		cur = c->apdus;
-		while (cur) {
-			if (!cur->sent && cur->message == Q931_FACILITY) {
+		for (cur = c->apdus; cur; cur = cur->next) {
+			if (cur->message == Q931_FACILITY) {
 				q931_facility(ctrl, c);
 				break;
 			}
-			cur = cur->next;
 		}
 		return Q931_RES_HAVEEVENT;
 	case Q931_CONNECT_ACKNOWLEDGE:
@@ -6887,13 +6891,11 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		ctrl->ev.setup_ack.channel = q931_encode_channel(c);
 		ctrl->ev.setup_ack.call = c->master_call;
 
-		cur = c->apdus;
-		while (cur) {
-			if (!cur->sent && cur->message == Q931_FACILITY) {
+		for (cur = c->apdus; cur; cur = cur->next) {
+			if (cur->message == Q931_FACILITY) {
 				q931_facility(ctrl, c);
 				break;
 			}
-			cur = cur->next;
 		}
 
 		return Q931_RES_HAVEEVENT;

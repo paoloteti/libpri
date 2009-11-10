@@ -308,13 +308,10 @@ struct pri_sr {
 #define Q931_MAX_TEI	8
 
 struct apdu_event {
-	int message;			/* What message to send the ADPU in */
-	void (*callback)(void *data);	/* Callback function for when response is received */
-	void *data;			/* Data to callback */
-	unsigned char apdu[255];			/* ADPU to send */
-	int apdu_len; 			/* Length of ADPU */
-	int sent;  			/* Have we been sent already? */
 	struct apdu_event *next;	/* Linked list pointer */
+	int message;			/* What message to send the ADPU in */
+	int apdu_len; 			/* Length of ADPU */
+	unsigned char apdu[255];			/* ADPU to send */
 };
 
 /*! \brief Incoming call transfer states. */
@@ -568,6 +565,7 @@ void q931_party_id_fixup(const struct pri *ctrl, struct q931_party_id *id);
 int q931_party_id_presentation(const struct q931_party_id *id);
 
 const char *q931_call_state_str(enum Q931_CALL_STATE callstate);
+const char *msg2str(int msg);
 
 int q931_is_ptmp(const struct pri *ctrl);
 int q931_master_pass_event(struct pri *ctrl, struct q931_call *subcall, int msg_type);
