@@ -226,18 +226,44 @@ static int __pri_write(struct pri *pri, void *buf, int buflen)
 	return res;
 }
 
-/* Pass in the master for this function */
 void __pri_free_tei(struct pri * p)
 {
-	free(p);
+	if (p) {
+		struct q931_call *call;
+
+		call = p->dummy_call;
+		if (call) {
+			pri_schedule_del(call->pri, call->retranstimer);
+			pri_call_apdu_queue_cleanup(call);
+		}
+		free(p);
+	}
 }
 
 struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri)
 {
+	struct d_ctrl_dummy *dummy_ctrl;
 	struct pri *p;
 
-	if (!(p = calloc(1, sizeof(*p))))
-		return NULL;
+	switch (switchtype) {
+	case PRI_SWITCH_GR303_EOC:
+	case PRI_SWITCH_GR303_TMC:
+	case PRI_SWITCH_GR303_TMC_SWITCHING:
+	case PRI_SWITCH_GR303_EOC_PATH:
+		p = calloc(1, sizeof(*p));
+		if (!p) {
+			return NULL;
+		}
+		dummy_ctrl = NULL;
+		break;
+	default:
+		dummy_ctrl = calloc(1, sizeof(*dummy_ctrl));
+		if (!dummy_ctrl) {
+			return NULL;
+		}
+		p = &dummy_ctrl->ctrl;
+		break;
+	}
 
 	p->bri = bri;
 	p->fd = fd;
@@ -265,7 +291,14 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 	p->q931_rxcount = 0;
 	p->q931_txcount = 0;
 #endif
-	if (switchtype == PRI_SWITCH_GR303_EOC) {
+	if (dummy_ctrl) {
+		/* Initialize the dummy call reference call record. */
+		dummy_ctrl->ctrl.dummy_call = &dummy_ctrl->dummy_call;
+		q931_init_call_record(&dummy_ctrl->ctrl, dummy_ctrl->ctrl.dummy_call,
+			Q931_DUMMY_CALL_REFERENCE);
+	}
+	switch (switchtype) {
+	case PRI_SWITCH_GR303_EOC:
 		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
 		p->sapi = Q921_SAPI_GR303_EOC;
 		p->tei = Q921_TEI_GR303_EOC_OPS;
@@ -274,7 +307,8 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 			free(p);
 			p = NULL;
 		}
-	} else if (switchtype == PRI_SWITCH_GR303_TMC) {
+		break;
+	case PRI_SWITCH_GR303_TMC:
 		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
 		p->sapi = Q921_SAPI_GR303_TMC_CALLPROC;
 		p->tei = Q921_TEI_GR303_TMC_CALLPROC;
@@ -283,14 +317,19 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 			free(p);
 			p = NULL;
 		}
-	} else if (switchtype == PRI_SWITCH_GR303_TMC_SWITCHING) {
+		break;
+	case PRI_SWITCH_GR303_TMC_SWITCHING:
 		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
 		p->sapi = Q921_SAPI_GR303_TMC_SWITCHING;
 		p->tei = Q921_TEI_GR303_TMC_SWITCHING;
-	} else if (switchtype == PRI_SWITCH_GR303_EOC_PATH) {
+		break;
+	case PRI_SWITCH_GR303_EOC_PATH:
 		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
 		p->sapi = Q921_SAPI_GR303_EOC;
 		p->tei = Q921_TEI_GR303_EOC_PATH;
+		break;
+	default:
+		break;
 	}
 	/* Start Q.921 layer, Wait if we're the network */
 	if (p)
@@ -933,6 +972,14 @@ q931_call *pri_new_call(struct pri *pri)
 	if (!pri)
 		return NULL;
 	return q931_new_call(pri);
+}
+
+int pri_is_dummy_call(q931_call *call)
+{
+	if (!call) {
+		return 0;
+	}
+	return q931_is_dummy_call(call);
 }
 
 void pri_dump_event(struct pri *pri, pri_event *e)

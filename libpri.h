@@ -929,6 +929,14 @@ extern int pri_maintenance_service(struct pri *pri, int span, int channel, int c
 /* Create a new call */
 q931_call *pri_new_call(struct pri *pri);
 
+/*!
+ * \brief Deterimine if the given call control pointer is a dummy call.
+ *
+ * \retval TRUE if given call is a dummy call.
+ * \retval FALSE otherwise.
+ */
+int pri_is_dummy_call(q931_call *call);
+
 /* Retrieve CRV reference for GR-303 calls.  Returns >0 on success. */
 int pri_get_crv(struct pri *pri, q931_call *call, int *callmode);
 

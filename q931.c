@@ -3307,30 +3307,38 @@ static char *maintenance_msg2str(int msg, int pd)
 	return "Unknown Message Type";
 }
 
+/* Decode the call reference */
 static inline int q931_cr(q931_h *h)
 {
-	int cr = 0;
+	int cr;
 	int x;
+
 	if (h->crlen > 3) {
 		pri_error(NULL, "Call Reference Length Too long: %d\n", h->crlen);
-		return -1;
+		return Q931_DUMMY_CALL_REFERENCE;
 	}
 	switch (h->crlen) {
-		case 2: 
-			for (x=0;x<h->crlen;x++) {
-				cr <<= 8;
-				cr |= h->crv[x];
-			}
-			break;
-		case 1:
-			cr = h->crv[0];
-			if (cr & 0x80) {
-				cr &= ~0x80;
-				cr |= 0x8000;
-			}
-			break;
-		default:
-			pri_error(NULL, "Call Reference Length not supported: %d\n", h->crlen);
+	case 2:
+		cr = 0;
+		for (x = 0; x < h->crlen; ++x) {
+			cr <<= 8;
+			cr |= h->crv[x];
+		}
+		break;
+	case 1:
+		cr = h->crv[0];
+		if (cr & 0x80) {
+			cr &= ~0x80;
+			cr |= 0x8000;
+		}
+		break;
+	case 0:
+		cr = Q931_DUMMY_CALL_REFERENCE;
+		break;
+	default:
+		pri_error(NULL, "Call Reference Length not supported: %d\n", h->crlen);
+		cr = Q931_DUMMY_CALL_REFERENCE;
+		break;
 	}
 	return cr;
 }
@@ -3370,11 +3378,72 @@ static inline void q931_dumpie(struct pri *ctrl, int codeset, q931_ie *ie, char 
 	pri_error(ctrl, "!! %c Unknown IE %d (cs%d, len = %d)\n", prefix, Q931_IE_IE(base_ie), Q931_IE_CODESET(base_ie), ielen(ie));
 }
 
+/*!
+ * \brief Initialize the call record.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * 
+ * \note The call record is assumed to already be memset() to zero.
+ *
+ * \return Nothing
+ */
+void q931_init_call_record(struct pri *ctrl, struct q931_call *call, int cr)
+{
+	call->cr = cr;
+	call->slotmap = -1;
+	call->channelno = -1;
+	if (cr != Q931_DUMMY_CALL_REFERENCE) {
+		call->newcall = 1;
+	}
+	call->ourcallstate = Q931_CALL_STATE_NULL;
+	call->peercallstate = Q931_CALL_STATE_NULL;
+	call->sugcallstate = Q931_CALL_STATE_NOT_SET;
+	call->ri = -1;
+	call->transcapability = -1;
+	call->transmoderate = -1;
+	call->transmultiple = -1;
+	call->userl1 = -1;
+	call->userl2 = -1;
+	call->userl3 = -1;
+	call->rateadaption = -1;
+	call->progress = -1;
+	call->causecode = -1;
+	call->causeloc = -1;
+	call->cause = -1;
+	call->useruserprotocoldisc = -1;
+	call->aoc_units = -1;
+	call->changestatus = -1;
+	call->reversecharge = -1;
+	call->pri_winner = -1;
+	call->master_call = call;
+	q931_party_number_init(&call->redirection_number);
+	q931_party_address_init(&call->called);
+	q931_party_id_init(&call->local_id);
+	q931_party_id_init(&call->remote_id);
+	q931_party_redirecting_init(&call->redirecting);
+
+	/* PRI is set to whoever called us */
+	if (BRI_TE_PTMP(ctrl)) {
+		/*
+		 * Point to the master to avoid stale pointer problems if
+		 * the TEI is removed later.
+		 */
+		call->pri = PRI_MASTER(ctrl);
+	} else {
+		call->pri = ctrl;
+	}
+}
+
 static q931_call *q931_getcall(struct pri *ctrl, int cr)
 {
 	q931_call *cur;
 	q931_call *prev;
 	struct pri *master;
+
+	if (cr == Q931_DUMMY_CALL_REFERENCE) {
+		return ctrl->dummy_call;
+	}
 
 	/* Find the master  - He has the call pool */
 	master = PRI_MASTER(ctrl);
@@ -3414,47 +3483,7 @@ static q931_call *q931_getcall(struct pri *ctrl, int cr)
 	}
 
 	/* Initialize call structure. */
-	cur->cr = cr;
-	cur->slotmap = -1;
-	cur->channelno = -1;
-	cur->newcall = 1;
-	cur->ourcallstate = Q931_CALL_STATE_NULL;
-	cur->peercallstate = Q931_CALL_STATE_NULL;
-	cur->sugcallstate = Q931_CALL_STATE_NOT_SET;
-	cur->ri = -1;
-	cur->transcapability = -1;
-	cur->transmoderate = -1;
-	cur->transmultiple = -1;
-	cur->userl1 = -1;
-	cur->userl2 = -1;
-	cur->userl3 = -1;
-	cur->rateadaption = -1;
-	cur->progress = -1;
-	cur->causecode = -1;
-	cur->causeloc = -1;
-	cur->cause = -1;
-	cur->useruserprotocoldisc = -1;
-	cur->aoc_units = -1;
-	cur->changestatus = -1;
-	cur->reversecharge = -1;
-	cur->pri_winner = -1;
-	cur->master_call = cur;
-	q931_party_number_init(&cur->redirection_number);
-	q931_party_address_init(&cur->called);
-	q931_party_id_init(&cur->local_id);
-	q931_party_id_init(&cur->remote_id);
-	q931_party_redirecting_init(&cur->redirecting);
-
-	/* PRI is set to whoever called us */
-	if (BRI_TE_PTMP(ctrl)) {
-		/*
-		 * Point to the master to avoid stale pointer problems if
-		 * the TEI is removed later.
-		 */
-		cur->pri = master;
-	} else {
-		cur->pri = ctrl;
-	}
+	q931_init_call_record(ctrl, cur, cr);
 
 	/* Append to end of list */
 	if (prev) {
@@ -3511,6 +3540,10 @@ void q931_destroycall(struct pri *ctrl, q931_call *c)
 	int slavesleft;
 	int slaveidx;
 
+	if (q931_is_dummy_call(c)) {
+		/* Cannot destroy the dummy call. */
+		return;
+	}
 	if (c->master_call != c) {
 		slave = c;
 		c = slave->master_call;
@@ -3711,7 +3744,9 @@ void q931_dump(struct pri *ctrl, q931_h *h, int len, int txrx)
 	cref = q931_cr(h);
 	pri_message(ctrl, "%c Call Ref: len=%2d (reference %d/0x%X) (%s)\n",
 		c, h->crlen, cref & 0x7FFF, cref & 0x7FFF,
-		(cref & 0x8000) ? "Terminator" : "Originator");
+		(cref == Q931_DUMMY_CALL_REFERENCE)
+			? "Dummy"
+			: (cref & 0x8000) ? "Terminator" : "Originator");
 
 	/* Message header begins at the end of the call reference number */
 	mh = (q931_mh *)(h->contents + h->crlen);
@@ -3778,7 +3813,9 @@ static void init_header(struct pri *ctrl, q931_call *call, unsigned char *buf, q
 		h->pd = ctrl->protodisc;
 	}
 	h->x0 = 0;		/* Reserved 0 */
-	if (!ctrl->bri) {
+	if (q931_is_dummy_call(call)) {
+		h->crlen = 0;
+	} else if (!ctrl->bri) {
 		/* Two bytes of Call Reference. */
 		h->crlen = 2;
 		/* Invert the top bit to make it from our sense */
@@ -3807,18 +3844,11 @@ static void init_header(struct pri *ctrl, q931_call *call, unsigned char *buf, q
 
 static int q931_xmit(struct pri *ctrl, q931_h *h, int len, int cr, int uiframe)
 {
-	/* 
-	 * For NT-PTMP mode, we need to check the following:
-	 * MODE = NT-PTMP
-	 * MESSAGE = SETUP
-	 *
-	 * If those are true, we need to send the SETUP in a UI frame
-	 * instead of an I-frame.
-	 */
-	if (BRI_NT_PTMP(ctrl) && uiframe)
+	if (uiframe) {
 		q921_transmit_uiframe(ctrl, h, len);
-	else
+	} else {
 		q921_transmit_iframe(ctrl, h, len, cr);
+	}
 	/* The transmit operation might dump the q921 header, so logging the q931
 	   message body after the transmit puts the sections of the message in the
 	   right order in the log */
@@ -3893,6 +3923,43 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 		ctrl = ctrl->subchannel;
 	}
 	if (ctrl) {
+		int uiframe;
+
+		switch (msgtype) {
+		case Q931_SETUP:
+			/* 
+			 * For NT-PTMP mode, we need to check the following:
+			 * MODE = NT-PTMP
+			 * MESSAGE = SETUP
+			 *
+			 * If those are true, we need to send the SETUP in a UI frame
+			 * instead of an I-frame.
+			 */
+			uiframe = call->outboundbroadcast;
+			break;
+		case Q931_FACILITY:
+			if (ctrl->tei == Q921_TEI_GROUP) {
+				/* Broadcast TEI. */
+				if (q931_is_dummy_call(call)) {
+					/*
+					 * This is a FACILITY message on the dummy call reference
+					 * for the broadcast TEI.
+					 */
+					uiframe = 1;
+				} else {
+					pri_error(ctrl,
+						"Attempting to broadcast %s on cref %d\n",
+						msg2str(msgtype), call->cr);
+					return -1;
+				}
+			} else {
+				uiframe = 0;
+			}
+			break;
+		default:
+			uiframe = 0;
+			break;
+		}
 		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
 			pri_message(ctrl,
 				"Sending message for call %p on %p TEI/SAPI %d/%d, call->pri is %p, TEI/SAPI %d/%d\n",
@@ -3900,7 +3967,7 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 				ctrl, ctrl->tei, ctrl->sapi,
 				call->pri, call->pri->tei, call->pri->sapi);
 		}
-		q931_xmit(ctrl, h, len, 1, (msgtype == Q931_SETUP) ? 1 : 0);
+		q931_xmit(ctrl, h, len, 1, uiframe);
 	}
 	call->acked = 1;
 	return 0;
@@ -5375,6 +5442,9 @@ static int prepare_to_handle_q931_message(struct pri *ctrl, q931_mh *mh, q931_ca
 		c->ri = -1;
 		break;
 	case Q931_FACILITY:
+		if (q931_is_dummy_call(c)) {
+			q931_party_address_init(&c->called);
+		}
 		break;
 	case Q931_SETUP:
 		if (ctrl->debug & PRI_DEBUG_Q931_STATE)
@@ -7288,7 +7358,10 @@ int q931_call_getcrv(struct pri *ctrl, q931_call *call, int *callmode)
 
 int q931_call_setcrv(struct pri *ctrl, q931_call *call, int crv, int callmode)
 {
-	call->cr = (crv << 3) & 0x7fff;
-	call->cr |= (callmode & 0x7);
+	/* Do not allow changing the dummy call reference */
+	if (!q931_is_dummy_call(call)) {
+		call->cr = (crv << 3) & 0x7fff;
+		call->cr |= (callmode & 0x7);
+	}
 	return 0;
 }

@@ -114,6 +114,13 @@ struct pri {
 	q931_call **callpool;
 	q931_call *localpool;
 
+	/*!
+	 * \brief Q.931 Dummy call reference call associated with this TEI.
+	 * \note If present then this call is allocated as part of the
+	 * D channel control structure.
+	 */
+	q931_call *dummy_call;
+
 	/* do we do overlap dialing */
 	int overlapdial;
 
@@ -506,6 +513,14 @@ struct q931_call {
 	int pri_winner;
 };
 
+/*! D channel control structure with associated dummy call reference record. */
+struct d_ctrl_dummy {
+	/*! D channel control structure. */
+	struct pri ctrl;
+	/*! Dummy call reference call record. */
+	struct q931_call dummy_call;
+};
+
 extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);
 
 extern pri_event *pri_schedule_run(struct pri *pri);
@@ -522,6 +537,8 @@ void libpri_copy_string(char *dst, const char *src, size_t size);
 struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri);
 
 void __pri_free_tei(struct pri *p);
+
+void q931_init_call_record(struct pri *ctrl, struct q931_call *call, int cr);
 
 void q931_party_name_init(struct q931_party_name *name);
 void q931_party_number_init(struct q931_party_number *number);
@@ -587,6 +604,19 @@ static inline int BRI_TE_PTMP(struct pri *mypri)
 	pri = PRI_MASTER(mypri);
 
 	return pri->bri && (((pri)->localtype == PRI_CPE) && ((pri)->tei == Q921_TEI_GROUP));
+}
+
+#define Q931_DUMMY_CALL_REFERENCE	-1
+
+/*!
+ * \brief Deterimine if the given call control pointer is a dummy call.
+ *
+ * \retval TRUE if given call is a dummy call.
+ * \retval FALSE otherwise.
+ */
+static inline int q931_is_dummy_call(const q931_call *call)
+{
+	return (call->cr == Q931_DUMMY_CALL_REFERENCE) ? 1 : 0;
 }
 
 #endif
