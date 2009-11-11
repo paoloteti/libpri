@@ -604,6 +604,15 @@ static inline int BRI_TE_PTMP(struct pri *mypri)
 	return pri->bri && (((pri)->localtype == PRI_CPE) && ((pri)->tei == Q921_TEI_GROUP));
 }
 
+static inline int PRI_PTP(struct pri *mypri)
+{
+	struct pri *pri;
+
+	pri = PRI_MASTER(mypri);
+
+	return !pri->bri;
+}
+
 #define Q931_DUMMY_CALL_REFERENCE	-1
 
 /*!

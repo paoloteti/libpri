@@ -1220,8 +1220,8 @@ static pri_event *__q921_receive_qualified(struct pri *pri, q921_h *h, int len)
 			/* Acknowledge */
 			q921_send_ua(pri, h->u.p_f);
 			ev = q921_dchannel_down(pri);
-			if (BRI_TE_PTMP(pri)) {
-				q921_restart(pri, 0);
+			if (BRI_TE_PTMP(pri) || PRI_PTP(pri)) {
+				q921_restart(pri, PRI_PTP(pri) ? 1 : 0);
 			}
 			return ev;
 		case 3:
