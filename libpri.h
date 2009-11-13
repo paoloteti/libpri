@@ -1297,8 +1297,7 @@ enum PRI_TIMERS_AND_COUNTERS {
 	PRI_TIMER_T_RETRIEVE,	/*!< Maximum time to wait for RETRIEVE request response. */
 
 	/* Must be last in the enum list */
-	_PRI_MAX_TIMERS,
-	PRI_MAX_TIMERS = (_PRI_MAX_TIMERS < 32) ? 32 : _PRI_MAX_TIMERS
+	PRI_MAX_TIMERS
 };
 
 /* Get PRI version */
