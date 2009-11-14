@@ -2266,6 +2266,8 @@ static int receive_progress_indicator(int full_ie, struct pri *ctrl, q931_call *
 	return 0;
 }
 
+static void q931_apdu_timeout(void *data);
+
 static int transmit_facility(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
 	struct apdu_event **prev;
@@ -2275,9 +2277,7 @@ static int transmit_facility(int full_ie, struct pri *ctrl, q931_call *call, int
 	for (prev = &call->apdus, cur = call->apdus;
 		cur;
 		prev = &cur->next, cur = cur->next) {
-		if (cur->message == msgtype) {
-			/* Remove APDU from list. */
-			*prev = cur->next;
+		if (!cur->sent && cur->message == msgtype) {
 			break;
 		}
 	}
@@ -2292,15 +2292,52 @@ static int transmit_facility(int full_ie, struct pri *ctrl, q931_call *call, int
 		facility_decode_dump(ctrl, cur->apdu, cur->apdu_len);
 	}
 
-	if (cur->apdu_len > 235) { /* TODO: find out how much space we can use */
-		pri_message(ctrl, "Requested APDU (%d bytes) is too long\n", cur->apdu_len);
+	if (len < cur->apdu_len) { 
+		pri_error(ctrl,
+			"Could not fit facility ie in message.  Size needed:%d  Available space:%d\n",
+			cur->apdu_len + 2, len);
+
+		/* Remove APDU from list. */
+		*prev = cur->next;
+
+		if (cur->response.callback) {
+			/* Indicate to callback that the APDU had a problem getting sent. */
+			cur->response.callback(APDU_CALLBACK_REASON_ERROR, ctrl, call, cur, NULL);
+		}
+
 		free(cur);
 		return 0;
 	}
 
 	memcpy(ie->data, cur->apdu, cur->apdu_len);
 	apdu_len = cur->apdu_len;
-	free(cur);
+	cur->sent = 1;
+
+	if (cur->response.callback && cur->response.timeout_time) {
+		int duration;
+
+		if (0 < cur->response.timeout_time) {
+			/* Sender specified timeout duration. */
+			duration = cur->response.timeout_time;
+		} else {
+			/* Sender wants to use the typical timeout duration. */
+			duration = ctrl->timers[PRI_TIMER_T_RESPONSE];
+		}
+		cur->timer = pri_schedule_event(ctrl, duration, q931_apdu_timeout, cur);
+		if (!cur->timer) {
+			/* Remove APDU from list. */
+			*prev = cur->next;
+
+			/* Indicate to callback that the APDU had a problem getting sent. */
+			cur->response.callback(APDU_CALLBACK_REASON_ERROR, ctrl, call, cur, NULL);
+
+			free(cur);
+		}
+	} else if (!cur->timer) {
+		/* Remove APDU from list. */
+		*prev = cur->next;
+		free(cur);
+	}
 
 	return apdu_len + 2;
 }
@@ -6225,6 +6262,34 @@ static void q931_fill_facility_event(struct pri *ctrl, struct q931_call *call)
 
 /*!
  * \internal
+ * \brief APDU wait for response message timeout.
+ *
+ * \param data Callback data pointer.
+ *
+ * \return Nothing
+ */
+static void q931_apdu_timeout(void *data)
+{
+	struct apdu_event *apdu;
+	struct pri *ctrl;
+	struct q931_call *call;
+
+	apdu = data;
+	call = apdu->call;
+	ctrl = call->pri;
+
+	q931_clr_subcommands(ctrl);
+	apdu->response.callback(APDU_CALLBACK_REASON_TIMEOUT, ctrl, call, apdu, NULL);
+	if (ctrl->subcmds.counter_subcmd) {
+		q931_fill_facility_event(ctrl, call);
+		ctrl->schedev = 1;
+	}
+
+	pri_call_apdu_delete(call, apdu);
+}
+
+/*!
+ * \internal
  * \brief Find the active call given the held call.
  *
  * \param ctrl D channel controller.
@@ -6510,7 +6575,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		c->useruserinfo[0] = '\0';
 
 		for (cur = c->apdus; cur; cur = cur->next) {
-			if (cur->message == Q931_FACILITY) {
+			if (!cur->sent && cur->message == Q931_FACILITY) {
 				q931_facility(ctrl, c);
 				break;
 			}
@@ -6615,7 +6680,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		ctrl->ev.proceeding.call = c->master_call;
 
 		for (cur = c->apdus; cur; cur = cur->next) {
-			if (cur->message == Q931_FACILITY) {
+			if (!cur->sent && cur->message == Q931_FACILITY) {
 				q931_facility(ctrl, c);
 				break;
 			}
@@ -6892,7 +6957,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		ctrl->ev.setup_ack.call = c->master_call;
 
 		for (cur = c->apdus; cur; cur = cur->next) {
-			if (cur->message == Q931_FACILITY) {
+			if (!cur->sent && cur->message == Q931_FACILITY) {
 				q931_facility(ctrl, c);
 				break;
 			}

@@ -1023,7 +1023,7 @@ int rose_diverting_leg_information1_encode(struct pri *ctrl, q931_call *call)
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer);
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL);
 }
 
 /*!
@@ -1192,7 +1192,7 @@ static int rose_diverting_leg_information2_encode(struct pri *ctrl, q931_call *c
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer);
+	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer, NULL);
 }
 
 /*!
@@ -1314,7 +1314,7 @@ int rose_diverting_leg_information3_encode(struct pri *ctrl, q931_call *call,
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer);
+	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer, NULL);
 }
 
 /*!
@@ -1385,7 +1385,7 @@ int rlt_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
 		return -1;
 	}
 
-	if (pri_call_apdu_queue(apdubearer, Q931_FACILITY, buffer, end - buffer)) {
+	if (pri_call_apdu_queue(apdubearer, Q931_FACILITY, buffer, end - buffer, NULL)) {
 		return -1;
 	}
 
@@ -1448,7 +1448,7 @@ static int add_dms100_transfer_ability_apdu(struct pri *ctrl, q931_call *call)
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer);
+	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer, NULL);
 }
 
 /*!
@@ -1557,7 +1557,7 @@ static int add_callername_facility_ies(struct pri *ctrl, q931_call *call, int cp
 			return -1;
 		}
 
-		if (pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer)) {
+		if (pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer, NULL)) {
 			return -1;
 		}
 
@@ -1580,7 +1580,7 @@ static int add_callername_facility_ies(struct pri *ctrl, q931_call *call, int cp
 		mymessage = Q931_FACILITY;
 	}
 
-	return pri_call_apdu_queue(call, mymessage, buffer, end - buffer);
+	return pri_call_apdu_queue(call, mymessage, buffer, end - buffer, NULL);
 }
 /* End Callername */
 
@@ -1714,7 +1714,7 @@ int mwi_message_send(struct pri *ctrl, q931_call *call, struct pri_sr *req, int 
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer);
+	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer, NULL);
 }
 /* End MWI */
 
@@ -1773,7 +1773,7 @@ int eect_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
 		return -1;
 	}
 
-	if (pri_call_apdu_queue(c1, Q931_FACILITY, buffer, end - buffer)) {
+	if (pri_call_apdu_queue(c1, Q931_FACILITY, buffer, end - buffer, NULL)) {
 		pri_message(ctrl, "Could not queue APDU in facility message\n");
 		return -1;
 	}
@@ -2094,7 +2094,7 @@ static int rose_reroute_request_encode(struct pri *ctrl, q931_call *call,
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer);
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL);
 }
 
 /*!
@@ -2221,14 +2221,10 @@ static int anfpr_pathreplacement_respond(struct pri *ctrl, q931_call *call, q931
 {
 	int res;
 
-	res = pri_call_apdu_queue_cleanup(call->bridged_call);
-	if (res) {
-		pri_message(ctrl, "Could not Clear queue ADPU\n");
-		return -1;
-	}
+	pri_call_apdu_queue_cleanup(call->bridged_call);
 
 	/* Send message */
-	res = pri_call_apdu_queue(call->bridged_call, Q931_FACILITY, ie->data, ie->len);
+	res = pri_call_apdu_queue(call->bridged_call, Q931_FACILITY, ie->data, ie->len, NULL);
 	if (res) {
 		pri_message(ctrl, "Could not queue ADPU in facility message\n");
 		return -1;
@@ -2296,7 +2292,7 @@ int anfpr_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
 		return -1;
 	}
 
-	res = pri_call_apdu_queue(c1, Q931_FACILITY, buffer, pos - buffer);
+	res = pri_call_apdu_queue(c1, Q931_FACILITY, buffer, pos - buffer, NULL);
 	if (res) {
 		pri_message(ctrl, "Could not queue ADPU in facility message\n");
 		return -1;
@@ -2325,7 +2321,7 @@ int anfpr_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
 		return -1;
 	}
 
-	res = pri_call_apdu_queue(c2, Q931_FACILITY, buffer, pos - buffer);
+	res = pri_call_apdu_queue(c2, Q931_FACILITY, buffer, pos - buffer, NULL);
 	if (res) {
 		pri_message(ctrl, "Could not queue ADPU in facility message\n");
 		return -1;
@@ -2410,7 +2406,7 @@ static int aoc_aoce_charging_unit_encode(struct pri *ctrl, q931_call *call,
 
 	/* Remember that if we queue a facility IE for a facility message we
 	 * have to explicitly send the facility message ourselves */
-	if (pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer)
+	if (pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL)
 		|| q931_facility(call->pri, call)) {
 		pri_message(ctrl, "Could not schedule facility message for call %d\n", call->cr);
 		return -1;
@@ -2556,7 +2552,7 @@ static int rose_call_transfer_complete_encode(struct pri *ctrl, q931_call *call,
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer);
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL);
 }
 
 /* ===== End Call Transfer Supplementary Service (ECMA-178) ===== */
@@ -2624,7 +2620,7 @@ int rose_called_name_encode(struct pri *ctrl, q931_call *call, int messagetype)
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer);
+	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer, NULL);
 }
 
 /*!
@@ -2690,7 +2686,7 @@ int rose_connected_name_encode(struct pri *ctrl, q931_call *call, int messagetyp
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer);
+	return pri_call_apdu_queue(call, messagetype, buffer, end - buffer, NULL);
 }
 
 /*!
@@ -2700,11 +2696,18 @@ int rose_connected_name_encode(struct pri *ctrl, q931_call *call, int messagetyp
  * \param messagetype Q.931 message type.
  * \param apdu Facility ie contents buffer.
  * \param apdu_len Length of the contents buffer.
+ * \param response Sender supplied information to handle APDU response messages.
+ *        NULL if don't care about responses.
+ *
+ * \note
+ * Only APDU messages with an invoke component can supply a response pointer.
+ * If any other APDU messages supply a response pointer then aliasing of the
+ * invoke_id can occur.
  *
  * \retval 0 on success.
  * \retval -1 on error.
  */
-int pri_call_apdu_queue(q931_call *call, int messagetype, const unsigned char *apdu, int apdu_len)
+int pri_call_apdu_queue(q931_call *call, int messagetype, const unsigned char *apdu, int apdu_len, struct apdu_callback_data *response)
 {
 	struct apdu_event *cur = NULL;
 	struct apdu_event *new_event = NULL;
@@ -2731,11 +2734,16 @@ int pri_call_apdu_queue(q931_call *call, int messagetype, const unsigned char *a
 		return -1;
 	}
 
+	/* Fill in the APDU event */
 	new_event->message = messagetype;
+	if (response) {
+		new_event->response = *response;
+	}
+	new_event->call = call;
 	new_event->apdu_len = apdu_len;
 	memcpy(new_event->apdu, apdu, apdu_len);
 
-	/* Append APDU to the end of the list. */
+	/* Append APDU event to the end of the list. */
 	if (call->apdus) {
 		for (cur = call->apdus; cur->next; cur = cur->next) {
 		}
@@ -2747,22 +2755,85 @@ int pri_call_apdu_queue(q931_call *call, int messagetype, const unsigned char *a
 	return 0;
 }
 
-int pri_call_apdu_queue_cleanup(q931_call *call)
+/* Used by q931.c to cleanup the apdu queue upon destruction of a call */
+void pri_call_apdu_queue_cleanup(q931_call *call)
 {
-	struct apdu_event *cur_event = NULL, *free_event = NULL;
+	struct apdu_event *cur_event;
+	struct apdu_event *free_event;
 
-	if (call && call->apdus) {
+	if (call) {
 		cur_event = call->apdus;
 		call->apdus = NULL;
 		while (cur_event) {
-			/* TODO: callbacks, some way of giving return res on status of apdu */
+			if (cur_event->response.callback) {
+				/* Indicate to callback that the APDU is being cleaned up. */
+				cur_event->response.callback(APDU_CALLBACK_REASON_CLEANUP, call->pri,
+					call, cur_event, NULL);
+
+				/* Stop any response timeout. */
+				pri_schedule_del(call->pri, cur_event->timer);
+			}
 			free_event = cur_event;
 			cur_event = cur_event->next;
 			free(free_event);
 		}
 	}
+}
 
-	return 0;
+/*!
+ * \internal
+ * \brief Find an outstanding APDU with the given invoke id.
+ *
+ * \param call Call to find APDU.
+ * \param invoke_id Invoke id to match outstanding APDUs in queue.
+ *
+ * \retval apdu_event if found.
+ * \retval NULL if not found.
+ */
+static struct apdu_event *pri_call_apdu_find(struct q931_call *call, int invoke_id)
+{
+	struct apdu_event *apdu;
+
+	for (apdu = call->apdus; apdu; apdu = apdu->next) {
+		/*
+		 * Note: The APDU cannot be sent and still in the queue without a
+		 * callback and timeout timer active.  Therefore, an invoke_id of
+		 * zero is valid and not just the result of a memset().
+		 */
+		if (apdu->response.invoke_id == invoke_id && apdu->sent) {
+			break;
+		}
+	}
+	return apdu;
+}
+
+/*!
+ * \brief Delete the given APDU event from the given call.
+ *
+ * \param call Call to remove the APDU.
+ * \param doomed APDU event to delete.
+ *
+ * \return Nothing
+ */
+void pri_call_apdu_delete(struct q931_call *call, struct apdu_event *doomed)
+{
+	struct apdu_event **prev;
+	struct apdu_event *cur;
+
+	/* Find APDU in list. */
+	for (prev = &call->apdus, cur = call->apdus;
+		cur;
+		prev = &cur->next, cur = cur->next) {
+		if (cur == doomed) {
+			/* Stop any response timeout. */
+			pri_schedule_del(call->pri, cur->timer);
+
+			/* Remove APDU from list. */
+			*prev = cur->next;
+			free(cur);
+			break;
+		}
+	}
 }
 
 /*! \note Only called when sending the SETUP message. */
@@ -2948,7 +3019,7 @@ static int rose_facility_error_encode(struct pri *ctrl, q931_call *call, int inv
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer);
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL);
 }
 
 /*!
@@ -3080,7 +3151,7 @@ static int rose_result_ok_encode(struct pri *ctrl, q931_call *call, int msgtype,
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, msgtype, buffer, end - buffer);
+	return pri_call_apdu_queue(call, msgtype, buffer, end - buffer, NULL);
 }
 
 /*!
@@ -3163,11 +3234,39 @@ int pri_rerouting_rsp(struct pri *ctrl, q931_call *call, int invoke_id, enum PRI
 void rose_handle_reject(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie,
 	const struct fac_extension_header *header, const struct rose_msg_reject *reject)
 {
+	struct apdu_event *apdu;
+	union apdu_msg_data msg;
+
+	/* Gripe to the user about getting rejected. */
 	pri_error(ctrl, "ROSE REJECT:\n");
 	if (reject->invoke_id_present) {
 		pri_error(ctrl, "\tINVOKE ID: %d\n", reject->invoke_id);
 	}
 	pri_error(ctrl, "\tPROBLEM: %s\n", rose_reject2str(reject->code));
+
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_DMS100:
+		/* The DMS-100 switch apparently handles invoke_id as an invoke operation. */
+		return;
+	default:
+		break;
+	}
+
+	if (!reject->invoke_id_present) {
+		/*
+		 * No invoke id to look up so we cannot match it to any outstanding APDUs.
+		 * This REJECT is apparently meant for someone monitoring the link.
+		 */
+		return;
+	}
+	apdu = pri_call_apdu_find(call, reject->invoke_id);
+	if (!apdu) {
+		return;
+	}
+	msg.reject = reject;
+	if (apdu->response.callback(APDU_CALLBACK_REASON_MSG_REJECT, ctrl, call, apdu, &msg)) {
+		pri_call_apdu_delete(call, apdu);
+	}
 }
 
 /*!
@@ -3186,7 +3285,10 @@ void rose_handle_error(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *
 	const struct fac_extension_header *header, const struct rose_msg_error *error)
 {
 	const char *dms100_operation;
+	struct apdu_event *apdu;
+	union apdu_msg_data msg;
 
+	/* Gripe to the user about getting an error. */
 	pri_error(ctrl, "ROSE RETURN ERROR:\n");
 	switch (ctrl->switchtype) {
 	case PRI_SWITCH_DMS100:
@@ -3211,6 +3313,23 @@ void rose_handle_error(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *
 		break;
 	}
 	pri_error(ctrl, "\tERROR: %s\n", rose_error2str(error->code));
+
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_DMS100:
+		/* The DMS-100 switch apparently handles invoke_id as an invoke operation. */
+		return;
+	default:
+		break;
+	}
+
+	apdu = pri_call_apdu_find(call, error->invoke_id);
+	if (!apdu) {
+		return;
+	}
+	msg.error = error;
+	if (apdu->response.callback(APDU_CALLBACK_REASON_MSG_ERROR, ctrl, call, apdu, &msg)) {
+		pri_call_apdu_delete(call, apdu);
+	}
 }
 
 /*!
@@ -3228,8 +3347,12 @@ void rose_handle_error(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *
 void rose_handle_result(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie,
 	const struct fac_extension_header *header, const struct rose_msg_result *result)
 {
+	struct apdu_event *apdu;
+	union apdu_msg_data msg;
+
 	switch (ctrl->switchtype) {
 	case PRI_SWITCH_DMS100:
+		/* The DMS-100 switch apparently handles invoke_id as an invoke operation. */
 		switch (result->invoke_id) {
 		case ROSE_DMS100_RLT_OPERATION_IND:
 			if (result->operation != ROSE_DMS100_RLT_OperationInd) {
@@ -3256,87 +3379,13 @@ void rose_handle_result(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		break;
 	}
 
-	switch (result->operation) {
-	case ROSE_None:
-		/*
-		 * This is simply a positive ACK to the invoke request.
-		 * The invoke ID must be used to distinguish between outstanding
-		 * invoke requests.
-		 */
-		break;
-#if 0	/* Not handled yet */
-	case ROSE_ETSI_ActivationDiversion:
-		break;
-	case ROSE_ETSI_DeactivationDiversion:
-		break;
-	case ROSE_ETSI_InterrogationDiversion:
-		break;
-#endif	/* Not handled yet */
-	case ROSE_ETSI_CallDeflection:
-		/* Successfully completed call deflection.  Nothing to do. */
-		break;
-	case ROSE_ETSI_CallRerouting:
-		/* Successfully completed call rerouting.  Nothing to do. */
-		break;
-#if 0	/* Not handled yet */
-	case ROSE_ETSI_InterrogateServedUserNumbers:
-		break;
-#endif	/* Not handled yet */
-#if 0	/* Not handled yet */
-	case ROSE_ETSI_ChargingRequest:
-		break;
-#endif	/* Not handled yet */
-#if 0	/* Not handled yet */
-	case ROSE_ETSI_EctExecute:
-		break;
-	case ROSE_ETSI_ExplicitEctExecute:
-		break;
-	case ROSE_ETSI_EctLinkIdRequest:
-		break;
-	case ROSE_ETSI_EctLoopTest:
-		break;
-#endif	/* Not handled yet */
-#if 0	/* Not handled yet */
-	case ROSE_QSIG_ChargeRequest:
-		break;
-	case ROSE_QSIG_AocComplete:
-		break;
-#endif	/* Not handled yet */
-#if 0	/* Not handled yet */
-	case ROSE_QSIG_CallTransferIdentify:
-		break;
-	case ROSE_QSIG_CallTransferInitiate:
-		break;
-	case ROSE_QSIG_CallTransferSetup:
-		break;
-#endif	/* Not handled yet */
-#if 0	/* Not handled yet */
-	case ROSE_QSIG_ActivateDiversionQ:
-		break;
-	case ROSE_QSIG_DeactivateDiversionQ:
-		break;
-	case ROSE_QSIG_InterrogateDiversionQ:
-		break;
-	case ROSE_QSIG_CheckRestriction:
-		break;
-#endif	/* Not handled yet */
-	case ROSE_QSIG_CallRerouting:
-		/* Successfully completed call rerouting.  Nothing to do. */
-		break;
-#if 0	/* Not handled yet */
-	case ROSE_QSIG_MWIActivate:
-		break;
-	case ROSE_QSIG_MWIDeactivate:
-		break;
-	case ROSE_QSIG_MWIInterrogate:
-		break;
-#endif	/* Not handled yet */
-	default:
-		if (ctrl->debug & PRI_DEBUG_APDU) {
-			pri_message(ctrl, "!! ROSE result operation not handled! %s\n",
-				rose_operation2str(result->operation));
-		}
-		break;
+	apdu = pri_call_apdu_find(call, result->invoke_id);
+	if (!apdu) {
+		return;
+	}
+	msg.result = result;
+	if (apdu->response.callback(APDU_CALLBACK_REASON_MSG_RESULT, ctrl, call, apdu, &msg)) {
+		pri_call_apdu_delete(call, apdu);
 	}
 }
 
