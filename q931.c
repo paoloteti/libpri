@@ -3980,7 +3980,10 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 			 * If those are true, we need to send the SETUP in a UI frame
 			 * instead of an I-frame.
 			 */
-			uiframe = call->outboundbroadcast;
+			if (BRI_NT_PTMP(ctrl))
+				uiframe = 1;
+			else
+				uiframe = 0;
 			break;
 		case Q931_FACILITY:
 			if (ctrl->tei == Q921_TEI_GROUP) {
