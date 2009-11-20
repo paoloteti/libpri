@@ -1740,6 +1740,7 @@ static int receive_connected_number(int full_ie, struct pri *ctrl, q931_call *ca
 {
 	int i = 0;
 
+	call->connected_number_in_message = 1;
 	call->remote_id.number.valid = 1;
 	call->remote_id.number.presentation =
 		PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
@@ -1824,6 +1825,7 @@ static int receive_redirecting_number(int full_ie, struct pri *ctrl, q931_call *
 {
 	int i = 0;
 
+	call->redirecting_number_in_message = 1;
 	call->redirecting.from.number.valid = 1;
 	call->redirecting.from.number.presentation =
 		PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
@@ -2344,6 +2346,25 @@ static int transmit_facility(int full_ie, struct pri *ctrl, q931_call *call, int
 
 static int receive_facility(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
+	/* Delay processing facility ie's till after all other ie's are processed. */
+	if (MAX_FACILITY_IES <= ctrl->facility.count) {
+		pri_message(ctrl, "!! Too many facility ie's to delay.\n");
+		return -1;
+	}
+	/* Make sure we have enough room for the protocol profile ie octet(s) */
+	if (ie->data + ie->len < ie->data + 2) {
+		return -1;
+	}
+
+	/* Save the facility ie location for delayed decode. */
+	ctrl->facility.ie[ctrl->facility.count] = ie;
+	ctrl->facility.codeset[ctrl->facility.count] = Q931_IE_CODESET((unsigned) full_ie);
+	++ctrl->facility.count;
+	return 0;
+}
+
+static int process_facility(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie)
+{
 	struct fac_extension_header header;
 	struct rose_message rose;
 	const unsigned char *pos;
@@ -2414,6 +2435,24 @@ static int receive_facility(int full_ie, struct pri *ctrl, q931_call *call, int 
 		return -1;
 	}
 	return 0;
+}
+
+static void q931_handle_facilities(struct pri *ctrl, q931_call *call, int msgtype)
+{
+	unsigned idx;
+	unsigned codeset;
+	unsigned full_ie;
+	q931_ie *ie;
+
+	for (idx = 0; idx < ctrl->facility.count; ++idx) {
+		ie = ctrl->facility.ie[idx];
+		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+			codeset = ctrl->facility.codeset[idx];
+			full_ie = Q931_FULL_IE(codeset, ie->ie);
+			pri_message(ctrl, "-- Delayed processing IE %d (cs%d, %s)\n", ie->ie, codeset, ie2str(full_ie));
+		}
+		process_facility(ctrl, call, msgtype, ie);
+	}
 }
 
 static int transmit_progress_indicator(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
@@ -5798,6 +5837,9 @@ int q931_receive(struct pri *ctrl, q931_h *h, int len)
 	}
 
 	/* Preliminary handling */
+	ctrl->facility.count = 0;
+	c->connected_number_in_message = 0;
+	c->redirecting_number_in_message = 0;
 	if ((h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) || (h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_2)) {
 		prepare_to_handle_maintenance_message(ctrl, mh, c);
 	} else {
@@ -5891,6 +5933,9 @@ int q931_receive(struct pri *ctrl, q931_h *h, int len)
 			}
 		}
 	}
+
+	/* Now handle the facility ie's after all the other ie's were processed. */
+	q931_handle_facilities(ctrl, c, mh->msg);
 
 	/* Post handling */
 	if ((h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) || (h->pd == MAINTENANCE_PROTOCOL_DISCRIMINATOR_2)) {

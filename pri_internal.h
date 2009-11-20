@@ -52,6 +52,9 @@ struct pri_sched {
 /*! Maximum number of scheduled events active at the same time. */
 #define MAX_SCHED 128
 
+/*! Maximum number of facility ie's to handle per incoming message. */
+#define MAX_FACILITY_IES	8
+
 /*! \brief D channel controller structure */
 struct pri {
 	int fd;				/* File descriptor for D-Channel */
@@ -143,6 +146,16 @@ struct pri {
 
 	short last_invoke;	/* Last ROSE invoke ID (Valid in master record only) */
 	unsigned char sendfacility;
+
+	/*! For delayed processing of facility ie's. */
+	struct {
+		/*! Array of facility ie locations in the current received message. */
+		q931_ie *ie[MAX_FACILITY_IES];
+		/*! Codeset facility ie found within. */
+		unsigned char codeset[MAX_FACILITY_IES];
+		/*! Number of facility ie's in the array from the current received message. */
+		unsigned char count;
+	} facility;
 };
 
 /*! \brief Maximum name length plus null terminator (From ECMA-164) */
@@ -469,6 +482,10 @@ struct q931_call {
 	int hold_timer;
 
 	int deflection_in_progress;	/*!< CallDeflection for NT PTMP in progress. */
+	/*! TRUE if the connected number ie was in the current received message. */
+	int connected_number_in_message;
+	/*! TRUE if the redirecting number ie was in the current received message. */
+	int redirecting_number_in_message;
 
 	int useruserprotocoldisc;
 	char useruserinfo[256];

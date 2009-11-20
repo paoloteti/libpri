@@ -3555,27 +3555,31 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		break;
 #endif	/* Not handled yet */
 	case ROSE_ETSI_DivertingLegInformation1:
-		/*
-		 * Unless otherwise indicated by CONNECT, the divertedToNumber will be
-		 * the remote_id.number.
-		 *
-		 * Fortunately, the connected number ie is supposed to come after the
-		 * facility ie in the same message so it will be processed later.
-		 */
 		if (invoke->args.etsi.DivertingLegInformation1.diverted_to_present) {
-			rose_copy_presented_number_unscreened_to_q931(ctrl, &call->remote_id.number,
+			rose_copy_presented_number_unscreened_to_q931(ctrl, &party_id.number,
 				&invoke->args.etsi.DivertingLegInformation1.diverted_to);
 			/*
 			 * We set the presentation value since the sender cannot know the
 			 * presentation value preference of the destination party.
 			 */
-			if (call->remote_id.number.str[0]) {
-				call->remote_id.number.presentation =
+			if (party_id.number.str[0]) {
+				party_id.number.presentation =
 					PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
+			} else {
+				party_id.number.presentation =
+					PRI_PRES_UNAVAILABLE | PRI_PRES_USER_NUMBER_UNSCREENED;
 			}
 		} else {
-			q931_party_number_init(&call->remote_id.number);
-			call->remote_id.number.valid = 1;
+			q931_party_number_init(&party_id.number);
+			party_id.number.valid = 1;
+		}
+
+		/*
+		 * Unless otherwise indicated by CONNECT, the divertedToNumber will be
+		 * the remote_id.number.
+		 */
+		if (!call->connected_number_in_message) {
+			call->remote_id.number = party_id.number;
 		}
 
 		/* divertedToNumber is put in redirecting.to.number */
@@ -3589,7 +3593,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
 			break;
 		case 2:	/* notificationWithDivertedToNr */
-			call->redirecting.to.number = call->remote_id.number;
+			call->redirecting.to.number = party_id.number;
 			break;
 		}
 
@@ -3616,7 +3620,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 			rose_copy_presented_number_unscreened_to_q931(ctrl,
 				&call->redirecting.from.number,
 				&invoke->args.etsi.DivertingLegInformation2.diverting);
-		} else {
+		} else if (!call->redirecting_number_in_message) {
 			q931_party_number_init(&call->redirecting.from.number);
 			call->redirecting.from.number.valid = 1;
 		}
@@ -3636,15 +3640,14 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		/*
 		 * Unless otherwise indicated by CONNECT, this will be the
 		 * remote_id.number.presentation.
-		 *
-		 * Fortunately, the connected number ie is supposed to come after the
-		 * facility ie in the same message so it will be processed later.
 		 */
 		if (!invoke->args.etsi.DivertingLegInformation3.presentation_allowed_indicator) {
-			call->remote_id.number.presentation =
-				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
 			call->redirecting.to.number.presentation =
 				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
+			if (!call->connected_number_in_message) {
+				call->remote_id.number.presentation =
+					PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
+			}
 		}
 
 		switch (call->redirecting.state) {
@@ -3949,19 +3952,20 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 			&deflection);
 		break;
 	case ROSE_QSIG_DivertingLegInformation1:
+		q931_party_number_init(&party_id.number);
+		rose_copy_number_to_q931(ctrl, &party_id.number,
+			&invoke->args.qsig.DivertingLegInformation1.nominated_number);
+		if (party_id.number.str[0]) {
+			party_id.number.presentation =
+				PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
+		}
+
 		/*
 		 * Unless otherwise indicated by CONNECT, the nominatedNr will be
 		 * the remote_id.number.
-		 *
-		 * Fortunately, the connected number ie is supposed to come after the
-		 * facility ie in the same message so it will be processed later.
 		 */
-		q931_party_number_init(&call->remote_id.number);
-		rose_copy_number_to_q931(ctrl, &call->remote_id.number,
-			&invoke->args.qsig.DivertingLegInformation1.nominated_number);
-		if (call->remote_id.number.str[0]) {
-			call->remote_id.number.presentation =
-				PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
+		if (!call->connected_number_in_message) {
+			call->remote_id.number = party_id.number;
 		}
 
 		/* nominatedNr is put in redirecting.to.number */
@@ -3975,7 +3979,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
 			break;
 		case QSIG_NOTIFICATION_WITH_DIVERTED_TO_NR:
-			call->redirecting.to.number = call->remote_id.number;
+			call->redirecting.to.number = party_id.number;
 			break;
 		}
 
@@ -4002,7 +4006,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 			rose_copy_presented_number_unscreened_to_q931(ctrl,
 				&call->redirecting.from.number,
 				&invoke->args.qsig.DivertingLegInformation2.diverting);
-		} else {
+		} else if (!call->redirecting_number_in_message) {
 			q931_party_number_init(&call->redirecting.from.number);
 			call->redirecting.from.number.valid = 1;
 		}
@@ -4042,15 +4046,14 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		/*
 		 * Unless otherwise indicated by CONNECT, this will be the
 		 * remote_id.number.presentation.
-		 *
-		 * Fortunately, the connected number ie is supposed to come after the
-		 * facility ie in the same message so it will be processed later.
 		 */
 		if (!invoke->args.qsig.DivertingLegInformation3.presentation_allowed_indicator) {
-			call->remote_id.number.presentation =
-				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
 			call->redirecting.to.number.presentation =
 				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
+			if (!call->connected_number_in_message) {
+				call->remote_id.number.presentation =
+					PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
+			}
 		}
 
 		/* redirectionName is put in redirecting.to.name */
