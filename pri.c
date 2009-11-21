@@ -239,6 +239,7 @@ void __pri_free_tei(struct pri * p)
 			pri_schedule_del(call->pri, call->retranstimer);
 			pri_call_apdu_queue_cleanup(call);
 		}
+		free(p->msg_line);
 		free(p);
 	}
 }
@@ -266,6 +267,14 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 		}
 		p = &dummy_ctrl->ctrl;
 		break;
+	}
+	if (!master) {
+		/* This is the master record. */
+		p->msg_line = calloc(1, sizeof(*p->msg_line));
+		if (!p->msg_line) {
+			free(p);
+			return NULL;
+		}
 	}
 
 	p->bri = bri;
@@ -1121,20 +1130,77 @@ void pri_set_error(void (*func)(struct pri *pri, char *stuff))
 	__pri_error = func;
 }
 
-void pri_message(struct pri *pri, char *fmt, ...)
+static void pri_old_message(struct pri *ctrl, const char *fmt, va_list *ap)
 {
 	char tmp[1024];
-	va_list ap;
-	va_start(ap, fmt);
-	vsnprintf(tmp, sizeof(tmp), fmt, ap);
-	va_end(ap);
+
+	vsnprintf(tmp, sizeof(tmp), fmt, *ap);
 	if (__pri_message)
-		__pri_message(PRI_MASTER(pri), tmp);
+		__pri_message(ctrl, tmp);
 	else
 		fputs(tmp, stdout);
 }
 
-void pri_error(struct pri *pri, char *fmt, ...)
+void pri_message(struct pri *ctrl, const char *fmt, ...)
+{
+	int added_length;
+	va_list ap;
+
+	ctrl = PRI_MASTER(ctrl);
+	if (!ctrl || !ctrl->msg_line) {
+		/* Just have to do it the old way. */
+		va_start(ap, fmt);
+		pri_old_message(ctrl, fmt, &ap);
+		va_end(ap);
+		return;
+	}
+
+	va_start(ap, fmt);
+	added_length = vsnprintf(ctrl->msg_line->str + ctrl->msg_line->length,
+		sizeof(ctrl->msg_line->str) - ctrl->msg_line->length, fmt, ap);
+	va_end(ap);
+	if (added_length < 0
+		|| sizeof(ctrl->msg_line->str) <= ctrl->msg_line->length + added_length) {
+		static char truncated_output[] =
+			"v-- Error building output or output was truncated. (Next line) --v\n";
+
+		/*
+		 * This clause should never need to run because the
+		 * output line accumulation buffer is quite large.
+		 */
+
+		/* vsnprintf() error or output string was truncated. */
+		if (__pri_message) {
+			__pri_message(ctrl, truncated_output);
+		} else {
+			fputs(truncated_output, stdout);
+		}
+
+		/* Add a terminating '\n' to force a flush of the line. */
+		ctrl->msg_line->length = strlen(ctrl->msg_line->str);
+		if (ctrl->msg_line->length) {
+			ctrl->msg_line->str[ctrl->msg_line->length - 1] = '\n';
+		} else {
+			ctrl->msg_line->str[0] = '\n';
+			ctrl->msg_line->str[1] = '\0';
+		}
+	} else {
+		ctrl->msg_line->length += added_length;
+	}
+
+	if (ctrl->msg_line->length
+		&& ctrl->msg_line->str[ctrl->msg_line->length - 1] == '\n') {
+		/* The accumulated output line was terminated so send it out. */
+		ctrl->msg_line->length = 0;
+		if (__pri_message) {
+			__pri_message(ctrl, ctrl->msg_line->str);
+		} else {
+			fputs(ctrl->msg_line->str, stdout);
+		}
+	}
+}
+
+void pri_error(struct pri *pri, const char *fmt, ...)
 {
 	char tmp[1024];
 	va_list ap;

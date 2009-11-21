@@ -55,12 +55,22 @@ struct pri_sched {
 /*! Maximum number of facility ie's to handle per incoming message. */
 #define MAX_FACILITY_IES	8
 
+/*! Accumulated pri_message() line until a '\n' is seen on the end. */
+struct pri_msg_line {
+	/*! Accumulated buffer used. */
+	unsigned length;
+	/*! Accumulated pri_message() contents. */
+	char str[2048];
+};
+
 /*! \brief D channel controller structure */
 struct pri {
 	int fd;				/* File descriptor for D-Channel */
 	pri_io_cb read_func;		/* Read data callback */
 	pri_io_cb write_func;		/* Write data callback */
 	void *userdata;
+	/*! Accumulated pri_message() line. (Valid in master record only) */
+	struct pri_msg_line *msg_line;
 	struct pri *subchannel;	/* Sub-channel if appropriate */
 	struct pri *master;		/* Master channel if appropriate */
 	struct pri_sched pri_sched[MAX_SCHED];	/* Scheduled events */
@@ -525,7 +535,7 @@ struct q931_call {
 
 /*! D channel control structure with associated dummy call reference record. */
 struct d_ctrl_dummy {
-	/*! D channel control structure. */
+	/*! D channel control structure. Must be first in the structure. */
 	struct pri ctrl;
 	/*! Dummy call reference call record. */
 	struct q931_call dummy_call;
@@ -539,8 +549,8 @@ extern void pri_schedule_del(struct pri *pri, int ev);
 
 extern pri_event *pri_mkerror(struct pri *pri, char *errstr);
 
-void pri_message(struct pri *ctrl, char *fmt, ...) __attribute__((format(printf, 2, 3)));
-void pri_error(struct pri *ctrl, char *fmt, ...) __attribute__((format(printf, 2, 3)));
+void pri_message(struct pri *ctrl, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+void pri_error(struct pri *ctrl, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
 void libpri_copy_string(char *dst, const char *src, size_t size);
 
