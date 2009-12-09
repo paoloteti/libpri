@@ -6283,6 +6283,135 @@ process_hangup:
 
 /*!
  * \internal
+ * \brief Fill in the RING event fields.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg
+ *
+ * \return Nothing
+ */
+static void q931_fill_ring_event(struct pri *ctrl, struct q931_call *call)
+{
+	struct pri_subcommand *subcmd;
+
+	if (call->redirecting.from.number.valid && !call->redirecting.count) {
+		/*
+		 * This is most likely because the redirecting number came in
+		 * with the redirecting ie only and not a DivertingLegInformation2.
+		 */
+		call->redirecting.count = 1;
+	}
+	if (call->redirecting.state == Q931_REDIRECTING_STATE_PENDING_TX_DIV_LEG_3) {
+		/*
+		 * Valid for Q.SIG and ETSI PRI/BRI-PTP modes:
+		 * Setup the redirecting.to informtion so we can identify
+		 * if the user wants to manually supply the COLR for this
+		 * redirected to number if further redirects could happen.
+		 *
+		 * All the user needs to do is set the REDIRECTING(to-pres)
+		 * to the COLR and REDIRECTING(to-num) = complete-dialed-number
+		 * (i.e. CALLERID(dnid)) to be safe after determining that the
+		 * incoming call was redirected by checking if the
+		 * REDIRECTING(count) is nonzero.
+		 */
+		call->redirecting.to.number = call->called.number;
+		call->redirecting.to.number.presentation =
+			PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
+	}
+
+	ctrl->ev.e = PRI_EVENT_RING;
+	ctrl->ev.ring.subcmds = &ctrl->subcmds;
+	ctrl->ev.ring.channel = q931_encode_channel(call);
+
+	/* Calling party information */
+	ctrl->ev.ring.callingpres = q931_party_id_presentation(&call->remote_id);
+	ctrl->ev.ring.callingplan = call->remote_id.number.plan;
+	if (call->remote_id.number.valid
+		&& (call->remote_id.number.presentation == PRES_ALLOWED_NETWORK_NUMBER
+			|| call->remote_id.number.presentation == PRES_PROHIB_NETWORK_NUMBER)) {
+		ctrl->ev.ring.callingplanani = call->remote_id.number.plan;
+		libpri_copy_string(ctrl->ev.ring.callingani, call->remote_id.number.str,
+			sizeof(ctrl->ev.ring.callingani));
+	} else {
+		ctrl->ev.ring.callingplanani = -1;
+		ctrl->ev.ring.callingani[0] = '\0';
+	}
+	libpri_copy_string(ctrl->ev.ring.callingnum, call->remote_id.number.str,
+		sizeof(ctrl->ev.ring.callingnum));
+	libpri_copy_string(ctrl->ev.ring.callingname, call->remote_id.name.str,
+		sizeof(ctrl->ev.ring.callingname));
+	q931_party_id_copy_to_pri(&ctrl->ev.ring.calling, &call->remote_id);
+	/* for backwards compatibility, still need ctrl->ev.ring.callingsubaddr */
+	if (!call->remote_id.subaddress.type) {
+		/* NSAP: Type = 0 */
+		libpri_copy_string(ctrl->ev.ring.callingsubaddr,
+			(char *) call->remote_id.subaddress.data,
+			sizeof(ctrl->ev.ring.callingsubaddr));
+	} else {
+		ctrl->ev.ring.callingsubaddr[0] = '\0';
+	}
+
+	ctrl->ev.ring.ani2 = call->ani2;
+
+	/* Called party information */
+	ctrl->ev.ring.calledplan = call->called.number.plan;
+	libpri_copy_string(ctrl->ev.ring.callednum, call->called.number.str,
+		sizeof(ctrl->ev.ring.callednum));
+	q931_party_subaddress_copy_to_pri(&ctrl->ev.ring.called_subaddress,
+		&call->called.subaddress);
+
+	/* Original called party information (For backward compatibility) */
+	libpri_copy_string(ctrl->ev.ring.origcalledname,
+		call->redirecting.orig_called.name.str, sizeof(ctrl->ev.ring.origcalledname));
+	libpri_copy_string(ctrl->ev.ring.origcallednum,
+		call->redirecting.orig_called.number.str, sizeof(ctrl->ev.ring.origcallednum));
+	ctrl->ev.ring.callingplanorigcalled = call->redirecting.orig_called.number.plan;
+	if (call->redirecting.orig_called.number.valid
+		|| call->redirecting.orig_called.name.valid) {
+		ctrl->ev.ring.origredirectingreason = call->redirecting.orig_reason;
+	} else {
+		ctrl->ev.ring.origredirectingreason = -1;
+	}
+
+	/* Redirecting from party information (For backward compatibility) */
+	ctrl->ev.ring.callingplanrdnis = call->redirecting.from.number.plan;
+	libpri_copy_string(ctrl->ev.ring.redirectingnum, call->redirecting.from.number.str,
+		sizeof(ctrl->ev.ring.redirectingnum));
+	libpri_copy_string(ctrl->ev.ring.redirectingname, call->redirecting.from.name.str,
+		sizeof(ctrl->ev.ring.redirectingname));
+
+	ctrl->ev.ring.redirectingreason = call->redirecting.reason;
+
+	libpri_copy_string(ctrl->ev.ring.useruserinfo, call->useruserinfo,
+		sizeof(ctrl->ev.ring.useruserinfo));
+	call->useruserinfo[0] = '\0';
+
+	libpri_copy_string(ctrl->ev.ring.keypad_digits, call->keypad_digits,
+		sizeof(ctrl->ev.ring.keypad_digits));
+
+	ctrl->ev.ring.flexible = !(call->chanflags & FLAG_EXCLUSIVE);
+	ctrl->ev.ring.cref = call->cr;
+	ctrl->ev.ring.call = call->master_call;
+	ctrl->ev.ring.layer1 = call->userl1;
+	ctrl->ev.ring.complete = call->complete;
+	ctrl->ev.ring.ctype = call->transcapability;
+	ctrl->ev.ring.progress = call->progress;
+	ctrl->ev.ring.progressmask = call->progressmask;
+	ctrl->ev.ring.reversecharge = call->reversecharge;
+
+	if (call->redirecting.count) {
+		subcmd = q931_alloc_subcommand(ctrl);
+		if (subcmd) {
+			/* Setup redirecting subcommand */
+			subcmd->cmd = PRI_SUBCMD_REDIRECTING;
+			q931_party_redirecting_copy_to_pri(&subcmd->u.redirecting,
+				&call->redirecting);
+		}
+	}
+}
+
+/*!
+ * \internal
  * \brief Fill in the FACILITY event fields.
  *
  * \param ctrl D channel controller.
@@ -6500,108 +6629,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			break;
 		}
 
-		if (c->redirecting.from.number.valid && !c->redirecting.count) {
-			/*
-			 * This is most likely because the redirecting number came in
-			 * with the redirecting ie only and not a DivertingLegInformation2.
-			 */
-			c->redirecting.count = 1;
-		}
-		if (c->redirecting.state == Q931_REDIRECTING_STATE_PENDING_TX_DIV_LEG_3) {
-			/*
-			 * Valid for Q.SIG and ETSI PRI/BRI-PTP modes:
-			 * Setup the redirecting.to informtion so we can identify
-			 * if the user wants to manually supply the COLR for this
-			 * redirected to number if further redirects could happen.
-			 *
-			 * All the user needs to do is set the REDIRECTING(to-pres)
-			 * to the COLR and REDIRECTING(to-num) = complete-dialed-number
-			 * (i.e. CALLERID(dnid)) to be safe after determining that the
-			 * incoming call was redirected by checking if the
-			 * REDIRECTING(count) is nonzero.
-			 */
-			c->redirecting.to.number = c->called.number;
-			c->redirecting.to.number.presentation =
-				PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED;
-		}
-
-		ctrl->ev.e = PRI_EVENT_RING;
-		ctrl->ev.ring.subcmds = &ctrl->subcmds;
-		ctrl->ev.ring.channel = q931_encode_channel(c);
-
-		/* Calling party information */
-		ctrl->ev.ring.callingpres = q931_party_id_presentation(&c->remote_id);
-		ctrl->ev.ring.callingplan = c->remote_id.number.plan;
-		if (c->remote_id.number.valid
-			&& (c->remote_id.number.presentation == PRES_ALLOWED_NETWORK_NUMBER
-				|| c->remote_id.number.presentation == PRES_PROHIB_NETWORK_NUMBER)) {
-			ctrl->ev.ring.callingplanani = c->remote_id.number.plan;
-			libpri_copy_string(ctrl->ev.ring.callingani, c->remote_id.number.str, sizeof(ctrl->ev.ring.callingani));
-		} else {
-			ctrl->ev.ring.callingplanani = -1;
-			ctrl->ev.ring.callingani[0] = '\0';
-		}
-		libpri_copy_string(ctrl->ev.ring.callingnum, c->remote_id.number.str, sizeof(ctrl->ev.ring.callingnum));
-		libpri_copy_string(ctrl->ev.ring.callingname, c->remote_id.name.str, sizeof(ctrl->ev.ring.callingname));
-		q931_party_id_copy_to_pri(&ctrl->ev.ring.calling, &c->remote_id);
-		/* for backwards compatibility, still need ctrl->ev.ring.callingsubaddr */
-		if (!c->remote_id.subaddress.type) {	/* NSAP: Type = 0 */
-			libpri_copy_string(ctrl->ev.ring.callingsubaddr, (char *) c->remote_id.subaddress.data, sizeof(ctrl->ev.ring.callingsubaddr));
-		} else {
-			ctrl->ev.ring.callingsubaddr[0] = '\0';
-		}
-
-		ctrl->ev.ring.ani2 = c->ani2;
-
-		/* Called party information */
-		ctrl->ev.ring.calledplan = c->called.number.plan;
-		libpri_copy_string(ctrl->ev.ring.callednum, c->called.number.str, sizeof(ctrl->ev.ring.callednum));
-		q931_party_subaddress_copy_to_pri(&ctrl->ev.ring.called_subaddress, &c->called.subaddress);
-
-		/* Original called party information (For backward compatibility) */
-		libpri_copy_string(ctrl->ev.ring.origcalledname, c->redirecting.orig_called.name.str, sizeof(ctrl->ev.ring.origcalledname));
-		libpri_copy_string(ctrl->ev.ring.origcallednum, c->redirecting.orig_called.number.str, sizeof(ctrl->ev.ring.origcallednum));
-		ctrl->ev.ring.callingplanorigcalled = c->redirecting.orig_called.number.plan;
-		if (c->redirecting.orig_called.number.valid
-			|| c->redirecting.orig_called.name.valid) {
-			ctrl->ev.ring.origredirectingreason = c->redirecting.orig_reason;
-		} else {
-			ctrl->ev.ring.origredirectingreason = -1;
-		}
-
-		/* Redirecting from party information (For backward compatibility) */
-		ctrl->ev.ring.callingplanrdnis = c->redirecting.from.number.plan;
-		libpri_copy_string(ctrl->ev.ring.redirectingnum, c->redirecting.from.number.str, sizeof(ctrl->ev.ring.redirectingnum));
-		libpri_copy_string(ctrl->ev.ring.redirectingname, c->redirecting.from.name.str, sizeof(ctrl->ev.ring.redirectingname));
-
-		ctrl->ev.ring.redirectingreason = c->redirecting.reason;
-
-		libpri_copy_string(ctrl->ev.ring.useruserinfo, c->useruserinfo, sizeof(ctrl->ev.ring.useruserinfo));
-		c->useruserinfo[0] = '\0';
-
-		libpri_copy_string(ctrl->ev.ring.keypad_digits, c->keypad_digits,
-			sizeof(ctrl->ev.ring.keypad_digits));
-
-		ctrl->ev.ring.flexible = ! (c->chanflags & FLAG_EXCLUSIVE);
-		ctrl->ev.ring.cref = c->cr;
-		ctrl->ev.ring.call = c->master_call;
-		ctrl->ev.ring.layer1 = c->userl1;
-		ctrl->ev.ring.complete = c->complete; 
-		ctrl->ev.ring.ctype = c->transcapability;
-		ctrl->ev.ring.progress = c->progress;
-		ctrl->ev.ring.progressmask = c->progressmask;
-		ctrl->ev.ring.reversecharge = c->reversecharge;
-
-		if (c->redirecting.count) {
-			subcmd = q931_alloc_subcommand(ctrl);
-			if (subcmd) {
-				/* Setup redirecting subcommand */
-				subcmd->cmd = PRI_SUBCMD_REDIRECTING;
-				q931_party_redirecting_copy_to_pri(&subcmd->u.redirecting,
-					&c->redirecting);
-			}
-		}
-
+		q931_fill_ring_event(ctrl, c);
 		return Q931_RES_HAVEEVENT;
 	case Q931_ALERTING:
 		stop_t303(c);
