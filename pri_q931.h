@@ -452,7 +452,7 @@ extern int maintenance_service_ack(struct pri *pri, q931_call *call);
 /* Q.SIG specific */
 #define QSIG_IE_TRANSIT_COUNT		0x31
 
-extern int q931_receive(struct pri *pri, q931_h *h, int len);
+extern int q931_receive(struct pri *pri, int tei, q931_h *h, int len);
 
 extern int q931_alerting(struct pri *pri, q931_call *call, int channel, int info);
 

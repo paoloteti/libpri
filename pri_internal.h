@@ -89,25 +89,30 @@ struct pri {
 	unsigned int hold_support:1;/* TRUE if upper layer supports call hold. */
 	unsigned int deflection_support:1;/* TRUE if upper layer supports call deflection/rerouting. */
 
+	/* MDL variables */
+	int mdl_error;
+	int mdl_error_state;
+	int mdl_timer;
+	int mdl_free_me;
+
 	/* Q.921 State */
 	int q921_state;	
-	int window;			/* Max window size */
-	int windowlen;		/* Fullness of window */
+	int k;
+	int RC;
+	int peer_rx_busy:1;
+	int own_rx_busy:1;
+	int acknowledge_pending:1;
+	int reject_exception:1;
+
 	int v_s;			/* Next N(S) for transmission */
 	int v_a;			/* Last acknowledged frame */
 	int v_r;			/* Next frame expected to be received */
-	int v_na;			/* What we've told our peer we've acknowledged */
-	int solicitfbit;	/* Have we sent an I or S frame with the F-bit set? */
-	int retrans;		/* Retransmissions */
-	int sentrej;		/* Are we in reject state */
 	
 	int cref;			/* Next call reference value */
 	
-	int busy;			/* Peer is busy */
+	int l3initiated;
 
 	/* Various timers */
-	int sabme_timer;	/* SABME retransmit */
-	int sabme_count;	/* SABME retransmit counter for BRI */
 	int t203_timer;		/* Max idle time */
 	int t202_timer;
 	int n202_counter;
@@ -515,6 +520,8 @@ struct q931_call {
 							   -1 - No reverse charging
 							    1 - Reverse charging
 							0,2-7 - Reserved for future use */
+	/*! \brief TEI associated with call */
+	int tei;
 	int t303_timer;
 	int t303_expirycnt;
 
@@ -627,13 +634,40 @@ static inline int BRI_TE_PTMP(struct pri *mypri)
 	return pri->bri && (((pri)->localtype == PRI_CPE) && ((pri)->tei == Q921_TEI_GROUP));
 }
 
-static inline int PRI_PTP(struct pri *mypri)
+static inline int NT_MODE(struct pri *mypri)
 {
 	struct pri *pri;
 
 	pri = PRI_MASTER(mypri);
 
-	return !pri->bri;
+	return pri->localtype == PRI_NETWORK;
+}
+
+static inline int TE_MODE(struct pri *mypri)
+{
+	struct pri *pri;
+
+	pri = PRI_MASTER(mypri);
+
+	return pri->localtype == PRI_CPE;
+}
+
+static inline int PTP_MODE(struct pri *mypri)
+{
+	struct pri *pri;
+
+	pri = PRI_MASTER(mypri);
+
+	return pri->tei == Q921_TEI_PRI;
+}
+
+static inline int PTMP_MODE(struct pri *mypri)
+{
+	struct pri *pri;
+
+	pri = PRI_MASTER(mypri);
+
+	return pri->tei == Q921_TEI_GROUP;
 }
 
 #define Q931_DUMMY_CALL_REFERENCE	-1

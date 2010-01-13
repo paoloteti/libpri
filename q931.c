@@ -3926,12 +3926,12 @@ static void init_header(struct pri *ctrl, q931_call *call, unsigned char *buf, q
 	*mhb = mh;
 }
 
-static int q931_xmit(struct pri *ctrl, q931_h *h, int len, int cr, int uiframe)
+static int q931_xmit(struct pri *ctrl, int tei, q931_h *h, int len, int cr, int uiframe)
 {
 	if (uiframe) {
 		q921_transmit_uiframe(ctrl, h, len);
 	} else {
-		q921_transmit_iframe(ctrl, h, len, cr);
+		q921_transmit_iframe(ctrl, tei, h, len, cr);
 	}
 	/* The transmit operation might dump the q921 header, so logging the q931
 	   message body after the transmit puts the sections of the message in the
@@ -3998,14 +3998,6 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 	len = sizeof(buf) - len;
 
 	ctrl = call->pri;
-	if (BRI_TE_PTMP(ctrl)) {
-		/*
-		 * Must use the BRI subchannel structure to send with the correct TEI.
-		 * Note: If the subchannel is NULL then there is no TEI assigned and
-		 * we should not be sending anything out at this time.
-		 */
-		ctrl = ctrl->subchannel;
-	}
 	if (ctrl) {
 		int uiframe;
 
@@ -4054,7 +4046,7 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 				ctrl, ctrl->tei, ctrl->sapi,
 				call->pri, call->pri->tei, call->pri->sapi);
 		}
-		q931_xmit(ctrl, h, len, 1, uiframe);
+		q931_xmit(ctrl, ctrl->tei, h, len, 1, uiframe);
 	}
 	call->acked = 1;
 	return 0;
@@ -5776,7 +5768,7 @@ static struct q931_call *q931_get_subcall(struct pri *ctrl, struct q931_call *ma
 	return cur;
 }
 
-int q931_receive(struct pri *ctrl, q931_h *h, int len)
+int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 {
 	q931_mh *mh;
 	q931_call *c;
@@ -5810,7 +5802,7 @@ int q931_receive(struct pri *ctrl, q931_h *h, int len)
 		   KLUDGE this by changing byte 4 from a 0xf (SERVICE) 
 		   to a 0x7 (SERVICE ACKNOWLEDGE) */
 		h->raw[h->crlen + 2] -= 0x8;
-		q931_xmit(ctrl, h, len, 1, 0);
+		q931_xmit(ctrl, ctrl->tei, h, len, 1, 0);
 		return 0;
 	}
 
@@ -5973,11 +5965,11 @@ static int post_handle_maintenance_message(struct pri *ctrl, int protodisc, stru
 			switch (0x0f & c->changestatus) {
 			case SERVICE_CHANGE_STATUS_INSERVICE:
 				ctrl->ev.e = PRI_EVENT_DCHAN_UP;
-				q921_dchannel_up(ctrl);
+				//q921_dchannel_up(ctrl);
 				break;
 			case SERVICE_CHANGE_STATUS_OUTOFSERVICE:
 				ctrl->ev.e = PRI_EVENT_DCHAN_DOWN;
-				q921_dchannel_down(ctrl);
+				//q921_dchannel_down(ctrl);
 				break;
 			default:
 				pri_error(ctrl, "!! Don't know how to handle span service change status '%d'\n", (0x0f & c->changestatus));
@@ -5997,11 +5989,11 @@ static int post_handle_maintenance_message(struct pri *ctrl, int protodisc, stru
 			switch (0x0f & c->changestatus) {
 			case SERVICE_CHANGE_STATUS_INSERVICE:
 				ctrl->ev.e = PRI_EVENT_DCHAN_UP;
-				q921_dchannel_up(ctrl);
+				//q921_dchannel_up(ctrl);
 				break;
 			case SERVICE_CHANGE_STATUS_OUTOFSERVICE:
 				ctrl->ev.e = PRI_EVENT_DCHAN_DOWN;
-				q921_dchannel_down(ctrl);
+				//q921_dchannel_down(ctrl);
 				break;
 			default:
 				pri_error(ctrl, "!! Don't know how to handle span service change status '%d'\n", (0x0f & c->changestatus));

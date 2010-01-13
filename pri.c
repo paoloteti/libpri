@@ -144,7 +144,12 @@ static void pri_default_timers(struct pri *ctrl, int switchtype)
 	/* Set timer values to standard defaults.  Time is in ms. */
 	ctrl->timers[PRI_TIMER_N200] = 3;			/* Max numer of Q.921 retransmissions */
 	ctrl->timers[PRI_TIMER_N202] = 3;			/* Max numer of transmissions of the TEI identity request message */
-	ctrl->timers[PRI_TIMER_K] = 7;				/* Max number of outstanding I-frames */
+
+	if (ctrl->bri == 1)
+		ctrl->timers[PRI_TIMER_K] = 1;				/* Max number of outstanding I-frames */
+	else
+		ctrl->timers[PRI_TIMER_K] = 7;				/* Max number of outstanding I-frames */
+
 	ctrl->timers[PRI_TIMER_T200] = 1000;		/* Time between SABME's */
 	ctrl->timers[PRI_TIMER_T202] = 10 * 1000;	/* Min time between transmission of TEI Identity request messages */
 	ctrl->timers[PRI_TIMER_T203] = 10 * 1000;	/* Max time without exchanging packets */
@@ -154,6 +159,7 @@ static void pri_default_timers(struct pri *ctrl, int switchtype)
 	ctrl->timers[PRI_TIMER_TM20] = 2500;		/* Max time awaiting XID response - Q.921 Appendix IV */
 	ctrl->timers[PRI_TIMER_NM20] = 3;			/* Number of XID retransmits - Q.921 Appendix IV */
 	ctrl->timers[PRI_TIMER_T303] = 4 * 1000;			/* Length between SETUP retransmissions and timeout */
+	ctrl->timers[PRI_TIMER_T309] = 6000;		/* Time to wait before clearing calls in case of D-channel transient event.  Q.931 specifies 6-90 seconds */
 
 	ctrl->timers[PRI_TIMER_T_HOLD] = 4 * 1000;	/* Wait for HOLD request response. */
 	ctrl->timers[PRI_TIMER_T_RETRIEVE] = 4 * 1000;/* Wait for RETRIEVE request response. */
@@ -343,9 +349,16 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 	default:
 		break;
 	}
-	/* Start Q.921 layer, Wait if we're the network */
-	if (p)
-		q921_start(p, p->localtype == PRI_CPE);
+	p->k = p->timers[PRI_TIMER_K];
+
+	if (p->tei == Q921_TEI_GROUP && p->sapi == Q921_SAPI_LAYER2_MANAGEMENT && p->localtype == PRI_CPE) {
+		p->subchannel = __pri_new_tei(-1, p->localtype, p->switchtype, p, NULL, NULL, NULL, Q921_TEI_PRI, 1);
+		if (!p->subchannel) {
+			free(p);
+			return NULL;
+		}
+	} else
+		q921_start(p);
 	
 	return p;
 }
@@ -363,11 +376,15 @@ void pri_sr_set_useruser(struct pri_sr *sr, const char *userchars)
 
 int pri_restart(struct pri *pri)
 {
+#if 0
 	/* Restart Q.921 layer */
 	if (pri) {
 		q921_reset(pri, 1);
 		q921_start(pri, pri->localtype == PRI_CPE);	
 	}
+#else
+	pri_error(pri, "pri_restart should never be called !!!!\n");
+#endif
 	return 0;
 }
 
@@ -1303,12 +1320,14 @@ char *pri_dump_info_str(struct pri *ctrl)
 	}
 	used = pri_snprintf(buf, used, buf_size, "Q921 Outstanding: %u\n", q921outstanding);
 #endif
-	used = pri_snprintf(buf, used, buf_size, "Window Length: %d/%d\n", ctrl->windowlen,
+#if 0
+	used = pri_snprintf(buf, used, buf_size, "Window Length: %d/%d\n", ctrl->k,
 		ctrl->window);
 	used = pri_snprintf(buf, used, buf_size, "Sentrej: %d\n", ctrl->sentrej);
 	used = pri_snprintf(buf, used, buf_size, "SolicitFbit: %d\n", ctrl->solicitfbit);
 	used = pri_snprintf(buf, used, buf_size, "Retrans: %d\n", ctrl->retrans);
 	used = pri_snprintf(buf, used, buf_size, "Busy: %d\n", ctrl->busy);
+#endif
 	used = pri_snprintf(buf, used, buf_size, "Overlap Dial: %d\n", ctrl->overlapdial);
 	used = pri_snprintf(buf, used, buf_size, "Logical Channel Mapping: %d\n",
 		ctrl->chan_mapping_logical);
