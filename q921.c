@@ -67,8 +67,11 @@ static void q921_mdl_remove(struct pri *pri);
 
 static void q921_setstate(struct pri *pri, int newstate)
 {
-	if ((pri->q921_state != newstate) && (newstate != 7) && (newstate != 8))
-		pri_error(pri, "Changing from state %d to %d\n", pri->q921_state, newstate);
+	if (pri->debug & PRI_DEBUG_Q921_STATE) {
+		if ((pri->q921_state != newstate) && (newstate != 7) && (newstate != 8)) {
+			pri_message(pri, "Changing from state %d to %d\n", pri->q921_state, newstate);
+		}
+	}
 	pri->q921_state = newstate;
 }
 
@@ -678,7 +681,7 @@ static void q921_dump_pri_by_h(struct pri *pri, q921_h *h);
 void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 {
 	int x;
-        char *type;
+	char *type;
 	char direction_tag;
 	
 	q921_dump_pri_by_h(pri, h);
@@ -711,33 +714,30 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 	}
 	
 	pri_message(pri, "%c SAPI: %02d  C/R: %d EA: %d\n",
-    	direction_tag,
-	h->h.sapi, 
-	h->h.c_r,
-	h->h.ea1);
+		direction_tag,
+		h->h.sapi, 
+		h->h.c_r,
+		h->h.ea1);
 	pri_message(pri, "%c  TEI: %03d        EA: %d\n", 
-    	direction_tag,
-	h->h.tei,
-	h->h.ea2);
+		direction_tag,
+		h->h.tei,
+		h->h.ea2);
 
 	switch (h->h.data[0] & Q921_FRAMETYPE_MASK) {
 	case 0:
 	case 2:
 		/* Informational frame */
-		pri_message(pri, 
-"%c N(S): %03d   0: %d\n",
-    	direction_tag,
-	h->i.n_s,
-	h->i.ft);
-		pri_message(pri, 
-"%c N(R): %03d   P: %d\n",
-    	direction_tag,
-	h->i.n_r,
-	h->i.p_f);
-		pri_message(pri, 
-"%c %d bytes of data\n",
-    	direction_tag,
-	len - 4);
+		pri_message(pri, "%c N(S): %03d   0: %d\n",
+			direction_tag,
+			h->i.n_s,
+			h->i.ft);
+		pri_message(pri, "%c N(R): %03d   P: %d\n",
+			direction_tag,
+			h->i.n_r,
+			h->i.p_f);
+		pri_message(pri, "%c %d bytes of data\n",
+			direction_tag,
+			len - 4);
 		break;
 	case 1:
 		/* Supervisory frame */
@@ -753,22 +753,19 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 			type = "REJ (reject)";
 			break;
 		}
-		pri_message(pri, 
-"%c Zero: %d     S: %d 01: %d  [ %s ]\n",
-    	direction_tag,
-	h->s.x0,
-	h->s.ss,
-	h->s.ft,
-	type);
-		pri_message(pri, 
-"%c N(R): %03d P/F: %d\n",
-	direction_tag,
-	h->s.n_r,
-	h->s.p_f);
-		pri_message(pri, 
-"%c %d bytes of data\n",
-	direction_tag,
-	len - 4);
+		pri_message(pri, "%c Zero: %d     S: %d 01: %d  [ %s ]\n",
+			direction_tag,
+			h->s.x0,
+			h->s.ss,
+			h->s.ft,
+			type);
+		pri_message(pri, "%c N(R): %03d P/F: %d\n",
+			direction_tag,
+			h->s.n_r,
+			h->s.p_f);
+		pri_message(pri, "%c %d bytes of data\n",
+			direction_tag,
+			len - 4);
 		break;
 	case 3:		
 		/* Unnumbered frame */
@@ -801,18 +798,16 @@ void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx)
 				break;
 			}
 		}
-		pri_message(pri, 
-"%c   M3: %d   P/F: %d M2: %d 11: %d  [ %s ]\n",
-	direction_tag,
-	h->u.m3,
-	h->u.p_f,
-	h->u.m2,
-	h->u.ft,
-	type);
-		pri_message(pri, 
-"%c %d bytes of data\n",
-	direction_tag,
-	len - 3);
+		pri_message(pri, "%c   M3: %d   P/F: %d M2: %d 11: %d  [ %s ]\n",
+			direction_tag,
+			h->u.m3,
+			h->u.p_f,
+			h->u.m2,
+			h->u.ft,
+			type);
+		pri_message(pri, "%c %d bytes of data\n",
+			direction_tag,
+			len - 3);
 		break;
 	};
 
@@ -933,7 +928,9 @@ static pri_event *q921_receive_MDL(struct pri *pri, q921_u *h, int len)
 			return NULL;
 		}
 		q921_setstate(sub->subchannel, Q921_TEI_ASSIGNED);
-		pri_error(pri, "Allocating new TEI %d\n", tei);
+		if (pri->debug & PRI_DEBUG_Q921_STATE) {
+			pri_message(pri, "Allocating new TEI %d\n", tei);
+		}
 		q921_send_tei(pri, Q921_TEI_IDENTITY_ASSIGNED, ri, tei, 1);
 		break;
 	case Q921_TEI_IDENTITY_ASSIGNED:
@@ -1298,7 +1295,9 @@ static void q921_mdl_handle_error_callback(void *vpri)
 			return;
 		}
 
-		pri_error(pri, "Freeing TEI of %d\n", freep->tei);
+		if (pri->debug & PRI_DEBUG_Q921_STATE) {
+			pri_message(pri, "Freeing TEI of %d\n", freep->tei);
+		}
 
 		free(freep);
 	}
@@ -1422,9 +1421,9 @@ static void update_v_a(struct pri *pri, int n_r)
 	if (idealcnt != realcnt) {
 		pri_error(pri, "Ideally should have ack'd %d frames, but actually ack'd %d.  This is not good.\n", idealcnt, realcnt);
 		q921_dump_iqueue_info(pri, 1);
+	} else {
+		q921_dump_iqueue_info(pri, 0);
 	}
-
-	q921_dump_iqueue_info(pri, 0);
 
 	pri->v_a = n_r;
 }
@@ -1571,7 +1570,9 @@ static pri_event *q921_rej_rx(struct pri *pri, q921_h *h)
 {
 	pri_event * res = NULL;
 
-	pri_message(pri, "!! Got reject for frame %d in state %d\n", h->s.n_r, pri->q921_state);
+	if (pri->debug & PRI_DEBUG_Q921_STATE) {
+		pri_message(pri, "!! Got reject for frame %d in state %d\n", h->s.n_r, pri->q921_state);
+	}
 
 	switch (pri->q921_state) {
 	case Q921_TIMER_RECOVERY:

@@ -7439,20 +7439,29 @@ void q931_dl_indication(struct pri *ctrl, int event)
 
 	switch (event) {
 	case PRI_EVENT_DCHAN_DOWN:
-		pri_message(ctrl, DBGHEAD "link is DOWN\n", DBGINFO);
+		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+			pri_message(ctrl, DBGHEAD "link is DOWN\n", DBGINFO);
+		}
 		cur = *ctrl->callpool;
 		while(cur) {
 			if (cur->ourcallstate == Q931_CALL_STATE_ACTIVE) {
 				/* For a call in Active state, activate T309 only if there is no timer already running. */
 				if (!cur->retranstimer) {
-					pri_message(ctrl, DBGHEAD "activate T309 for call %d on channel %d\n", DBGINFO, cur->cr, cur->channelno);
+					if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+						pri_message(ctrl,
+							DBGHEAD "activate T309 for call %d on channel %d\n", DBGINFO,
+							cur->cr, cur->channelno);
+					}
 					cur->retranstimer = pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T309], pri_dl_down_timeout, cur);
 				}
 			} else if (cur->ourcallstate != Q931_CALL_STATE_NULL) {
 				/* For a call that is not in Active state, schedule internal clearing of the call 'ASAP' (delay 0). */
-				pri_message(ctrl, DBGHEAD "cancel call %d on channel %d in state %d (%s)\n", DBGINFO,
-					cur->cr, cur->channelno, cur->ourcallstate,
-					q931_call_state_str(cur->ourcallstate));
+				if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+					pri_message(ctrl,
+						DBGHEAD "cancel call %d on channel %d in state %d (%s)\n", DBGINFO,
+						cur->cr, cur->channelno, cur->ourcallstate,
+						q931_call_state_str(cur->ourcallstate));
+				}
 				pri_schedule_del(ctrl, cur->retranstimer);
 				cur->retranstimer = pri_schedule_event(ctrl, 0, pri_dl_down_cancelcall, cur);
 			}
@@ -7460,11 +7469,17 @@ void q931_dl_indication(struct pri *ctrl, int event)
 		}
 		break;
 	case PRI_EVENT_DCHAN_UP:
-		pri_message(ctrl, DBGHEAD "link is UP\n", DBGINFO);
+		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+			pri_message(ctrl, DBGHEAD "link is UP\n", DBGINFO);
+		}
 		cur = *ctrl->callpool;
 		while(cur) {
 			if (cur->ourcallstate == Q931_CALL_STATE_ACTIVE && cur->retranstimer) {
-				pri_message(ctrl, DBGHEAD "cancel T309 for call %d on channel %d\n", DBGINFO, cur->cr, cur->channelno);
+				if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+					pri_message(ctrl,
+						DBGHEAD "cancel T309 for call %d on channel %d\n", DBGINFO,
+						cur->cr, cur->channelno);
+				}
 				pri_schedule_del(ctrl, cur->retranstimer);
 				cur->retranstimer = 0;
 				q931_status(ctrl, cur, PRI_CAUSE_NORMAL_UNSPECIFIED);
