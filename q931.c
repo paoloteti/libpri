@@ -3969,6 +3969,7 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 	int offset=0;
 	int x;
 	int codeset;
+	int uiframe;
 
 	if (call->outboundbroadcast && call->master_call == call && msgtype != Q931_SETUP) {
 		pri_error(ctrl,
@@ -3997,10 +3998,9 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 	/* Invert the logic */
 	len = sizeof(buf) - len;
 
-	ctrl = call->pri;
-	if (ctrl) {
-		int uiframe;
-
+	uiframe = 0;
+	if (BRI_NT_PTMP(ctrl)) {
+		/* NT PTMP is the only mode that can broadcast Q.931 messages. */
 		switch (msgtype) {
 		case Q931_SETUP:
 			/* 
@@ -4011,13 +4011,10 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 			 * If those are true, we need to send the SETUP in a UI frame
 			 * instead of an I-frame.
 			 */
-			if (BRI_NT_PTMP(ctrl))
-				uiframe = 1;
-			else
-				uiframe = 0;
+			uiframe = 1;
 			break;
 		case Q931_FACILITY:
-			if (ctrl->tei == Q921_TEI_GROUP) {
+			if (call->pri->tei == Q921_TEI_GROUP) {
 				/* Broadcast TEI. */
 				if (q931_is_dummy_call(call)) {
 					/*
@@ -4031,23 +4028,19 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 						msg2str(msgtype), call->cr);
 					return -1;
 				}
-			} else {
-				uiframe = 0;
 			}
 			break;
 		default:
-			uiframe = 0;
 			break;
 		}
 		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+			/* This message is only interesting for NT PTMP mode. */
 			pri_message(ctrl,
-				"Sending message for call %p on %p TEI/SAPI %d/%d, call->pri is %p, TEI/SAPI %d/%d\n",
-				call,
-				ctrl, ctrl->tei, ctrl->sapi,
-				call->pri, call->pri->tei, call->pri->sapi);
+				"Sending message for call %p on call->pri: %p with TEI/SAPI %d/%d\n",
+				call, call->pri, call->pri->tei, call->pri->sapi);
 		}
-		q931_xmit(ctrl, ctrl->tei, h, len, 1, uiframe);
 	}
+	q931_xmit(call->pri, call->pri->tei, h, len, 1, uiframe);
 	call->acked = 1;
 	return 0;
 }

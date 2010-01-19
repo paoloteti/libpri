@@ -564,7 +564,6 @@ int q921_transmit_iframe(struct pri *vpri, int tei, void *buf, int len, int cr)
 
 		if (pri->q921_state == Q921_TEI_UNASSIGNED) {
 			q921_tei_request(pri);
-			/* We don't setstate here because the pri with the TEI we need hasn't been created */
 			q921_setstate(pri, Q921_ESTABLISH_AWAITING_TEI);
 		}
 	} else {
@@ -1299,7 +1298,7 @@ static void q921_mdl_handle_error_callback(void *vpri)
 			pri_message(pri, "Freeing TEI of %d\n", freep->tei);
 		}
 
-		free(freep);
+		__pri_free_tei(freep);
 	}
 
 	return;
