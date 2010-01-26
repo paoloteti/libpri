@@ -435,10 +435,10 @@ static void t200_expire(void *vpri)
 {
 	struct pri *pri = vpri;
 
-	if (pri->debug & PRI_DEBUG_Q921_DUMP)
+	if (pri->debug & PRI_DEBUG_Q921_DUMP) {
 		pri_message(pri, "%s\n", __FUNCTION__);
-
-	q921_dump_pri(pri);
+		q921_dump_pri(pri);
+	}
 
 	pri->t200_timer = 0;
 
