@@ -1629,12 +1629,7 @@ static pri_event *q921_iframe_rx(struct pri *pri, q921_h *h, int len)
 
 			//res = q931_receive(PRI_MASTER(pri), pri->tei, (q931_h *)h->i.data, len - 4);
 			res = q931_receive(pri, pri->tei, (q931_h *)h->i.data, len - 4);
-
-			if (res == -1) {
-				eres = NULL;
-			}
-
-			if (res & Q931_RES_HAVEEVENT) {
+			if (res != -1 && (res & Q931_RES_HAVEEVENT)) {
 				eres = &pri->ev;
 			}
 
