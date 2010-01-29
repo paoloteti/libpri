@@ -1671,7 +1671,7 @@ static pri_event *q921_iframe_rx(struct pri *pri, q921_h *h, int len)
 						stop_t200(pri);
 						start_t203(pri);
 					} else {
-						if (h->i.n_r == pri->v_a) {
+						if (h->i.n_r != pri->v_a) {
 							update_v_a(pri, h->i.n_r);
 							stop_t200(pri);
 							start_t200(pri);
