@@ -56,10 +56,7 @@
 	(hf).h.tei = (pri)->tei; \
 } while(0)
 
-//static void reschedule_t203(struct pri *pri);
 static void reschedule_t200(struct pri *pri);
-//static void q921_restart(struct pri *pri, int now);
-//static void q921_tei_release_and_reacquire(struct pri *master);
 static void q921_dump_pri(struct pri *pri);
 static void q921_establish_data_link(struct pri *pri);
 static void q921_mdl_error(struct pri *pri, char error);
@@ -1633,6 +1630,14 @@ static pri_event *q921_iframe_rx(struct pri *pri, q921_h *h, int len)
 			//res = q931_receive(PRI_MASTER(pri), pri->tei, (q931_h *)h->i.data, len - 4);
 			res = q931_receive(pri, pri->tei, (q931_h *)h->i.data, len - 4);
 
+			if (res == -1) {
+				eres = NULL;
+			}
+
+			if (res & Q931_RES_HAVEEVENT) {
+				eres = &pri->ev;
+			}
+
 			if (h->i.p_f) {
 				q921_rr(pri, 1, 0);
 				pri->acknowledge_pending = 0;
@@ -1662,7 +1667,6 @@ static pri_event *q921_iframe_rx(struct pri *pri, q921_h *h, int len)
 		} else {
 			if (pri->q921_state == Q921_TIMER_RECOVERY) {
 				update_v_a(pri, h->i.n_r);
-				break;
 			} else {
 				if (pri->peer_rx_busy) {
 					update_v_a(pri, h->i.n_r);
@@ -1682,15 +1686,7 @@ static pri_event *q921_iframe_rx(struct pri *pri, q921_h *h, int len)
 			}
 		}
 
-		if (res == -1) {
-			return NULL;
-		}
-
-		if (res & Q931_RES_HAVEEVENT) {
-			return &pri->ev;
-		} else {
-			return NULL;
-		}
+		break;
 	default:
 		pri_error(pri, "Don't know what to do with an I frame in state %d\n", pri->q921_state);
 		break;
