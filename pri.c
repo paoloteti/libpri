@@ -376,14 +376,13 @@ void pri_sr_set_useruser(struct pri_sr *sr, const char *userchars)
 
 int pri_restart(struct pri *pri)
 {
+	/* pri_restart() is no longer needed since the Q.921 rewrite. */
 #if 0
 	/* Restart Q.921 layer */
 	if (pri) {
 		q921_reset(pri, 1);
 		q921_start(pri, pri->localtype == PRI_CPE);	
 	}
-#else
-	pri_error(pri, "pri_restart should never be called !!!!\n");
 #endif
 	return 0;
 }
