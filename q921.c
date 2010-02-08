@@ -239,9 +239,7 @@ static void reschedule_t200(struct pri *pri)
 {
 	if (pri->debug & PRI_DEBUG_Q921_DUMP)
 		pri_message(pri, "-- Restarting T200 timer\n");
-
-	if (pri->t200_timer)
-		pri_schedule_del(pri, pri->t200_timer);
+	pri_schedule_del(pri, pri->t200_timer);
 	pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
 }
 
