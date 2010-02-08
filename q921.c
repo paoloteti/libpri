@@ -239,7 +239,9 @@ static void reschedule_t200(struct pri *pri)
 {
 	if (pri->debug & PRI_DEBUG_Q921_DUMP)
 		pri_message(pri, "-- Restarting T200 timer\n");
-	pri_schedule_del(pri, pri->t200_timer);
+
+	if (pri->t200_timer)
+		pri_schedule_del(pri, pri->t200_timer);
 	pri->t200_timer = pri_schedule_event(pri, pri->timers[PRI_TIMER_T200], t200_expire, pri);
 }
 
@@ -1201,6 +1203,7 @@ static int q921_mdl_handle_ptp_error(struct pri *pri, char error)
 		q921_discard_iqueue(pri);
 		q921_establish_data_link(pri);
 		q921_setstate(pri, Q921_AWAITING_ESTABLISHMENT);
+		pri->l3initiated = 1;
 
 		pri->schedev = 1;
 		pri->ev.gen.e = PRI_EVENT_DCHAN_DOWN;
