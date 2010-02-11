@@ -54,7 +54,7 @@ struct pri_timer_table {
 
 /*!
  * \note Sort the timer table entries in the order of the timer name so
- * pri_dump_info_str() can display them in a consitent order.
+ * pri_dump_info_str() can display them in a consistent order.
  */
 static const struct pri_timer_table pri_timer[] = {
 /* *INDENT-OFF* */

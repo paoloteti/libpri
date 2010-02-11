@@ -194,8 +194,8 @@
 #define PRI_REVERSECHARGE_NONE      -1
 #define PRI_REVERSECHARGE_REQUESTED  1
 
-/* Causes for disconnection */
-#define PRI_CAUSE_UNALLOCATED					1
+/* Causes for disconnection (See Q.850) */
+#define PRI_CAUSE_UNALLOCATED					1	/*!< Called number unassigned. */
 #define PRI_CAUSE_NO_ROUTE_TRANSIT_NET			2	/* !Q.SIG */
 #define PRI_CAUSE_NO_ROUTE_DESTINATION			3
 #define PRI_CAUSE_CHANNEL_UNACCEPTABLE			6
