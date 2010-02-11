@@ -5290,6 +5290,26 @@ static int __q931_hangup(struct pri *ctrl, q931_call *c, int cause)
 	case PRI_CAUSE_REQUESTED_CHAN_UNAVAIL:
 	case PRI_CAUSE_IDENTIFIED_CHANNEL_NOTEXIST:
 	case PRI_CAUSE_UNALLOCATED:
+		/* See Q.931 Section 5.3.2 a) */
+		switch (c->ourcallstate) {
+		case Q931_CALL_STATE_NULL:
+		case Q931_CALL_STATE_CALL_INITIATED:
+		case Q931_CALL_STATE_CALL_PRESENT:
+			/*
+			 * Send RELEASE_COMPLETE because some other message
+			 * has not been sent previously.
+			 */
+			disconnect = 0;
+			release_compl = 1;
+			break;
+		default:
+			/*
+			 * Send DISCONNECT because some other message
+			 * has been sent previously.
+			 */
+			break;
+		}
+		break;
 	case PRI_CAUSE_INVALID_CALL_REFERENCE:
 		/* We'll send RELEASE_COMPLETE with these causes */
 		disconnect = 0;
