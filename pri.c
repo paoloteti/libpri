@@ -349,7 +349,6 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 	default:
 		break;
 	}
-	p->k = p->timers[PRI_TIMER_K];
 
 	if (p->tei == Q921_TEI_GROUP && p->sapi == Q921_SAPI_LAYER2_MANAGEMENT && p->localtype == PRI_CPE) {
 		p->subchannel = __pri_new_tei(-1, p->localtype, p->switchtype, p, NULL, NULL, NULL, Q921_TEI_PRI, 1);
@@ -1320,8 +1319,8 @@ char *pri_dump_info_str(struct pri *ctrl)
 	used = pri_snprintf(buf, used, buf_size, "Q921 Outstanding: %u\n", q921outstanding);
 #endif
 #if 0
-	used = pri_snprintf(buf, used, buf_size, "Window Length: %d/%d\n", ctrl->k,
-		ctrl->window);
+	used = pri_snprintf(buf, used, buf_size, "Window Length: %d/%d\n",
+		ctrl->timers[PRI_TIMER_K], ctrl->window);
 	used = pri_snprintf(buf, used, buf_size, "Sentrej: %d\n", ctrl->sentrej);
 	used = pri_snprintf(buf, used, buf_size, "SolicitFbit: %d\n", ctrl->solicitfbit);
 	used = pri_snprintf(buf, used, buf_size, "Retrans: %d\n", ctrl->retrans);

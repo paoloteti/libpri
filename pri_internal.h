@@ -97,7 +97,6 @@ struct pri {
 
 	/* Q.921 State */
 	int q921_state;	
-	int k;
 	int RC;
 	int peer_rx_busy:1;
 	int own_rx_busy:1;

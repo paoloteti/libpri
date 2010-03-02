@@ -327,18 +327,18 @@ static int q921_send_queued_iframes(struct pri *pri)
 	struct q921_frame *f;
 	int frames_txd = 0;
 
-	if (pri->peer_rx_busy || (pri->v_s == Q921_ADD(pri->v_a, pri->k))) {
+	if (pri->peer_rx_busy || (pri->v_s == Q921_ADD(pri->v_a, pri->timers[PRI_TIMER_K]))) {
 		if (pri->debug & PRI_DEBUG_Q921_DUMP)
 			pri_message(pri, "Couldn't transmit I frame at this time due to peer busy condition or window shut\n");
 		return 0;
 	}
 
 	f = pri->txqueue;
-	while (f && (pri->v_s != Q921_ADD(pri->v_a, pri->k))) {
+	while (f && (pri->v_s != Q921_ADD(pri->v_a, pri->timers[PRI_TIMER_K]))) {
 		if (!f->transmitted) {
 			/* Send it now... */
 			if (pri->debug & PRI_DEBUG_Q921_DUMP)
-				pri_message(pri, "-- Finally transmitting %d, since window opened up (%d)\n", f->h.n_s, pri->k);
+				pri_message(pri, "-- Finally transmitting %d, since window opened up (%d)\n", f->h.n_s, pri->timers[PRI_TIMER_K]);
 			f->transmitted++;
 			f->h.n_s = pri->v_s;
 			f->h.n_r = pri->v_r;
@@ -613,7 +613,7 @@ int q921_transmit_iframe(struct pri *vpri, int tei, void *buf, int len, int cr)
 				return 0;
 			}
 
-			if (pri->peer_rx_busy || (pri->v_s == Q921_ADD(pri->v_a, pri->k))) {
+			if (pri->peer_rx_busy || (pri->v_s == Q921_ADD(pri->v_a, pri->timers[PRI_TIMER_K]))) {
 				if (pri->debug & PRI_DEBUG_Q921_DUMP)
 					pri_message(pri, "Couldn't transmit I frame at this time due to peer busy condition or window shut\n");
 				return 0;
@@ -850,7 +850,7 @@ static void q921_dump_pri(struct pri *pri)
 {
 	pri_message(pri, "TEI: %d State %d\n", pri->tei, pri->q921_state);
 	pri_message(pri, "V(S) %d V(A) %d V(R) %d\n", pri->v_s, pri->v_a, pri->v_r);
-	pri_message(pri, "K %d, RC %d, l3initiated %d, reject_except %d ack_pend %d\n", pri->k, pri->RC, pri->l3initiated, pri->reject_exception, pri->acknowledge_pending);
+	pri_message(pri, "K %d, RC %d, l3initiated %d, reject_except %d ack_pend %d\n", pri->timers[PRI_TIMER_K], pri->RC, pri->l3initiated, pri->reject_exception, pri->acknowledge_pending);
 	pri_message(pri, "T200 %d, N200 %d, T203 %d\n", pri->t200_timer, 3, pri->t203_timer);
 }
 
