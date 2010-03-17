@@ -86,6 +86,10 @@ struct pri {
 	int protodisc;
 	unsigned int bri:1;
 	unsigned int acceptinbanddisconnect:1;	/* Should we allow inband progress after DISCONNECT? */
+	unsigned int sendfacility:1;
+	unsigned int overlapdial:1;/* TRUE if we do overlap dialing */
+	unsigned int chan_mapping_logical:1;/* TRUE if do not skip channel 16 (Q.SIG) */
+	unsigned int service_message_support:1;/* TRUE if upper layer supports SERVICE messages */
 	unsigned int hold_support:1;/* TRUE if upper layer supports call hold. */
 	unsigned int deflection_support:1;/* TRUE if upper layer supports call deflection/rerouting. */
 
@@ -141,15 +145,6 @@ struct pri {
 	 */
 	q931_call *dummy_call;
 
-	/* do we do overlap dialing */
-	int overlapdial;
-
-	/* do we support SERVICE messages */
-	int service_message_support;
-
-	/* do not skip channel 16 */
-	int chan_mapping_logical;
-
 #ifdef LIBPRI_COUNTERS
 	/* q921/q931 packet counters */
 	unsigned int q921_txcount;
@@ -159,7 +154,6 @@ struct pri {
 #endif
 
 	short last_invoke;	/* Last ROSE invoke ID (Valid in master record only) */
-	unsigned char sendfacility;
 
 	/*! For delayed processing of facility ie's. */
 	struct {
@@ -561,7 +555,6 @@ void pri_error(struct pri *ctrl, const char *fmt, ...) __attribute__((format(pri
 void libpri_copy_string(char *dst, const char *src, size_t size);
 
 struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri);
-
 void __pri_free_tei(struct pri *p);
 
 void q931_init_call_record(struct pri *ctrl, struct q931_call *call, int cr);
@@ -596,77 +589,128 @@ int q931_party_id_presentation(const struct q931_party_id *id);
 const char *q931_call_state_str(enum Q931_CALL_STATE callstate);
 const char *msg2str(int msg);
 
-int q931_is_ptmp(const struct pri *ctrl);
 int q931_master_pass_event(struct pri *ctrl, struct q931_call *subcall, int msg_type);
 struct pri_subcommand *q931_alloc_subcommand(struct pri *ctrl);
 
 int q931_notify_redirection(struct pri *ctrl, q931_call *call, int notify, const struct q931_party_number *number);
 
-static inline struct pri * PRI_MASTER(struct pri *mypri)
+/*!
+ * \brief Get the master PRI control structure.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \return Master PRI control structure.
+ */
+static inline struct pri *PRI_MASTER(struct pri *ctrl)
 {
-	struct pri *pri = mypri;
-	
-	if (!pri)
-		return NULL;
-
-	while (pri->master)
-		pri = pri->master;
-
-	return pri;
+	while (ctrl->master) {
+		ctrl = ctrl->master;
+	}
+	return ctrl;
 }
 
-static inline int BRI_NT_PTMP(struct pri *mypri)
+/*!
+ * \brief Determine if layer 2 is in BRI NT PTMP mode.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \retval TRUE if in BRI NT PTMP mode.
+ * \retval FALSE otherwise.
+ */
+static inline int BRI_NT_PTMP(const struct pri *ctrl)
 {
-	struct pri *pri;
+	struct pri *my_ctrl = (struct pri *) ctrl;
 
-	pri = PRI_MASTER(mypri);
-
-	return pri->bri && (((pri)->localtype == PRI_NETWORK) && ((pri)->tei == Q921_TEI_GROUP));
+	/* Check master control structure */
+	my_ctrl = PRI_MASTER(my_ctrl);
+	return my_ctrl->bri && my_ctrl->localtype == PRI_NETWORK
+		&& my_ctrl->tei == Q921_TEI_GROUP;
 }
 
-static inline int BRI_TE_PTMP(struct pri *mypri)
+/*!
+ * \brief Determine if layer 2 is in BRI TE PTMP mode.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \retval TRUE if in BRI TE PTMP mode.
+ * \retval FALSE otherwise.
+ */
+static inline int BRI_TE_PTMP(const struct pri *ctrl)
 {
-	struct pri *pri;
+	struct pri *my_ctrl = (struct pri *) ctrl;
 
-	pri = PRI_MASTER(mypri);
-
-	return pri->bri && (((pri)->localtype == PRI_CPE) && ((pri)->tei == Q921_TEI_GROUP));
+	/* Check master control structure */
+	my_ctrl = PRI_MASTER(my_ctrl);
+	return my_ctrl->bri && my_ctrl->localtype == PRI_CPE
+		&& my_ctrl->tei == Q921_TEI_GROUP;
 }
 
-static inline int NT_MODE(struct pri *mypri)
+/*!
+ * \brief Determine if layer 2 is in NT mode.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \retval TRUE if in NT mode.
+ * \retval FALSE otherwise.
+ */
+static inline int NT_MODE(const struct pri *ctrl)
 {
-	struct pri *pri;
+	struct pri *my_ctrl = (struct pri *) ctrl;
 
-	pri = PRI_MASTER(mypri);
-
-	return pri->localtype == PRI_NETWORK;
+	/* Check master control structure */
+	my_ctrl = PRI_MASTER(my_ctrl);
+	return my_ctrl->localtype == PRI_NETWORK;
 }
 
-static inline int TE_MODE(struct pri *mypri)
+/*!
+ * \brief Determine if layer 2 is in TE mode.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \retval TRUE if in TE mode.
+ * \retval FALSE otherwise.
+ */
+static inline int TE_MODE(const struct pri *ctrl)
 {
-	struct pri *pri;
+	struct pri *my_ctrl = (struct pri *) ctrl;
 
-	pri = PRI_MASTER(mypri);
-
-	return pri->localtype == PRI_CPE;
+	/* Check master control structure */
+	my_ctrl = PRI_MASTER(my_ctrl);
+	return my_ctrl->localtype == PRI_CPE;
 }
 
-static inline int PTP_MODE(struct pri *mypri)
+/*!
+ * \brief Determine if layer 2 is in PTP mode.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \retval TRUE if in PTP mode.
+ * \retval FALSE otherwise.
+ */
+static inline int PTP_MODE(const struct pri *ctrl)
 {
-	struct pri *pri;
+	struct pri *my_ctrl = (struct pri *) ctrl;
 
-	pri = PRI_MASTER(mypri);
-
-	return pri->tei == Q921_TEI_PRI;
+	/* Check master control structure */
+	my_ctrl = PRI_MASTER(my_ctrl);
+	return my_ctrl->tei == Q921_TEI_PRI;
 }
 
-static inline int PTMP_MODE(struct pri *mypri)
+/*!
+ * \brief Determine if layer 2 is in PTMP mode.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \retval TRUE if in PTMP mode.
+ * \retval FALSE otherwise.
+ */
+static inline int PTMP_MODE(const struct pri *ctrl)
 {
-	struct pri *pri;
+	struct pri *my_ctrl = (struct pri *) ctrl;
 
-	pri = PRI_MASTER(mypri);
-
-	return pri->tei == Q921_TEI_GROUP;
+	/* Check master control structure */
+	my_ctrl = PRI_MASTER(my_ctrl);
+	return my_ctrl->tei == Q921_TEI_GROUP;
 }
 
 #define Q931_DUMMY_CALL_REFERENCE	-1

@@ -321,22 +321,6 @@ static int q931_encode_channel(const q931_call *call)
 }
 
 /*!
- * \brief Determine if layer 2 is in PTMP mode.
- *
- * \param ctrl D channel controller.
- *
- * \retval TRUE if in PTMP mode.
- * \retval FALSE otherwise.
- */
-int q931_is_ptmp(const struct pri *ctrl)
-{
-	/* Check master control structure */
-	for (; ctrl->master; ctrl = ctrl->master) {
-	}
-	return ctrl->tei == Q921_TEI_GROUP;
-}
-
-/*!
  * \brief Initialize the given struct q931_party_name
  *
  * \param name Structure to initialize
@@ -4872,7 +4856,7 @@ static int q931_is_hold_allowed(const struct pri *ctrl, const struct q931_call *
 	case Q931_CALL_STATE_CALL_RECEIVED:
 	case Q931_CALL_STATE_CONNECT_REQUEST:
 	case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
-		if (q931_is_ptmp(ctrl)) {
+		if (PTMP_MODE(ctrl)) {
 			/* HOLD request only allowed in these states if point-to-point mode. */
 			break;
 		}
@@ -5074,7 +5058,7 @@ static int q931_is_retrieve_allowed(const struct pri *ctrl, const struct q931_ca
 	case Q931_CALL_STATE_CALL_RECEIVED:
 	case Q931_CALL_STATE_CONNECT_REQUEST:
 	case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
-		if (q931_is_ptmp(ctrl)) {
+		if (PTMP_MODE(ctrl)) {
 			/* RETRIEVE request only allowed in these states if point-to-point mode. */
 			break;
 		}
@@ -7124,7 +7108,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		case Q931_CALL_STATE_CALL_RECEIVED:
 		case Q931_CALL_STATE_CONNECT_REQUEST:
 		case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
-			if (q931_is_ptmp(ctrl)) {
+			if (PTMP_MODE(ctrl)) {
 				/* HOLD request only allowed in these states if point-to-point mode. */
 				q931_send_hold_rej_msg(ctrl, c, PRI_CAUSE_WRONG_CALL_STATE);
 				break;
@@ -7237,7 +7221,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		case Q931_CALL_STATE_CALL_RECEIVED:
 		case Q931_CALL_STATE_CONNECT_REQUEST:
 		case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
-			if (q931_is_ptmp(ctrl)) {
+			if (PTMP_MODE(ctrl)) {
 				/* RETRIEVE request only allowed in these states if point-to-point mode. */
 				q931_send_retrieve_rej_msg(ctrl, c, PRI_CAUSE_WRONG_CALL_STATE);
 				break;

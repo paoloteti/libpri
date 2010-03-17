@@ -94,8 +94,7 @@ static int q921_transmit(struct pri *pri, q921_h *h, int len)
 {
 	int res;
 
-	if (pri->master)
-		pri = pri->master;
+	pri = PRI_MASTER(pri);
 
 #ifdef RANDOM_DROPS
    if (!(random() % 3)) {
