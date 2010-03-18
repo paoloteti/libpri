@@ -602,11 +602,6 @@ void q931_party_subaddress_copy_to_pri(struct pri_party_subaddress *pri_subaddre
 {
 	int length;
 
-	/*
-	 * The size of pri_subaddress->data[] is not the same as the size of
-	 * q931_subaddress->data[].
-	 */
-
 	if (!q931_subaddress->valid) {
 		pri_subaddress->valid = 0;
 		pri_subaddress->type = 0;
@@ -620,6 +615,10 @@ void q931_party_subaddress_copy_to_pri(struct pri_party_subaddress *pri_subaddre
 	pri_subaddress->type = q931_subaddress->type;
 	pri_subaddress->odd_even_indicator = q931_subaddress->odd_even_indicator;
 
+	/*
+	 * The size of pri_subaddress->data[] is not the same as the size of
+	 * q931_subaddress->data[].
+	 */
 	length = q931_subaddress->length;
 	pri_subaddress->length = length;
 	memcpy(pri_subaddress->data, q931_subaddress->data, length);
