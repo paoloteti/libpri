@@ -4289,6 +4289,11 @@ static int call_proceeding_ies[] = { Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR
 
 int q931_call_proceeding(struct pri *ctrl, q931_call *c, int channel, int info)
 {
+	if (c->proc) {
+		/* We have already sent a PROCEEDING message.  Don't send another one. */
+		return 0;
+	}
+
 	if (channel) { 
 		c->ds1no = (channel & 0xff00) >> 8;
 		c->ds1explicit = (channel & 0x10000) >> 16;
