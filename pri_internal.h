@@ -583,6 +583,11 @@ void q931_party_subaddress_copy_to_pri(struct pri_party_subaddress *pri_subaddre
 void q931_party_id_copy_to_pri(struct pri_party_id *pri_id, const struct q931_party_id *q931_id);
 void q931_party_redirecting_copy_to_pri(struct pri_party_redirecting *pri_redirecting, const struct q931_party_redirecting *q931_redirecting);
 
+void pri_copy_party_name_to_q931(struct q931_party_name *q931_name, const struct pri_party_name *pri_name);
+void pri_copy_party_number_to_q931(struct q931_party_number *q931_number, const struct pri_party_number *pri_number);
+void pri_copy_party_subaddress_to_q931(struct q931_party_subaddress *q931_subaddress, const struct pri_party_subaddress *pri_subaddress);
+void pri_copy_party_id_to_q931(struct q931_party_id *q931_id, const struct pri_party_id *pri_id);
+
 void q931_party_id_fixup(const struct pri *ctrl, struct q931_party_id *id);
 int q931_party_id_presentation(const struct q931_party_id *id);
 
