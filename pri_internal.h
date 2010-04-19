@@ -513,8 +513,6 @@ struct q931_call {
 							   -1 - No reverse charging
 							    1 - Reverse charging
 							0,2-7 - Reserved for future use */
-	/*! \brief TEI associated with call */
-	int tei;
 	int t303_timer;
 	int t303_expirycnt;
 
@@ -719,6 +717,7 @@ static inline int PTMP_MODE(const struct pri *ctrl)
 }
 
 #define Q931_DUMMY_CALL_REFERENCE	-1
+#define Q931_CALL_REFERENCE_FLAG	0x8000	/* Identify which end allocted the CR. */
 
 /*!
  * \brief Deterimine if the given call control pointer is a dummy call.
