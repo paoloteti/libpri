@@ -857,6 +857,9 @@ static void q921_dump_pri_by_h(struct pri *vpri, q921_h *h)
 {
 	struct pri *pri = NULL;
 
+	if (!vpri) {
+		return;
+	}
 	if (BRI_NT_PTMP(vpri)) {
 		pri = pri_find_tei(vpri, h->h.sapi, h->h.tei);
 	} else if (BRI_TE_PTMP(vpri)) {
