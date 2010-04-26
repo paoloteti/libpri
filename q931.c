@@ -3348,6 +3348,25 @@ static inline unsigned int ielen(q931_ie *ie)
 		return 2 + ie->len;
 }
 
+static inline int ielen_checked(q931_ie *ie, int len_remaining)
+{
+	int len;
+
+	if (ie->ie & 0x80) {
+		len = 1;
+	} else if (len_remaining < 2) {
+		/* There is no length octet when there should be. */
+		len = -1;
+	} else {
+		len = 2 + ie->len;
+		if (len_remaining < len) {
+			/* There is not enough room left in the packet for this ie. */
+			len = -1;
+		}
+	}
+	return len;
+}
+
 const char *msg2str(int msg)
 {
 	unsigned int x;
@@ -3881,13 +3900,20 @@ void q931_dump(struct pri *ctrl, int tei, q931_h *h, int len, int txrx)
 {
 	q931_mh *mh;
 	char c;
-	int x=0, r;
+	int x;
+	int r;
 	int cur_codeset;
 	int codeset;
 	int cref;
 
 	c = txrx ? '>' : '<';
 	pri_message(ctrl, "%c Protocol Discriminator: %s (%d)  len=%d\n", c, disc2str(h->pd), h->pd, len);
+
+	if (len < 2 || len < 2 + h->crlen) {
+		pri_message(ctrl, "%c Message too short for call reference. len=%d\n",
+			c, len);
+		return;
+	}
 	cref = q931_cr(h);
 	pri_message(ctrl, "%c TEI=%d Call Ref: len=%2d (reference %d/0x%X) (%s)\n",
 		c, tei, h->crlen, cref & ~Q931_CALL_REFERENCE_FLAG,
@@ -3895,6 +3921,12 @@ void q931_dump(struct pri *ctrl, int tei, q931_h *h, int len, int txrx)
 			? "Dummy"
 			: (cref & Q931_CALL_REFERENCE_FLAG)
 				? "Sent to originator" : "Sent from originator");
+
+	if (len < 3 + h->crlen) {
+		pri_message(ctrl, "%c Message too short for supported protocols. len=%d\n",
+			c, len);
+		return;
+	}
 
 	/* Message header begins at the end of the call reference number */
 	mh = (q931_mh *)(h->contents + h->crlen);
@@ -3906,8 +3938,14 @@ void q931_dump(struct pri *ctrl, int tei, q931_h *h, int len, int txrx)
 	/* Drop length of header, including call reference */
 	len -= (h->crlen + 3);
 	codeset = cur_codeset = 0;
-	while(x < len) {
-		r = ielen((q931_ie *)(mh->data + x));
+	for (x = 0; x < len; x += r) {
+		r = ielen_checked((q931_ie *) (mh->data + x), len - x);
+		if (r < 0) {
+			/* We have garbage on the end of the packet. */
+			pri_message(ctrl, "Not enough room for codeset:%d ie:%d(%02x)\n", cur_codeset,
+				mh->data[x], mh->data[x]);
+			break;
+		}
 		q931_dumpie(ctrl, cur_codeset, (q931_ie *)(mh->data + x), c);
 		switch (mh->data[x] & 0xf8) {
 		case Q931_LOCKING_SHIFT:
@@ -3921,10 +3959,7 @@ void q931_dump(struct pri *ctrl, int tei, q931_h *h, int len, int txrx)
 			/* Reset temporary codeset change */
 			cur_codeset = codeset;
 		}
-		x += r;
 	}
-	if (x > len) 
-		pri_error(ctrl, "XXX Message longer than it should be?? XXX\n");
 }
 
 static int q931_handle_ie(int codeset, struct pri *ctrl, q931_call *c, int msg, q931_ie *ie)
@@ -5854,6 +5889,10 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 #ifdef LIBPRI_COUNTERS
 	ctrl->q931_rxcount++;
 #endif
+	if (len < 3 || len < 3 + h->crlen) {
+		/* Message too short for supported protocols. */
+		return -1;
+	}
 	mh = (q931_mh *)(h->contents + h->crlen);
 	if ((h->pd != ctrl->protodisc) && (h->pd != MAINTENANCE_PROTOCOL_DISCRIMINATOR_1) && (h->pd != MAINTENANCE_PROTOCOL_DISCRIMINATOR_2)) {
 		pri_error(ctrl, "Warning: unknown/inappropriate protocol discriminator received (%02x/%d)\n", h->pd, h->pd);
@@ -5912,20 +5951,24 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 			memcpy(mandies, msgs[x].mandies, sizeof(mandies));
 		}
 	}
-	x = 0;
 	/* Do real IE processing */
 	len -= (h->crlen + 3);
 	codeset = cur_codeset = 0;
-	while(len) {
+	for (x = 0; x < len; x += r) {
 		ie = (q931_ie *)(mh->data + x);
+		r = ielen_checked(ie, len - x);
+		if (r < 0) {
+			/* We have garbage on the end of the packet. */
+			pri_error(ctrl, "XXX Message longer than it should be?? XXX\n");
+			if (x) {
+				/* Allow the message anyway.  We have already processed an ie. */
+				break;
+			}
+			return -1;
+		}
 		for (y=0;y<MAX_MAND_IES;y++) {
 			if (mandies[y] == Q931_FULL_IE(cur_codeset, ie->ie))
 				mandies[y] = 0;
-		}
-		r = ielen(ie);
-		if (r > len) {
-			pri_error(ctrl, "XXX Message longer than it should be?? XXX\n");
-			return -1;
 		}
 		/* Special processing for codeset shifts */
 		switch (ie->ie & 0xf8) {
@@ -5976,8 +6019,6 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 			/* Reset current codeset */
 			cur_codeset = codeset;
 		}
-		x += r;
-		len -= r;
 	}
 	missingmand = 0;
 	for (x=0;x<MAX_MAND_IES;x++) {
