@@ -1005,7 +1005,7 @@ static void dump_channel_id(int full_ie, struct pri *ctrl, q931_ie *ie, int len,
 		(ie->data[0] & 0x10) ? 1 : 0,
 		(ie->data[0] & 0x08) ? "Exclusive" : "Preferred",
 		(ie->data[0] & 0x04) ? 1 : 0);
-	pri_message(ctrl, "%c                        ChanSel: %s\n",
+	pri_message(ctrl, "%c                       ChanSel: %s\n",
 		prefix, msg_chan_sel[(ie->data[0] & 0x03) | ((ie->data[0] >> 3) & 0x04)]);
 	pos = 1;
 	len -= 2;
@@ -1051,7 +1051,7 @@ static void dump_channel_id(int full_ie, struct pri *ctrl, q931_ie *ie, int len,
 				x, binary(res, x << 3));
 		}
 	} else {
-		pri_message(ctrl, "                         ]\n");
+		pri_message(ctrl, "%c                     ]\n", prefix);
 	}
 }
 
@@ -1681,11 +1681,13 @@ static void dump_redirecting_number(int full_ie, struct pri *ctrl, q931_ie *ie, 
 				prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
 			break;
 		case 1: /* Octet 3a */
-			pri_message(ctrl, "\n%c                               Ext: %d  Presentation: %s (%d)",
+			pri_message(ctrl, "\n");
+			pri_message(ctrl, "%c                               Ext: %d  Presentation: %s (%d)",
 				prefix, ie->data[1] >> 7, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f);
 			break;
 		case 2: /* Octet 3b */
-			pri_message(ctrl, "\n%c                               Ext: %d  Reason: %s (%d)",
+			pri_message(ctrl, "\n");
+			pri_message(ctrl, "%c                               Ext: %d  Reason: %s (%d)",
 				prefix, ie->data[2] >> 7, redirection_reason2str(ie->data[2] & 0x7f), ie->data[2] & 0x7f);
 			break;
 		}
@@ -1710,7 +1712,8 @@ static void dump_redirection_number(int full_ie, struct pri *ctrl, q931_ie *ie, 
 				npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
 			break;
 		case 1: /* Octet 3a */
-			pri_message(ctrl, "\n%c                               Ext: %d  Presentation: %s (%d)",
+			pri_message(ctrl, "\n");
+			pri_message(ctrl, "%c                               Ext: %d  Presentation: %s (%d)",
 				prefix, ie->data[1] >> 7, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f);
 			break;
 		}
@@ -1774,7 +1777,8 @@ static void dump_connected_number(int full_ie, struct pri *ctrl, q931_ie *ie, in
 				prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
 			break;
 		case 1: /* Octet 3a */
-			pri_message(ctrl, "\n%c                             Ext: %d  Presentation: %s (%d)",
+			pri_message(ctrl, "\n");
+			pri_message(ctrl, "%c                             Ext: %d  Presentation: %s (%d)",
 				prefix, ie->data[1] >> 7, pri_pres2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f);
 			break;
 		}
