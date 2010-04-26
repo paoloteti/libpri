@@ -1996,7 +1996,7 @@ static pri_event *__q921_receive(struct pri *pri, q921_h *h, int len)
 		return NULL;
 
 	if ((h->h.sapi == Q921_SAPI_LAYER2_MANAGEMENT)) {
-		return q921_receive_MDL(pri, (q921_u *)h, len);
+		return q921_receive_MDL(pri, &h->u, len);
 	}
 
 	if ((h->h.tei == Q921_TEI_GROUP) && (h->h.sapi != Q921_SAPI_CALL_CTRL)) {
