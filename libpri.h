@@ -915,6 +915,17 @@ int pri_redirecting_update(struct pri *pri, q931_call *call, const struct pri_pa
 #define PRI_HANGUP
 int pri_hangup(struct pri *pri, q931_call *call, int cause);
 
+/*!
+ * \brief Set the call hangup fix enable flag.
+ *
+ * \param ctrl D channel controller.
+ * \param enable TRUE to follow Q.931 Section 5.3.2 call hangup better.
+ * FALSE for legacy behaviour. (Default FALSE if not called.)
+ *
+ * \return Nothing
+ */
+void pri_hangup_fix_enable(struct pri *ctrl, int enable);
+
 #define PRI_DESTROYCALL
 void pri_destroycall(struct pri *pri, q931_call *call);
 

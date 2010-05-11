@@ -92,6 +92,7 @@ struct pri {
 	unsigned int service_message_support:1;/* TRUE if upper layer supports SERVICE messages */
 	unsigned int hold_support:1;/* TRUE if upper layer supports call hold. */
 	unsigned int deflection_support:1;/* TRUE if upper layer supports call deflection/rerouting. */
+	unsigned int hangup_fix_enabled:1;/* TRUE if should follow Q.931 Section 5.3.2 instead of blindly sending RELEASE_COMPLETE for certain causes */
 
 	/* MDL variables */
 	int mdl_error;

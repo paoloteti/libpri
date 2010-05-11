@@ -965,6 +965,14 @@ int pri_channel_bridge(q931_call *call1, q931_call *call2)
 	}
 }
 
+void pri_hangup_fix_enable(struct pri *ctrl, int enable)
+{
+	if (ctrl) {
+		ctrl = PRI_MASTER(ctrl);
+		ctrl->hangup_fix_enabled = enable ? 1 : 0;
+	}
+}
+
 int pri_hangup(struct pri *pri, q931_call *call, int cause)
 {
 	if (!pri || !call)
