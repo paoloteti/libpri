@@ -7600,7 +7600,10 @@ void q931_dl_indication(struct pri *ctrl, int event)
 			pri_message(ctrl, DBGHEAD "link is DOWN\n", DBGINFO);
 		}
 		for (cur = *ctrl->callpool; cur; cur = cur->next) {
-			if (cur->ourcallstate == Q931_CALL_STATE_ACTIVE) {
+			if (!(cur->cr & ~Q931_CALL_REFERENCE_FLAG)) {
+				/* Don't do anything on the global call reference call record. */
+				continue;
+			} else if (cur->ourcallstate == Q931_CALL_STATE_ACTIVE) {
 				/* For a call in Active state, activate T309 only if there is no timer already running. */
 				if (!cur->retranstimer) {
 					if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
@@ -7628,7 +7631,10 @@ void q931_dl_indication(struct pri *ctrl, int event)
 			pri_message(ctrl, DBGHEAD "link is UP\n", DBGINFO);
 		}
 		for (cur = *ctrl->callpool; cur; cur = cur->next) {
-			if (cur->ourcallstate == Q931_CALL_STATE_ACTIVE && cur->retranstimer) {
+			if (!(cur->cr & ~Q931_CALL_REFERENCE_FLAG)) {
+				/* Don't do anything on the global call reference call record. */
+				continue;
+			} else if (cur->ourcallstate == Q931_CALL_STATE_ACTIVE && cur->retranstimer) {
 				if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
 					pri_message(ctrl,
 						DBGHEAD "cancel T309 for call %d on channel %d\n", DBGINFO,
