@@ -1342,8 +1342,6 @@ static pri_event *q921_ua_rx(struct pri *pri, q921_h *h)
 		} else {
 			/* Might not want this... */
 			pri->l3initiated = 0;
-			/* But do want this */
-			pri->v_r = 0;
 			/* return DL-ESTABLISH-CONFIRM */
 		}
 
@@ -1355,7 +1353,7 @@ static pri_event *q921_ua_rx(struct pri *pri, q921_h *h)
 		stop_t200(pri);
 		start_t203(pri);
 
-		pri->v_s = pri->v_a = 0;
+		pri->v_r = pri->v_s = pri->v_a = 0;
 
 		q921_setstate(pri, Q921_MULTI_FRAME_ESTABLISHED);
 		break;
