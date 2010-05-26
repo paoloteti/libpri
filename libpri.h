@@ -51,6 +51,7 @@
 #define	PRI_DEBUG_Q931_ANOMALY 	(1 << 7)	/* Show unexpected events */
 #define PRI_DEBUG_APDU			(1 << 8)	/* Debug of APDU components such as ROSE */
 #define PRI_DEBUG_AOC			(1 << 9)	/* Debug of Advice of Charge ROSE Messages */
+#define PRI_DEBUG_CC			(1 << 10)	/* Debug call-completion. */
 
 #define PRI_DEBUG_ALL			(0xffff)	/* Everything */
 
@@ -439,6 +440,14 @@ struct pri_party_subaddress {
 	unsigned char data[32];
 };
 
+/*! \brief Addressing information needed to identify an endpoint in a call. */
+struct pri_party_address {
+	/*! \brief Subscriber phone number */
+	struct pri_party_number number;
+	/*! \brief Subscriber subaddress */
+	struct pri_party_subaddress subaddress;
+};
+
 /*! \brief Information needed to identify an endpoint in a call. */
 struct pri_party_id {
 	/*! \brief Subscriber name */
@@ -503,11 +512,127 @@ struct pri_rerouting_data {
 	int invoke_id;
 };
 
-/* Subcommands derived from supplementary services. */
-#define PRI_SUBCMD_REDIRECTING		1
-#define PRI_SUBCMD_CONNECTED_LINE	2
-#define PRI_SUBCMD_REROUTING		3
+/*
+ * NOTE:
+ * The code surrounded by STATUS_REQUEST_PLACE_HOLDER is not implemented.
+ * The STATUS_REQUEST_PLACE_HOLDER code will be made unconditional if support
+ * for the messages is ever needed (and gets written).
+ */
 
+/* Subcommands derived from supplementary services. */
+#define PRI_SUBCMD_REDIRECTING				1	/*!< Redirecting information update */
+#define PRI_SUBCMD_CONNECTED_LINE			2	/*!< Connected line information update */
+#define PRI_SUBCMD_REROUTING				3	/*!< CallRerouting/CallDeflection received. */
+#if defined(STATUS_REQUEST_PLACE_HOLDER)
+#define PRI_SUBCMD_STATUS_REQ				4	/*!< Determine the status of the given party. */
+#define PRI_SUBCMD_STATUS_REQ_RSP			5	/*!< Status request response */
+#endif	/* defined(STATUS_REQUEST_PLACE_HOLDER) */
+#define PRI_SUBCMD_CC_AVAILABLE				6	/*!< Indicate that CC is available */
+#define PRI_SUBCMD_CC_REQ					7	/*!< CC activation request */
+#define PRI_SUBCMD_CC_REQ_RSP				8	/*!< CC activation request response */
+#define PRI_SUBCMD_CC_REMOTE_USER_FREE		9	/*!< Indicate that CC party B is available, party A is considered free. */
+#define PRI_SUBCMD_CC_B_FREE				10	/*!< Indicate that CC party B is available, party A is considered busy. */
+#define PRI_SUBCMD_CC_STATUS_REQ			11	/*!< Request/prod to receive updates of CC party A status */
+#define PRI_SUBCMD_CC_STATUS_REQ_RSP		12	/*!< Requested update of CC party A status */
+#define PRI_SUBCMD_CC_STATUS				13	/*!< Unsolicited update of CC party A status */
+#define PRI_SUBCMD_CC_CALL					14	/*!< Indicate that this call is a CC callback */
+#define PRI_SUBCMD_CC_CANCEL				15	/*!< Unsolicited indication that CC is canceled */
+#define PRI_SUBCMD_CC_STOP_ALERTING			16	/*!< Indicate that someone else has responed to remote user free */
+
+#if defined(STATUS_REQUEST_PLACE_HOLDER)
+struct pri_subcmd_status_request {
+	/*!
+	 * \brief Invoke id in case there are multiple outstanding requests.
+	 * \note Used to match any responses with the original invoke in case
+	 * there are several requests active.
+	 */
+	int invoke_id;
+	/*! \brief Party address requesting status about. */
+	struct pri_party_address party;
+};
+#endif	/* defined(STATUS_REQUEST_PLACE_HOLDER) */
+
+#if defined(STATUS_REQUEST_PLACE_HOLDER)
+struct pri_subcmd_status_request_rsp {
+	/*!
+	 * \brief Request id in case there are multiple outstanding requests.
+	 * \note Used to match any responses with the request in case there
+	 * are several requests active.
+	 */
+	int request_id;
+	/*!
+	 * \brief Response status to the status request.
+	 * \details
+	 * free(0),
+	 * busy(1),
+	 * incompatible(2)
+	 * timeout(3),
+	 */
+	int status;
+};
+#endif	/* defined(STATUS_REQUEST_PLACE_HOLDER) */
+
+struct pri_subcmd_cc_id {
+	/*! \brief Call-Completion record id */
+	long cc_id;
+};
+
+struct pri_subcmd_cc_request {
+	/*! \brief Call-Completion record id */
+	long cc_id;
+	/*!
+	 * \brief Mode of call-completion requested.
+	 * \details
+	 * ccbs(0),
+	 * ccnr(1)
+	 */
+	int mode;
+};
+
+struct pri_subcmd_cc_request_rsp {
+	/*! \brief Call-Completion record id */
+	long cc_id;
+	/*!
+	 * \brief Status of the requested call-completion activation.
+	 * \details
+	 * success(0),
+	 * timeout(1),
+	 * error(2),
+	 * reject(3)
+	 */
+	int status;
+	/*!
+	 * \brief Failure code that can be converted to a string to further
+	 * explain the non-timeout failure.
+	 * \note Valid when status is error or reject.
+	 * \note Use pri_facility_error2str() to convert the error_code.
+	 * \note Use pri_facility_reject2str() to convert the reject_code.
+	 */
+	int fail_code;
+};
+
+struct pri_subcmd_cc_status {
+	/*! \brief Call-Completion record id */
+	long cc_id;
+	/*!
+	 * \brief Party A status.
+	 * \details
+	 * free(0),
+	 * busy(1)
+	 */
+	int status;
+};
+
+struct pri_subcmd_cc_cancel {
+	/*! \brief Call-Completion record id */
+	long cc_id;
+	/*!
+	 * \brief TRUE if the cc_id is for an agent.
+	 * \note This is a convenience value so the upper layer can know which
+	 * list it should search for the cc_id.
+	 */
+	int is_agent;
+};
 
 struct pri_subcommand {
 	/*! PRI_SUBCMD_xxx defined values */
@@ -518,6 +643,21 @@ struct pri_subcommand {
 		struct pri_party_connected_line connected_line;
 		struct pri_party_redirecting redirecting;
 		struct pri_rerouting_data rerouting;
+#if defined(STATUS_REQUEST_PLACE_HOLDER)
+		struct pri_subcmd_status_request status_request;
+		struct pri_subcmd_status_request_rsp status_request_rsp;
+#endif	/* defined(STATUS_REQUEST_PLACE_HOLDER) */
+		struct pri_subcmd_cc_id cc_available;
+		struct pri_subcmd_cc_request cc_request;
+		struct pri_subcmd_cc_request_rsp cc_request_rsp;
+		struct pri_subcmd_cc_id cc_remote_user_free;
+		struct pri_subcmd_cc_id cc_b_free;
+		struct pri_subcmd_cc_id cc_stop_alerting;
+		struct pri_subcmd_cc_id cc_status_req;
+		struct pri_subcmd_cc_status cc_status_req_rsp;
+		struct pri_subcmd_cc_status cc_status;
+		struct pri_subcmd_cc_id cc_call;
+		struct pri_subcmd_cc_cancel cc_cancel;
 	} u;
 };
 
@@ -866,6 +1006,24 @@ char *pri_plan2str(int plan);
 
 /* Turn cause into a string */
 char *pri_cause2str(int cause);
+
+/*!
+ * \brief Convert the given facility error code to a descriptive string.
+ *
+ * \param facility_error_code Error code to convert to a string.
+ *
+ * \return Descriptive error string.
+ */
+const char *pri_facility_error2str(int facility_error_code);
+
+/*!
+ * \brief Convert the given facility reject code to a descriptive string.
+ *
+ * \param facility_reject_code Error code to convert to a string.
+ *
+ * \return Descriptive reject string.
+ */
+const char *pri_facility_reject2str(int facility_reject_code);
 
 /* Acknowledge a call and place it on the given channel.  Set info to non-zero if there
    is in-band data available on the channel */
@@ -1262,6 +1420,65 @@ int pri_retrieve_ack(struct pri *ctrl, q931_call *call, int channel);
  */
 int pri_retrieve_rej(struct pri *ctrl, q931_call *call, int cause);
 
+#if defined(STATUS_REQUEST_PLACE_HOLDER)
+int pri_status_req(struct pri *ctrl, int request_id, const struct pri_sr *req);
+void pri_status_req_rsp(struct pri *ctrl, int invoke_id, int status);
+#endif	/* defined(STATUS_REQUEST_PLACE_HOLDER) */
+
+/*!
+ * \brief Set the call completion feature enable flag.
+ *
+ * \param ctrl D channel controller.
+ * \param enable TRUE to enable call completion feature.
+ *
+ * \return Nothing
+ */
+void pri_cc_enable(struct pri *ctrl, int enable);
+
+/*!
+ * \brief Set the PTMP NT call completion recall mode.
+ *
+ * \param ctrl D channel controller.
+ * \param mode globalRecall(0), specificRecall(1)
+ *
+ * \return Nothing
+ */
+void pri_cc_recall_mode(struct pri *ctrl, int mode);
+
+/*!
+ * \brief Set the Q.SIG call completion signaling link retention mode.
+ * (Requestor/Initiator/Originator/Party-A)
+ *
+ * \param ctrl D channel controller.
+ * \param signaling_retention release(0), retain(1), do-not-care(2).
+ *
+ * \return Nothing
+ */
+void pri_cc_retain_signaling_req(struct pri *ctrl, int signaling_retention);
+
+/*!
+ * \brief Set the Q.SIG call completion signaling link retention mode.
+ * (Responder/Answerer/Party-B)
+ *
+ * \param ctrl D channel controller.
+ * \param signaling_retention release(0), retain(1).
+ *
+ * \return Nothing
+ */
+void pri_cc_retain_signaling_rsp(struct pri *ctrl, int signaling_retention);
+
+long pri_cc_available(struct pri *ctrl, q931_call *call);
+int pri_cc_req(struct pri *ctrl, long cc_id, int mode);
+int pri_cc_req_rsp(struct pri *ctrl, long cc_id, int status);
+void pri_cc_remote_user_free(struct pri *ctrl, long cc_id);
+void pri_cc_b_free(struct pri *ctrl, long cc_id);
+void pri_cc_stop_alerting(struct pri *ctrl, long cc_id);
+void pri_cc_status_req(struct pri *ctrl, long cc_id);
+void pri_cc_status_req_rsp(struct pri *ctrl, long cc_id, int status);
+void pri_cc_status(struct pri *ctrl, long cc_id, int status);
+int pri_cc_call(struct pri *ctrl, long cc_id, q931_call *call, struct pri_sr *req);
+void pri_cc_cancel(struct pri *ctrl, long cc_id);
+
 /* Get/Set PRI Timers  */
 #define PRI_GETSET_TIMERS
 int pri_set_timer(struct pri *pri, int timer, int value);
@@ -1308,6 +1525,31 @@ enum PRI_TIMERS_AND_COUNTERS {
 	PRI_TIMER_T_RETRIEVE,	/*!< Maximum time to wait for RETRIEVE request response. */
 
 	PRI_TIMER_T_RESPONSE,	/*!< Maximum time to wait for a typical APDU response. */
+
+	PRI_TIMER_T_STATUS,		/*!< Max time to wait for all replies to check for compatible terminals */
+
+	PRI_TIMER_T_ACTIVATE,	/*!< Request supervision timeout. */
+	PRI_TIMER_T_DEACTIVATE,	/*!< Deactivate supervision timeout. */
+	PRI_TIMER_T_INTERROGATE,/*!< Interrogation supervision timeout. */
+
+	/* ETSI call-completion timers */
+	PRI_TIMER_T_RETENTION,	/*!< Max time to wait for user A to activate call-completion. */
+	PRI_TIMER_T_CCBS1,		/*!< T-STATUS timer equivalent for CC user A status. */
+	PRI_TIMER_T_CCBS2,		/*!< Max time the CCBS service will be active */
+	PRI_TIMER_T_CCBS3,		/*!< Max time to wait for user A to respond to user B availability. */
+	PRI_TIMER_T_CCBS4,		/*!< CC user B guard time before sending CC recall indication. */
+	PRI_TIMER_T_CCBS5,		/*!< Network B CCBS supervision timeout. */
+	PRI_TIMER_T_CCBS6,		/*!< Network A CCBS supervision timeout. */
+	PRI_TIMER_T_CCNR2,		/*!< Max time the CCNR service will be active */
+	PRI_TIMER_T_CCNR5,		/*!< Network B CCNR supervision timeout. */
+	PRI_TIMER_T_CCNR6,		/*!< Network A CCNR supervision timeout. */
+
+	/* Q.SIG call-completion timers */
+	PRI_TIMER_QSIG_CC_T1,	/*!< CC request supervision timeout. */
+	PRI_TIMER_QSIG_CCBS_T2,	/*!< CCBS supervision timeout. */
+	PRI_TIMER_QSIG_CCNR_T2,	/*!< CCNR supervision timeout. */
+	PRI_TIMER_QSIG_CC_T3,	/*!< Max time to wait for user A to respond to user B availability. */
+	PRI_TIMER_QSIG_CC_T4,	/*!< Path reservation supervision timeout. */
 
 	/* Must be last in the enum list */
 	PRI_MAX_TIMERS

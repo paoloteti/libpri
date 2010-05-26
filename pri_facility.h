@@ -30,13 +30,7 @@
 #ifndef _PRI_FACILITY_H
 #define _PRI_FACILITY_H
 #include "pri_q931.h"
-
-/* Forward declare some structs */
-struct fac_extension_header;
-struct rose_msg_invoke;
-struct rose_msg_result;
-struct rose_msg_error;
-struct rose_msg_reject;
+#include "rose.h"
 
 /* Protocol Profile field */
 #define Q932_PROTOCOL_MASK			0x1F
@@ -75,7 +69,7 @@ struct rose_msg_reject;
 /*! Reasons an APDU callback is called. */
 enum APDU_CALLBACK_REASON {
 	/*!
-	 * \brief Send setup error.  Abort and cleanup.
+	 * \brief Transmit facility ie setup error.  Abort and cleanup.
 	 * \note The message may or may not actually get sent.
 	 * \note The callback cannot generate an event subcmd.
 	 * \note The callback should not send messages.  Out of order messages will result.
@@ -114,10 +108,15 @@ enum APDU_CALLBACK_REASON {
 	APDU_CALLBACK_REASON_MSG_REJECT,
 };
 
-union apdu_msg_data {
-	const struct rose_msg_result *result;
-	const struct rose_msg_error *error;
-	const struct rose_msg_reject *reject;
+struct apdu_msg_data {
+	/*! Decoded response message contents. */
+	union {
+		const struct rose_msg_result *result;
+		const struct rose_msg_error *error;
+		const struct rose_msg_reject *reject;
+	} response;
+	/*! Q.931 message type the response came in with. */
+	int type;
 };
 
 union apdu_callback_param {
@@ -125,6 +124,9 @@ union apdu_callback_param {
 	long value;
 	char pad[8];
 };
+
+/* So calls to pri_call_apdu_find() will not find an aliased event. */
+#define APDU_INVALID_INVOKE_ID  0x10000
 
 struct apdu_callback_data {
 	/*! APDU invoke id to match with any response messages. (Result/Error/Reject) */
@@ -149,7 +151,7 @@ struct apdu_callback_data {
 	 *
 	 * \return TRUE if no more responses are expected.
 	 */
-	int (*callback)(enum APDU_CALLBACK_REASON reason, struct pri *ctrl, struct q931_call *call, struct apdu_event *apdu, const union apdu_msg_data *msg);
+	int (*callback)(enum APDU_CALLBACK_REASON reason, struct pri *ctrl, struct q931_call *call, struct apdu_event *apdu, const struct apdu_msg_data *msg);
 	/*! \brief Sender data for the callback function to identify the particular APDU. */
 	union apdu_callback_param user;
 };
@@ -172,6 +174,29 @@ struct apdu_event {
 	/*! ADPU to send */
 	unsigned char apdu[255];
 };
+
+void rose_copy_number_to_q931(struct pri *ctrl, struct q931_party_number *q931_number, const struct rosePartyNumber *rose_number);
+void rose_copy_subaddress_to_q931(struct pri *ctrl, struct q931_party_subaddress *q931_subaddress, const struct rosePartySubaddress *rose_subaddress);
+void rose_copy_address_to_q931(struct pri *ctrl, struct q931_party_address *q931_address, const struct roseAddress *rose_address);
+void rose_copy_address_to_id_q931(struct pri *ctrl, struct q931_party_id *q931_address, const struct roseAddress *rose_address);
+void rose_copy_presented_number_screened_to_q931(struct pri *ctrl, struct q931_party_number *q931_number, const struct rosePresentedNumberScreened *rose_presented);
+void rose_copy_presented_number_unscreened_to_q931(struct pri *ctrl, struct q931_party_number *q931_number, const struct rosePresentedNumberUnscreened *rose_presented);
+void rose_copy_presented_address_screened_to_id_q931(struct pri *ctrl, struct q931_party_id *q931_address, const struct rosePresentedAddressScreened *rose_presented);
+void rose_copy_name_to_q931(struct pri *ctrl, struct q931_party_name *qsig_name, const struct roseQsigName *rose_name);
+
+void q931_copy_number_to_rose(struct pri *ctrl, struct rosePartyNumber *rose_number, const struct q931_party_number *q931_number);
+void q931_copy_subaddress_to_rose(struct pri *ctrl, struct rosePartySubaddress *rose_subaddress, const struct q931_party_subaddress *q931_subaddress);
+void q931_copy_address_to_rose(struct pri *ctrl, struct roseAddress *rose_address, const struct q931_party_address *q931_address);
+void q931_copy_id_address_to_rose(struct pri *ctrl, struct roseAddress *rose_address, const struct q931_party_id *q931_address);
+void q931_copy_presented_number_screened_to_rose(struct pri *ctrl, struct rosePresentedNumberScreened *rose_presented, const struct q931_party_number *q931_number);
+void q931_copy_presented_number_unscreened_to_rose(struct pri *ctrl, struct rosePresentedNumberUnscreened *rose_presented, const struct q931_party_number *q931_number);
+void q931_copy_presented_id_address_screened_to_rose(struct pri *ctrl, struct rosePresentedAddressScreened *rose_presented, const struct q931_party_id *q931_address);
+void q931_copy_name_to_rose(struct pri *ctrl, struct roseQsigName *rose_name, const struct q931_party_name *qsig_name);
+
+int rose_error_msg_encode(struct pri *ctrl, q931_call *call, int msgtype, int invoke_id, enum rose_error_code code);
+int send_facility_error(struct pri *ctrl, q931_call *call, int invoke_id, enum rose_error_code code);
+int rose_result_ok_encode(struct pri *ctrl, q931_call *call, int msgtype, int invoke_id);
+int send_facility_result_ok(struct pri *ctrl, q931_call *call, int invoke_id);
 
 /* Queues an MWI apdu on a the given call */
 int mwi_message_send(struct pri *pri, q931_call *call, struct pri_sr *req, int activate);
@@ -197,6 +222,8 @@ int rose_called_name_encode(struct pri *pri, q931_call *call, int messagetype);
 
 int pri_call_apdu_queue(q931_call *call, int messagetype, const unsigned char *apdu, int apdu_len, struct apdu_callback_data *response);
 void pri_call_apdu_queue_cleanup(q931_call *call);
+struct apdu_event *pri_call_apdu_find(struct q931_call *call, int invoke_id);
+int pri_call_apdu_extract(struct q931_call *call, struct apdu_event *extract);
 void pri_call_apdu_delete(struct q931_call *call, struct apdu_event *doomed);
 
 /* Adds the "standard" APDUs to a call */
@@ -208,5 +235,12 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 void rose_handle_result(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, const struct fac_extension_header *header, const struct rose_msg_result *result);
 void rose_handle_error(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, const struct fac_extension_header *header, const struct rose_msg_error *error);
 void rose_handle_reject(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, const struct fac_extension_header *header, const struct rose_msg_reject *reject);
+
+int pri_cc_interrogate_rsp(struct pri *ctrl, q931_call *call, const struct rose_msg_invoke *invoke);
+void pri_cc_ptmp_request(struct pri *ctrl, q931_call *call, const struct rose_msg_invoke *invoke);
+void pri_cc_ptp_request(struct pri *ctrl, q931_call *call, int msgtype, const struct rose_msg_invoke *invoke);
+void pri_cc_qsig_request(struct pri *ctrl, q931_call *call, int msgtype, const struct rose_msg_invoke *invoke);
+void pri_cc_qsig_cancel(struct pri *ctrl, q931_call *call, int msgtype, const struct rose_msg_invoke *invoke);
+void pri_cc_qsig_exec_possible(struct pri *ctrl, q931_call *call, int msgtype, const struct rose_msg_invoke *invoke);
 
 #endif /* _PRI_FACILITY_H */

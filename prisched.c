@@ -28,15 +28,72 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "libpri.h"
 #include "pri_internal.h"
 
 
+/*! Initial number of scheduled timer slots. */
+#define SCHED_EVENTS_INITIAL	128
+/*!
+ * Maximum number of scheduled timer slots.
+ * Should be a power of 2 multiple of SCHED_EVENTS_INITIAL.
+ */
+#define SCHED_EVENTS_MAX		8192
+
 /*! \brief The maximum number of timers that were active at once. */
-static int maxsched = 0;
+static unsigned maxsched = 0;
 
 /* Scheduler routines */
+
+/*!
+ * \internal
+ * \brief Increase the number of scheduler timer slots available.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int pri_schedule_grow(struct pri *ctrl)
+{
+	unsigned num_slots;
+	struct pri_sched *timers;
+
+	/* Determine how many slots in the new timer table. */
+	if (ctrl->sched.num_slots) {
+		if (SCHED_EVENTS_MAX <= ctrl->sched.num_slots) {
+			/* Cannot grow the timer table any more. */
+			return -1;
+		}
+		num_slots = ctrl->sched.num_slots * 2;
+		if (SCHED_EVENTS_MAX < num_slots) {
+			num_slots = SCHED_EVENTS_MAX;
+		}
+	} else {
+		num_slots = SCHED_EVENTS_INITIAL;
+	}
+
+	/* Get and initialize the new timer table. */
+	timers = calloc(num_slots, sizeof(struct pri_sched));
+	if (!timers) {
+		/* Could not get a new timer table. */
+		return -1;
+	}
+	if (ctrl->sched.timer) {
+		/* Copy over the old timer table. */
+		memcpy(timers, ctrl->sched.timer,
+			ctrl->sched.num_slots * sizeof(struct pri_sched));
+		free(ctrl->sched.timer);
+	}
+
+	/* Put the new timer table in place. */
+	ctrl->sched.timer = timers;
+	ctrl->sched.num_slots = num_slots;
+	return 0;
+}
 
 /*!
  * \brief Start a timer to schedule an event.
@@ -51,21 +108,25 @@ static int maxsched = 0;
  */
 int pri_schedule_event(struct pri *ctrl, int ms, void (*function)(void *data), void *data)
 {
-	int x;
+	unsigned max_used;
+	unsigned x;
 	struct timeval tv;
 
 	/* Scheduling runs on master channels only */
-	while (ctrl->master) {
-		ctrl = ctrl->master;
-	}
-	for (x = 0; x < MAX_SCHED; ++x) {
-		if (!ctrl->pri_sched[x].callback) {
+	ctrl = PRI_MASTER(ctrl);
+
+	max_used = ctrl->sched.max_used;
+	for (x = 0; x < max_used; ++x) {
+		if (!ctrl->sched.timer[x].callback) {
 			break;
 		}
 	}
-	if (x == MAX_SCHED) {
+	if (x == ctrl->sched.num_slots && pri_schedule_grow(ctrl)) {
 		pri_error(ctrl, "No more room in scheduler\n");
 		return 0;
+	}
+	if (ctrl->sched.max_used <= x) {
+		ctrl->sched.max_used = x + 1;
 	}
 	if (x >= maxsched) {
 		maxsched = x + 1;
@@ -77,9 +138,9 @@ int pri_schedule_event(struct pri *ctrl, int ms, void (*function)(void *data), v
 		tv.tv_usec -= 1000000;
 		tv.tv_sec += 1;
 	}
-	ctrl->pri_sched[x].when = tv;
-	ctrl->pri_sched[x].callback = function;
-	ctrl->pri_sched[x].data = data;
+	ctrl->sched.timer[x].when = tv;
+	ctrl->sched.timer[x].callback = function;
+	ctrl->sched.timer[x].data = data;
 	return x + 1;
 }
 
@@ -93,19 +154,28 @@ int pri_schedule_event(struct pri *ctrl, int ms, void (*function)(void *data), v
 struct timeval *pri_schedule_next(struct pri *ctrl)
 {
 	struct timeval *closest = NULL;
-	int x;
+	unsigned x;
 
 	/* Scheduling runs on master channels only */
-	while (ctrl->master) {
-		ctrl = ctrl->master;
-	}
-	for (x = 0; x < MAX_SCHED; ++x) {
-		if (ctrl->pri_sched[x].callback && (!closest
-			|| (closest->tv_sec > ctrl->pri_sched[x].when.tv_sec)
-			|| ((closest->tv_sec == ctrl->pri_sched[x].when.tv_sec)
-			&& (closest->tv_usec > ctrl->pri_sched[x].when.tv_usec)))) {
-			closest = &ctrl->pri_sched[x].when;
+	ctrl = PRI_MASTER(ctrl);
+
+	/* Scan the scheduled timer slots backwards so we can update the max_used value. */
+	for (x = ctrl->sched.max_used; x--;) {
+		if (ctrl->sched.timer[x].callback) {
+			if (!closest) {
+				/* This is the highest sheduled timer slot in use. */
+				closest = &ctrl->sched.timer[x].when;
+				ctrl->sched.max_used = x + 1;
+			} else if ((closest->tv_sec > ctrl->sched.timer[x].when.tv_sec)
+				|| ((closest->tv_sec == ctrl->sched.timer[x].when.tv_sec)
+					&& (closest->tv_usec > ctrl->sched.timer[x].when.tv_usec))) {
+				closest = &ctrl->sched.timer[x].when;
+			}
 		}
+	}
+	if (!closest) {
+		/* No scheduled timer slots are active. */
+		ctrl->sched.max_used = 0;
 	}
 	return closest;
 }
@@ -121,23 +191,25 @@ struct timeval *pri_schedule_next(struct pri *ctrl)
  */
 static pri_event *__pri_schedule_run(struct pri *ctrl, struct timeval *tv)
 {
-	int x;
+	unsigned x;
+	unsigned max_used;
 	void (*callback)(void *);
 	void *data;
 
 	/* Scheduling runs on master channels only */
-	while (ctrl->master) {
-		ctrl = ctrl->master;
-	}
-	for (x = 0; x < MAX_SCHED; ++x) {
-		if (ctrl->pri_sched[x].callback && ((ctrl->pri_sched[x].when.tv_sec < tv->tv_sec)
-			|| ((ctrl->pri_sched[x].when.tv_sec == tv->tv_sec)
-			&& (ctrl->pri_sched[x].when.tv_usec <= tv->tv_usec)))) {
+	ctrl = PRI_MASTER(ctrl);
+
+	max_used = ctrl->sched.max_used;
+	for (x = 0; x < max_used; ++x) {
+		if (ctrl->sched.timer[x].callback
+			&& ((ctrl->sched.timer[x].when.tv_sec < tv->tv_sec)
+			|| ((ctrl->sched.timer[x].when.tv_sec == tv->tv_sec)
+			&& (ctrl->sched.timer[x].when.tv_usec <= tv->tv_usec)))) {
 			/* This timer has expired. */
 			ctrl->schedev = 0;
-			callback = ctrl->pri_sched[x].callback;
-			data = ctrl->pri_sched[x].data;
-			ctrl->pri_sched[x].callback = NULL;
+			callback = ctrl->sched.timer[x].callback;
+			data = ctrl->sched.timer[x].data;
+			ctrl->sched.timer[x].callback = NULL;
 			callback(data);
 			if (ctrl->schedev) {
 				return &ctrl->ev;
@@ -175,12 +247,12 @@ pri_event *pri_schedule_run(struct pri *ctrl)
 void pri_schedule_del(struct pri *ctrl, int id)
 {
 	/* Scheduling runs on master channels only */
-	while (ctrl->master) {
-		ctrl = ctrl->master;
-	}
-	if (0 < id && id <= MAX_SCHED) {
-		ctrl->pri_sched[id - 1].callback = NULL;
+	ctrl = PRI_MASTER(ctrl);
+
+	if (0 < id && id <= ctrl->sched.num_slots) {
+		ctrl->sched.timer[id - 1].callback = NULL;
 	} else if (id) {
-		pri_error(ctrl, "Asked to delete sched id %d???\n", id);
+		pri_error(ctrl, "Asked to delete sched id %d??? num_slots=%d\n", id,
+			ctrl->sched.num_slots);
 	}
 }

@@ -82,6 +82,9 @@ typedef struct q931_ie {
 
 /* Q.931 / National ISDN Message Types */
 
+/*! Send this facility APDU on the next message to go out. */
+#define Q931_ANY_MESSAGE			-1
+
 /* Call Establishment Messages */
 #define Q931_ALERTING 				0x01
 #define Q931_CALL_PROCEEDING		0x02
@@ -106,6 +109,7 @@ typedef struct q931_ie {
 #define Q931_CONGESTION_CONTROL		0x79
 #define Q931_INFORMATION			0x7b
 #define Q931_FACILITY				0x62
+#define Q931_REGISTER				0x64	/* Q.932 */
 #define Q931_NOTIFY					0x6e
 
 /* Call Management Messages */
@@ -490,6 +494,9 @@ struct q931_call *q931_find_call(struct pri *ctrl, int cr);
 struct q931_call *q931_new_call(struct pri *pri);
 
 extern int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req);
+
+int q931_register(struct pri *ctrl, q931_call *call);
+
 void q931_dump(struct pri *ctrl, int tei, q931_h *h, int len, int txrx);
 
 void q931_destroycall(struct pri *pri, q931_call *c);

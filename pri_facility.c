@@ -30,20 +30,21 @@
 #include "compat.h"
 #include "libpri.h"
 #include "pri_internal.h"
-#include "pri_q921.h"
-#include "pri_q931.h"
 #include "pri_facility.h"
-#include "rose.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 
-static short get_invokeid(struct pri *ctrl)
+const char *pri_facility_error2str(int facility_error_code)
 {
-	ctrl = PRI_MASTER(ctrl);
-	return ++ctrl->last_invoke;
+	return rose_error2str(facility_error_code);
+}
+
+const char *pri_facility_reject2str(int facility_reject_code)
+{
+	return rose_reject2str(facility_reject_code);
 }
 
 static int redirectingreason_from_q931(struct pri *ctrl, int redirectingreason)
@@ -171,6 +172,7 @@ static int redirectingreason_for_q931(struct pri *ctrl, int redirectingreason)
 }
 
 /*!
+ * \internal
  * \brief Convert the Q.931 type-of-number field to facility.
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -497,7 +499,6 @@ static int presentation_to_subscription(struct pri *ctrl, int presentation)
 }
 
 /*!
- * \internal
  * \brief Copy the given rose party number to the q931_party_number
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -508,8 +509,8 @@ static int presentation_to_subscription(struct pri *ctrl, int presentation)
  *
  * \return Nothing
  */
-static void rose_copy_number_to_q931(struct pri *ctrl,
-	struct q931_party_number *q931_number, const struct rosePartyNumber *rose_number)
+void rose_copy_number_to_q931(struct pri *ctrl, struct q931_party_number *q931_number,
+	const struct rosePartyNumber *rose_number)
 {
 	//q931_party_number_init(q931_number);
 	libpri_copy_string(q931_number->str, (char *) rose_number->str,
@@ -520,7 +521,6 @@ static void rose_copy_number_to_q931(struct pri *ctrl,
 }
 
 /*!
- * \internal
  * \brief Copy the given rose subaddress to the q931_party_subaddress.
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -531,7 +531,7 @@ static void rose_copy_number_to_q931(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void rose_copy_subaddress_to_q931(struct pri *ctrl,
+void rose_copy_subaddress_to_q931(struct pri *ctrl,
 	struct q931_party_subaddress *q931_subaddress,
 	const struct rosePartySubaddress *rose_subaddress)
 {
@@ -571,7 +571,25 @@ static void rose_copy_subaddress_to_q931(struct pri *ctrl,
 }
 
 /*!
- * \internal
+ * \brief Copy the given rose address to the q931_party_address.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param q931_address Q.931 party address structure
+ * \param rose_address ROSE address structure
+ *
+ * \note It is assumed that the q931_address has been initialized before calling.
+ *
+ * \return Nothing
+ */
+void rose_copy_address_to_q931(struct pri *ctrl, struct q931_party_address *q931_address,
+	const struct roseAddress *rose_address)
+{
+	rose_copy_number_to_q931(ctrl, &q931_address->number, &rose_address->number);
+	rose_copy_subaddress_to_q931(ctrl, &q931_address->subaddress,
+		&rose_address->subaddress);
+}
+
+/*!
  * \brief Copy the given rose address to the q931_party_id address.
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -582,8 +600,8 @@ static void rose_copy_subaddress_to_q931(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void rose_copy_address_to_q931(struct pri *ctrl,
-	struct q931_party_id *q931_address, const struct roseAddress *rose_address)
+void rose_copy_address_to_id_q931(struct pri *ctrl, struct q931_party_id *q931_address,
+	const struct roseAddress *rose_address)
 {
 	rose_copy_number_to_q931(ctrl, &q931_address->number, &rose_address->number);
 	rose_copy_subaddress_to_q931(ctrl, &q931_address->subaddress,
@@ -591,7 +609,6 @@ static void rose_copy_address_to_q931(struct pri *ctrl,
 }
 
 /*!
- * \internal
  * \brief Copy the given rose presented screened party number to the q931_party_number
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -600,7 +617,7 @@ static void rose_copy_address_to_q931(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void rose_copy_presented_number_screened_to_q931(struct pri *ctrl,
+void rose_copy_presented_number_screened_to_q931(struct pri *ctrl,
 	struct q931_party_number *q931_number,
 	const struct rosePresentedNumberScreened *rose_presented)
 {
@@ -622,7 +639,6 @@ static void rose_copy_presented_number_screened_to_q931(struct pri *ctrl,
 }
 
 /*!
- * \internal
  * \brief Copy the given rose presented unscreened party number to the q931_party_number
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -631,7 +647,7 @@ static void rose_copy_presented_number_screened_to_q931(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void rose_copy_presented_number_unscreened_to_q931(struct pri *ctrl,
+void rose_copy_presented_number_unscreened_to_q931(struct pri *ctrl,
 	struct q931_party_number *q931_number,
 	const struct rosePresentedNumberUnscreened *rose_presented)
 {
@@ -650,7 +666,6 @@ static void rose_copy_presented_number_unscreened_to_q931(struct pri *ctrl,
 }
 
 /*!
- * \internal
  * \brief Copy the given rose presented screened party address to the q931_party_number
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -659,7 +674,7 @@ static void rose_copy_presented_number_unscreened_to_q931(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void rose_copy_presented_address_screened_to_q931(struct pri *ctrl,
+void rose_copy_presented_address_screened_to_id_q931(struct pri *ctrl,
 	struct q931_party_id *q931_address,
 	const struct rosePresentedAddressScreened *rose_presented)
 {
@@ -685,7 +700,6 @@ static void rose_copy_presented_address_screened_to_q931(struct pri *ctrl,
 }
 
 /*!
- * \internal
  * \brief Copy the given rose party name to the q931_party_name
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -694,8 +708,8 @@ static void rose_copy_presented_address_screened_to_q931(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void rose_copy_name_to_q931(struct pri *ctrl,
-	struct q931_party_name *qsig_name, const struct roseQsigName *rose_name)
+void rose_copy_name_to_q931(struct pri *ctrl, struct q931_party_name *qsig_name,
+	const struct roseQsigName *rose_name)
 {
 	//q931_party_name_init(qsig_name);
 	qsig_name->valid = 1;
@@ -706,7 +720,6 @@ static void rose_copy_name_to_q931(struct pri *ctrl,
 }
 
 /*!
- * \internal
  * \brief Copy the given q931_party_number to the rose party number
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -715,8 +728,8 @@ static void rose_copy_name_to_q931(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void q931_copy_number_to_rose(struct pri *ctrl,
-	struct rosePartyNumber *rose_number, const struct q931_party_number *q931_number)
+void q931_copy_number_to_rose(struct pri *ctrl, struct rosePartyNumber *rose_number,
+	const struct q931_party_number *q931_number)
 {
 	rose_number->plan = numbering_plan_from_q931(ctrl, q931_number->plan);
 	rose_number->ton = typeofnumber_from_q931(ctrl, q931_number->plan);
@@ -727,7 +740,6 @@ static void q931_copy_number_to_rose(struct pri *ctrl,
 }
 
 /*!
- * \internal
  * \brief Copy the given q931_party_subaddress to the rose subaddress.
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -736,7 +748,7 @@ static void q931_copy_number_to_rose(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void q931_copy_subaddress_to_rose(struct pri *ctrl,
+void q931_copy_subaddress_to_rose(struct pri *ctrl,
 	struct rosePartySubaddress *rose_subaddress,
 	const struct q931_party_subaddress *q931_subaddress)
 {
@@ -778,7 +790,23 @@ static void q931_copy_subaddress_to_rose(struct pri *ctrl,
 }
 
 /*!
- * \internal
+ * \brief Copy the given q931_party_address to the rose address.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param rose_address ROSE address structure
+ * \param q931_address Q.931 party address structure
+ *
+ * \return Nothing
+ */
+void q931_copy_address_to_rose(struct pri *ctrl, struct roseAddress *rose_address,
+	const struct q931_party_address *q931_address)
+{
+	q931_copy_number_to_rose(ctrl, &rose_address->number, &q931_address->number);
+	q931_copy_subaddress_to_rose(ctrl, &rose_address->subaddress,
+		&q931_address->subaddress);
+}
+
+/*!
  * \brief Copy the given q931_party_id address to the rose address.
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -787,7 +815,7 @@ static void q931_copy_subaddress_to_rose(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void q931_copy_address_to_rose(struct pri *ctrl, struct roseAddress *rose_address,
+void q931_copy_id_address_to_rose(struct pri *ctrl, struct roseAddress *rose_address,
 	const struct q931_party_id *q931_address)
 {
 	q931_copy_number_to_rose(ctrl, &rose_address->number, &q931_address->number);
@@ -796,7 +824,6 @@ static void q931_copy_address_to_rose(struct pri *ctrl, struct roseAddress *rose
 }
 
 /*!
- * \internal
  * \brief Copy the given q931_party_number to the rose presented screened party number
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -805,7 +832,7 @@ static void q931_copy_address_to_rose(struct pri *ctrl, struct roseAddress *rose
  *
  * \return Nothing
  */
-static void q931_copy_presented_number_screened_to_rose(struct pri *ctrl,
+void q931_copy_presented_number_screened_to_rose(struct pri *ctrl,
 	struct rosePresentedNumberScreened *rose_presented,
 	const struct q931_party_number *q931_number)
 {
@@ -821,7 +848,6 @@ static void q931_copy_presented_number_screened_to_rose(struct pri *ctrl,
 }
 
 /*!
- * \internal
  * \brief Copy the given q931_party_number to the rose presented unscreened party number
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -830,7 +856,7 @@ static void q931_copy_presented_number_screened_to_rose(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void q931_copy_presented_number_unscreened_to_rose(struct pri *ctrl,
+void q931_copy_presented_number_unscreened_to_rose(struct pri *ctrl,
 	struct rosePresentedNumberUnscreened *rose_presented,
 	const struct q931_party_number *q931_number)
 {
@@ -843,9 +869,7 @@ static void q931_copy_presented_number_unscreened_to_rose(struct pri *ctrl,
 	}
 }
 
-#if 0	/* In case it is needed in the future */
 /*!
- * \internal
  * \brief Copy the given q931_party_number to the rose presented screened party address
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -854,7 +878,7 @@ static void q931_copy_presented_number_unscreened_to_rose(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void q931_copy_presented_address_screened_to_rose(struct pri *ctrl,
+void q931_copy_presented_id_address_screened_to_rose(struct pri *ctrl,
 	struct rosePresentedAddressScreened *rose_presented,
 	const struct q931_party_id *q931_address)
 {
@@ -872,10 +896,8 @@ static void q931_copy_presented_address_screened_to_rose(struct pri *ctrl,
 		rose_presented->presentation = 2;/* numberNotAvailableDueToInterworking */
 	}
 }
-#endif	/* In case it is needed in the future */
 
 /*!
- * \internal
  * \brief Copy the given q931_party_name to the rose party name
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -884,8 +906,8 @@ static void q931_copy_presented_address_screened_to_rose(struct pri *ctrl,
  *
  * \return Nothing
  */
-static void q931_copy_name_to_rose(struct pri *ctrl,
-	struct roseQsigName *rose_name, const struct q931_party_name *qsig_name)
+void q931_copy_name_to_rose(struct pri *ctrl, struct roseQsigName *rose_name,
+	const struct q931_party_name *qsig_name)
 {
 	if (qsig_name->valid) {
 		rose_name->presentation = qsig_name_presentation_from_q931(ctrl,
@@ -1841,7 +1863,7 @@ static unsigned char *enc_qsig_call_rerouting(struct pri *ctrl, unsigned char *p
 		redirectingreason_from_q931(ctrl, deflection->reason);
 
 	/* calledAddress is the passed in deflection->to address */
-	q931_copy_address_to_rose(ctrl, &msg.args.qsig.CallRerouting.called, &deflection->to);
+	q931_copy_id_address_to_rose(ctrl, &msg.args.qsig.CallRerouting.called, &deflection->to);
 
 	msg.args.qsig.CallRerouting.diversion_counter = deflection->count;
 
@@ -1849,7 +1871,7 @@ static unsigned char *enc_qsig_call_rerouting(struct pri *ctrl, unsigned char *p
 	q931ie_pos = msg.args.qsig.CallRerouting.q931ie_contents;
 	*q931ie_pos++ = 0x04;	/* Bearer Capability IE */
 	*q931ie_pos++ = 0x03;	/* len */
-	*q931ie_pos++ = 0x80 | call->transcapability;	/* Rxed transfer capability. */
+	*q931ie_pos++ = 0x80 | call->bc.transcapability;	/* Rxed transfer capability. */
 	*q931ie_pos++ = 0x90;	/* circuit mode, 64kbit/s */
 	*q931ie_pos++ = 0xa3;	/* level1 protocol, a-law */
 	*q931ie_pos++ = 0x95;	/* locking shift to codeset 5 (national use) */
@@ -1953,7 +1975,7 @@ static unsigned char *enc_etsi_call_rerouting(struct pri *ctrl, unsigned char *p
 		redirectingreason_from_q931(ctrl, deflection->reason);
 
 	/* calledAddress is the passed in deflection->to address */
-	q931_copy_address_to_rose(ctrl, &msg.args.etsi.CallRerouting.called_address,
+	q931_copy_id_address_to_rose(ctrl, &msg.args.etsi.CallRerouting.called_address,
 		&deflection->to);
 
 	msg.args.etsi.CallRerouting.rerouting_counter = deflection->count;
@@ -1962,7 +1984,7 @@ static unsigned char *enc_etsi_call_rerouting(struct pri *ctrl, unsigned char *p
 	q931ie_pos = msg.args.etsi.CallRerouting.q931ie_contents;
 	*q931ie_pos++ = 0x04;	/* Bearer Capability IE */
 	*q931ie_pos++ = 0x03;	/* len */
-	*q931ie_pos++ = 0x80 | call->transcapability;	/* Rxed transfer capability. */
+	*q931ie_pos++ = 0x80 | call->bc.transcapability;	/* Rxed transfer capability. */
 	*q931ie_pos++ = 0x90;	/* circuit mode, 64kbit/s */
 	*q931ie_pos++ = 0xa3;	/* level1 protocol, a-law */
 	msg.args.etsi.CallRerouting.q931ie.length = q931ie_pos
@@ -2014,7 +2036,7 @@ static unsigned char *enc_etsi_call_deflection(struct pri *ctrl, unsigned char *
 	msg.invoke_id = get_invokeid(ctrl);
 
 	/* deflectionAddress is the passed in deflection->to address */
-	q931_copy_address_to_rose(ctrl, &msg.args.etsi.CallDeflection.deflection,
+	q931_copy_id_address_to_rose(ctrl, &msg.args.etsi.CallDeflection.deflection,
 		deflection);
 
 	msg.args.etsi.CallDeflection.presentation_allowed_to_diverted_to_user_present = 1;
@@ -2766,13 +2788,15 @@ void pri_call_apdu_queue_cleanup(q931_call *call)
 		call->apdus = NULL;
 		while (cur_event) {
 			if (cur_event->response.callback) {
+				/* Stop any response timeout. */
+				pri_schedule_del(call->pri, cur_event->timer);
+				cur_event->timer = 0;
+
 				/* Indicate to callback that the APDU is being cleaned up. */
 				cur_event->response.callback(APDU_CALLBACK_REASON_CLEANUP, call->pri,
 					call, cur_event, NULL);
-
-				/* Stop any response timeout. */
-				pri_schedule_del(call->pri, cur_event->timer);
 			}
+
 			free_event = cur_event;
 			cur_event = cur_event->next;
 			free(free_event);
@@ -2781,7 +2805,6 @@ void pri_call_apdu_queue_cleanup(q931_call *call)
 }
 
 /*!
- * \internal
  * \brief Find an outstanding APDU with the given invoke id.
  *
  * \param call Call to find APDU.
@@ -2790,10 +2813,14 @@ void pri_call_apdu_queue_cleanup(q931_call *call)
  * \retval apdu_event if found.
  * \retval NULL if not found.
  */
-static struct apdu_event *pri_call_apdu_find(struct q931_call *call, int invoke_id)
+struct apdu_event *pri_call_apdu_find(struct q931_call *call, int invoke_id)
 {
 	struct apdu_event *apdu;
 
+	if (invoke_id == APDU_INVALID_INVOKE_ID) {
+		/* No need to search the list since it cannot be in there. */
+		return NULL;
+	}
 	for (apdu = call->apdus; apdu; apdu = apdu->next) {
 		/*
 		 * Note: The APDU cannot be sent and still in the queue without a
@@ -2808,6 +2835,41 @@ static struct apdu_event *pri_call_apdu_find(struct q931_call *call, int invoke_
 }
 
 /*!
+ * \brief Extract the given APDU event from the given call.
+ *
+ * \param call Call to remove the APDU.
+ * \param extract APDU event to extract.
+ *
+ * \retval TRUE on success.
+ * \retval FALSE on error.
+ */
+int pri_call_apdu_extract(struct q931_call *call, struct apdu_event *extract)
+{
+	struct apdu_event **prev;
+	struct apdu_event *cur;
+
+	/* Find APDU in list. */
+	for (prev = &call->apdus, cur = call->apdus;
+		cur;
+		prev = &cur->next, cur = cur->next) {
+		if (cur == extract) {
+			/* Stop any response timeout. */
+			pri_schedule_del(call->pri, cur->timer);
+			cur->timer = 0;
+
+			/* Remove APDU from list. */
+			*prev = cur->next;
+
+			/* Found and extracted APDU from list. */
+			return 1;
+		}
+	}
+
+	/* Did not find the APDU in the list. */
+	return 0;
+}
+
+/*!
  * \brief Delete the given APDU event from the given call.
  *
  * \param call Call to remove the APDU.
@@ -2817,22 +2879,8 @@ static struct apdu_event *pri_call_apdu_find(struct q931_call *call, int invoke_
  */
 void pri_call_apdu_delete(struct q931_call *call, struct apdu_event *doomed)
 {
-	struct apdu_event **prev;
-	struct apdu_event *cur;
-
-	/* Find APDU in list. */
-	for (prev = &call->apdus, cur = call->apdus;
-		cur;
-		prev = &cur->next, cur = cur->next) {
-		if (cur == doomed) {
-			/* Stop any response timeout. */
-			pri_schedule_del(call->pri, cur->timer);
-
-			/* Remove APDU from list. */
-			*prev = cur->next;
-			free(cur);
-			break;
-		}
+	if (pri_call_apdu_extract(call, doomed)) {
+		free(doomed);
 	}
 }
 
@@ -2985,18 +3033,18 @@ static unsigned char *enc_qsig_error(struct pri *ctrl, unsigned char *pos,
 }
 
 /*!
- * \internal
  * \brief Encode and queue a plain facility error code.
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
  * \param call Call leg from which to encode error message response.
+ * \param msgtype Q.931 message type to put facility ie in.
  * \param invoke_id Invoke id to put in error message response.
  * \param code Error code to put in error message response.
  *
  * \retval 0 on success.
  * \retval -1 on error.
  */
-static int rose_facility_error_encode(struct pri *ctrl, q931_call *call, int invoke_id,
+int rose_error_msg_encode(struct pri *ctrl, q931_call *call, int msgtype, int invoke_id,
 	enum rose_error_code code)
 {
 	unsigned char buffer[256];
@@ -3019,7 +3067,7 @@ static int rose_facility_error_encode(struct pri *ctrl, q931_call *call, int inv
 		return -1;
 	}
 
-	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL);
+	return pri_call_apdu_queue(call, msgtype, buffer, end - buffer, NULL);
 }
 
 /*!
@@ -3033,10 +3081,10 @@ static int rose_facility_error_encode(struct pri *ctrl, q931_call *call, int inv
  * \retval 0 on success.
  * \retval -1 on error.
  */
-static int send_facility_error(struct pri *ctrl, q931_call *call, int invoke_id,
+int send_facility_error(struct pri *ctrl, q931_call *call, int invoke_id,
 	enum rose_error_code code)
 {
-	if (rose_facility_error_encode(ctrl, call, invoke_id, code)
+	if (rose_error_msg_encode(ctrl, call, Q931_FACILITY, invoke_id, code)
 		|| q931_facility(ctrl, call)) {
 		pri_message(ctrl,
 			"Could not schedule facility message for error message.\n");
@@ -3118,7 +3166,6 @@ static unsigned char *enc_qsig_result_ok(struct pri *ctrl, unsigned char *pos,
 }
 
 /*!
- * \internal
  * \brief Encode and queue a plain ROSE result ok.
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -3129,7 +3176,7 @@ static unsigned char *enc_qsig_result_ok(struct pri *ctrl, unsigned char *pos,
  * \retval 0 on success.
  * \retval -1 on error.
  */
-static int rose_result_ok_encode(struct pri *ctrl, q931_call *call, int msgtype, int invoke_id)
+int rose_result_ok_encode(struct pri *ctrl, q931_call *call, int msgtype, int invoke_id)
 {
 	unsigned char buffer[256];
 	unsigned char *end;
@@ -3164,7 +3211,7 @@ static int rose_result_ok_encode(struct pri *ctrl, q931_call *call, int msgtype,
  * \retval 0 on success.
  * \retval -1 on error.
  */
-static int send_facility_result_ok(struct pri *ctrl, q931_call *call, int invoke_id)
+int send_facility_result_ok(struct pri *ctrl, q931_call *call, int invoke_id)
 {
 	if (rose_result_ok_encode(ctrl, call, Q931_FACILITY, invoke_id)
 		|| q931_facility(ctrl, call)) {
@@ -3234,15 +3281,18 @@ int pri_rerouting_rsp(struct pri *ctrl, q931_call *call, int invoke_id, enum PRI
 void rose_handle_reject(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie,
 	const struct fac_extension_header *header, const struct rose_msg_reject *reject)
 {
+	q931_call *orig_call;
 	struct apdu_event *apdu;
-	union apdu_msg_data msg;
+	struct apdu_msg_data msg;
 
-	/* Gripe to the user about getting rejected. */
-	pri_error(ctrl, "ROSE REJECT:\n");
-	if (reject->invoke_id_present) {
-		pri_error(ctrl, "\tINVOKE ID: %d\n", reject->invoke_id);
+	if (ctrl->debug & PRI_DEBUG_APDU) {
+		/* Gripe to the user about getting rejected. */
+		pri_message(ctrl, "ROSE REJECT:\n");
+		if (reject->invoke_id_present) {
+			pri_message(ctrl, "\tINVOKE ID: %d\n", reject->invoke_id);
+		}
+		pri_message(ctrl, "\tPROBLEM: %s\n", rose_reject2str(reject->code));
 	}
-	pri_error(ctrl, "\tPROBLEM: %s\n", rose_reject2str(reject->code));
 
 	switch (ctrl->switchtype) {
 	case PRI_SWITCH_DMS100:
@@ -3259,13 +3309,31 @@ void rose_handle_reject(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		 */
 		return;
 	}
-	apdu = pri_call_apdu_find(call, reject->invoke_id);
-	if (!apdu) {
-		return;
+	orig_call = NULL;/* To make some compilers happy. */
+	apdu = NULL;
+	if (q931_is_dummy_call(call)) {
+		/*
+		 * The message was likely sent on the broadcast dummy call reference call
+		 * and the reject came in on a specific dummy call reference call.
+		 * Look for the original invocation message on the
+		 * broadcast dummy call reference call first.
+		 */
+		orig_call = PRI_MASTER(ctrl)->dummy_call;
+		if (orig_call) {
+			apdu = pri_call_apdu_find(orig_call, reject->invoke_id);
+		}
 	}
-	msg.reject = reject;
+	if (!apdu) {
+		apdu = pri_call_apdu_find(call, reject->invoke_id);
+		if (!apdu) {
+			return;
+		}
+		orig_call = call;
+	}
+	msg.response.reject = reject;
+	msg.type = msgtype;
 	if (apdu->response.callback(APDU_CALLBACK_REASON_MSG_REJECT, ctrl, call, apdu, &msg)) {
-		pri_call_apdu_delete(call, apdu);
+		pri_call_apdu_delete(orig_call, apdu);
 	}
 }
 
@@ -3285,34 +3353,37 @@ void rose_handle_error(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *
 	const struct fac_extension_header *header, const struct rose_msg_error *error)
 {
 	const char *dms100_operation;
+	q931_call *orig_call;
 	struct apdu_event *apdu;
-	union apdu_msg_data msg;
+	struct apdu_msg_data msg;
 
-	/* Gripe to the user about getting an error. */
-	pri_error(ctrl, "ROSE RETURN ERROR:\n");
-	switch (ctrl->switchtype) {
-	case PRI_SWITCH_DMS100:
-		switch (error->invoke_id) {
-		case ROSE_DMS100_RLT_OPERATION_IND:
-			dms100_operation = "RLT_OPERATION_IND";
-			break;
-		case ROSE_DMS100_RLT_THIRD_PARTY:
-			dms100_operation = "RLT_THIRD_PARTY";
-			break;
+	if (ctrl->debug & PRI_DEBUG_APDU) {
+		/* Gripe to the user about getting an error. */
+		pri_message(ctrl, "ROSE RETURN ERROR:\n");
+		switch (ctrl->switchtype) {
+		case PRI_SWITCH_DMS100:
+			switch (error->invoke_id) {
+			case ROSE_DMS100_RLT_OPERATION_IND:
+				dms100_operation = "RLT_OPERATION_IND";
+				break;
+			case ROSE_DMS100_RLT_THIRD_PARTY:
+				dms100_operation = "RLT_THIRD_PARTY";
+				break;
+			default:
+				dms100_operation = NULL;
+				break;
+			}
+			if (dms100_operation) {
+				pri_message(ctrl, "\tOPERATION: %s\n", dms100_operation);
+				break;
+			}
+			/* fall through */
 		default:
-			dms100_operation = NULL;
+			pri_message(ctrl, "\tINVOKE ID: %d\n", error->invoke_id);
 			break;
 		}
-		if (dms100_operation) {
-			pri_error(ctrl, "\tOPERATION: %s\n", dms100_operation);
-			break;
-		}
-		/* fall through */
-	default:
-		pri_error(ctrl, "\tINVOKE ID: %d\n", error->invoke_id);
-		break;
+		pri_message(ctrl, "\tERROR: %s\n", rose_error2str(error->code));
 	}
-	pri_error(ctrl, "\tERROR: %s\n", rose_error2str(error->code));
 
 	switch (ctrl->switchtype) {
 	case PRI_SWITCH_DMS100:
@@ -3322,13 +3393,31 @@ void rose_handle_error(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *
 		break;
 	}
 
-	apdu = pri_call_apdu_find(call, error->invoke_id);
-	if (!apdu) {
-		return;
+	orig_call = NULL;/* To make some compilers happy. */
+	apdu = NULL;
+	if (q931_is_dummy_call(call)) {
+		/*
+		 * The message was likely sent on the broadcast dummy call reference call
+		 * and the error came in on a specific dummy call reference call.
+		 * Look for the original invocation message on the
+		 * broadcast dummy call reference call first.
+		 */
+		orig_call = PRI_MASTER(ctrl)->dummy_call;
+		if (orig_call) {
+			apdu = pri_call_apdu_find(orig_call, error->invoke_id);
+		}
 	}
-	msg.error = error;
+	if (!apdu) {
+		apdu = pri_call_apdu_find(call, error->invoke_id);
+		if (!apdu) {
+			return;
+		}
+		orig_call = call;
+	}
+	msg.response.error = error;
+	msg.type = msgtype;
 	if (apdu->response.callback(APDU_CALLBACK_REASON_MSG_ERROR, ctrl, call, apdu, &msg)) {
-		pri_call_apdu_delete(call, apdu);
+		pri_call_apdu_delete(orig_call, apdu);
 	}
 }
 
@@ -3347,8 +3436,9 @@ void rose_handle_error(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *
 void rose_handle_result(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie,
 	const struct fac_extension_header *header, const struct rose_msg_result *result)
 {
+	q931_call *orig_call;
 	struct apdu_event *apdu;
-	union apdu_msg_data msg;
+	struct apdu_msg_data msg;
 
 	switch (ctrl->switchtype) {
 	case PRI_SWITCH_DMS100:
@@ -3379,13 +3469,31 @@ void rose_handle_result(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		break;
 	}
 
-	apdu = pri_call_apdu_find(call, result->invoke_id);
-	if (!apdu) {
-		return;
+	orig_call = NULL;/* To make some compilers happy. */
+	apdu = NULL;
+	if (q931_is_dummy_call(call)) {
+		/*
+		 * The message was likely sent on the broadcast dummy call reference call
+		 * and the result came in on a specific dummy call reference call.
+		 * Look for the original invocation message on the
+		 * broadcast dummy call reference call first.
+		 */
+		orig_call = PRI_MASTER(ctrl)->dummy_call;
+		if (orig_call) {
+			apdu = pri_call_apdu_find(orig_call, result->invoke_id);
+		}
 	}
-	msg.result = result;
+	if (!apdu) {
+		apdu = pri_call_apdu_find(call, result->invoke_id);
+		if (!apdu) {
+			return;
+		}
+		orig_call = call;
+	}
+	msg.response.result = result;
+	msg.type = msgtype;
 	if (apdu->response.callback(APDU_CALLBACK_REASON_MSG_RESULT, ctrl, call, apdu, &msg)) {
-		pri_call_apdu_delete(call, apdu);
+		pri_call_apdu_delete(orig_call, apdu);
 	}
 }
 
@@ -3404,8 +3512,10 @@ void rose_handle_result(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie,
 	const struct fac_extension_header *header, const struct rose_msg_invoke *invoke)
 {
+	struct pri_cc_record *cc_record;
 	struct pri_subcommand *subcmd;
 	struct q931_party_id party_id;
+	struct q931_party_address party_address;
 	struct q931_party_redirecting deflection;
 
 	switch (invoke->operation) {
@@ -3449,7 +3559,6 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 			 */
 			send_facility_error(ctrl, call, invoke->invoke_id,
 				ROSE_ERROR_Gen_ResourceUnavailable);
-			pri_error(ctrl, "ERROR: Too many facility subcommands\n");
 			break;
 		}
 
@@ -3470,7 +3579,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		}
 
 		/* Deflecting to the new address. */
-		rose_copy_address_to_q931(ctrl, &deflection.to,
+		rose_copy_address_to_id_q931(ctrl, &deflection.to,
 			&invoke->args.etsi.CallDeflection.deflection);
 		deflection.to.number.presentation = deflection.from.number.presentation;
 
@@ -3502,7 +3611,6 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		if (!subcmd) {
 			send_facility_error(ctrl, call, invoke->invoke_id,
 				ROSE_ERROR_Gen_ResourceUnavailable);
-			pri_error(ctrl, "ERROR: Too many facility subcommands\n");
 			break;
 		}
 
@@ -3513,7 +3621,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 			&invoke->args.etsi.CallRerouting.last_rerouting);
 
 		/* Rerouting to the new address. */
-		rose_copy_address_to_q931(ctrl, &deflection.to,
+		rose_copy_address_to_id_q931(ctrl, &deflection.to,
 			&invoke->args.etsi.CallRerouting.called_address);
 		switch (invoke->args.etsi.CallRerouting.subscription_option) {
 		default:
@@ -3655,7 +3763,6 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 			call->redirecting.state = Q931_REDIRECTING_STATE_IDLE;
 			subcmd = q931_alloc_subcommand(ctrl);
 			if (!subcmd) {
-				pri_error(ctrl, "ERROR: Too many facility subcommands\n");
 				break;
 			}
 			/* Setup redirecting subcommand */
@@ -3741,6 +3848,246 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 	case ROSE_ETSI_EctLoopTest:
 		break;
 #endif	/* Not handled yet */
+#if defined(STATUS_REQUEST_PLACE_HOLDER)
+	case ROSE_ETSI_StatusRequest:
+		/* Not handled yet */
+		break;
+#endif	/* defined(STATUS_REQUEST_PLACE_HOLDER) */
+	case ROSE_ETSI_CallInfoRetain:
+		if (!PRI_MASTER(ctrl)->cc_support) {
+			/*
+			 * Blocking the cc-available event effectively
+			 * disables call completion for outgoing calls.
+			 */
+			break;
+		}
+		if (call->cc.record) {
+			/* Duplicate message!  Should not happen. */
+			break;
+		}
+		cc_record = pri_cc_new_record(ctrl, call);
+		if (!cc_record) {
+			break;
+		}
+		cc_record->signaling = PRI_MASTER(ctrl)->dummy_call;
+		/*
+		 * Since we received this facility, we will not be allocating any
+		 * reference and linkage id's.
+		 */
+		cc_record->call_linkage_id =
+			invoke->args.etsi.CallInfoRetain.call_linkage_id & 0x7F;
+		cc_record->original_call = call;
+		call->cc.record = cc_record;
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_AVAILABLE);
+		break;
+	case ROSE_ETSI_CCBSRequest:
+		pri_cc_ptmp_request(ctrl, call, invoke);
+		break;
+	case ROSE_ETSI_CCNRRequest:
+		pri_cc_ptmp_request(ctrl, call, invoke);
+		break;
+	case ROSE_ETSI_CCBSDeactivate:
+		cc_record = pri_cc_find_by_reference(ctrl,
+			invoke->args.etsi.CCBSDeactivate.ccbs_reference);
+		if (!cc_record) {
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_CCBS_InvalidCCBSReference);
+			break;
+		}
+		send_facility_result_ok(ctrl, call, invoke->invoke_id);
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_LINK_CANCEL);
+		break;
+	case ROSE_ETSI_CCBSInterrogate:
+		pri_cc_interrogate_rsp(ctrl, call, invoke);
+		break;
+	case ROSE_ETSI_CCNRInterrogate:
+		pri_cc_interrogate_rsp(ctrl, call, invoke);
+		break;
+	case ROSE_ETSI_CCBSErase:
+		cc_record = pri_cc_find_by_reference(ctrl,
+			invoke->args.etsi.CCBSErase.ccbs_reference);
+		if (!cc_record) {
+			/*
+			 * Ignore any status requests that we do not have a record.
+			 * We will not participate in any CC requests that we did
+			 * not initiate.
+			 */
+			break;
+		}
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_LINK_CANCEL);
+		break;
+	case ROSE_ETSI_CCBSRemoteUserFree:
+		cc_record = pri_cc_find_by_reference(ctrl,
+			invoke->args.etsi.CCBSRemoteUserFree.ccbs_reference);
+		if (!cc_record) {
+			/*
+			 * Ignore any status requests that we do not have a record.
+			 * We will not participate in any CC requests that we did
+			 * not initiate.
+			 */
+			break;
+		}
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_REMOTE_USER_FREE);
+		break;
+	case ROSE_ETSI_CCBSCall:
+		cc_record = pri_cc_find_by_reference(ctrl,
+			invoke->args.etsi.CCBSCall.ccbs_reference);
+		if (!cc_record) {
+			rose_error_msg_encode(ctrl, call, Q931_ANY_MESSAGE, invoke->invoke_id,
+				ROSE_ERROR_CCBS_InvalidCCBSReference);
+			call->cc.hangup_call = 1;
+			break;
+		}
+
+		/* Save off data to know how to send back any response. */
+		cc_record->response.signaling = call;
+		cc_record->response.invoke_operation = invoke->operation;
+		cc_record->response.invoke_id = invoke->invoke_id;
+
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_RECALL);
+		break;
+	case ROSE_ETSI_CCBSStatusRequest:
+		cc_record = pri_cc_find_by_reference(ctrl,
+			invoke->args.etsi.CCBSStatusRequest.ccbs_reference);
+		if (!cc_record) {
+			/*
+			 * Ignore any status requests that we do not have a record.
+			 * We will not participate in any CC requests that we did
+			 * not initiate.
+			 */
+			break;
+		}
+
+		/* Save off data to know how to send back any response. */
+		//cc_record->response.signaling = call;
+		cc_record->response.invoke_operation = invoke->operation;
+		cc_record->response.invoke_id = invoke->invoke_id;
+
+		subcmd = q931_alloc_subcommand(ctrl);
+		if (!subcmd) {
+			break;
+		}
+
+		subcmd->cmd = PRI_SUBCMD_CC_STATUS_REQ;
+		subcmd->u.cc_status_req.cc_id = cc_record->record_id;
+		break;
+	case ROSE_ETSI_CCBSBFree:
+		cc_record = pri_cc_find_by_reference(ctrl,
+			invoke->args.etsi.CCBSBFree.ccbs_reference);
+		if (!cc_record) {
+			/*
+			 * Ignore any status requests that we do not have a record.
+			 * We will not participate in any CC requests that we did
+			 * not initiate.
+			 */
+			break;
+		}
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_B_FREE);
+		break;
+	case ROSE_ETSI_EraseCallLinkageID:
+		cc_record = pri_cc_find_by_linkage(ctrl,
+			invoke->args.etsi.EraseCallLinkageID.call_linkage_id);
+		if (!cc_record) {
+			/*
+			 * Ignore any status requests that we do not have a record.
+			 * We will not participate in any CC requests that we did
+			 * not initiate.
+			 */
+			break;
+		}
+		/*
+		 * T_RETENTION expired on the network side so we will pretend
+		 * that it expired on our side.
+		 */
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_TIMEOUT_T_RETENTION);
+		break;
+	case ROSE_ETSI_CCBSStopAlerting:
+		cc_record = pri_cc_find_by_reference(ctrl,
+			invoke->args.etsi.CCBSStopAlerting.ccbs_reference);
+		if (!cc_record) {
+			/*
+			 * Ignore any status requests that we do not have a record.
+			 * We will not participate in any CC requests that we did
+			 * not initiate.
+			 */
+			break;
+		}
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_STOP_ALERTING);
+		break;
+	case ROSE_ETSI_CCBS_T_Request:
+		pri_cc_ptp_request(ctrl, call, msgtype, invoke);
+		break;
+	case ROSE_ETSI_CCNR_T_Request:
+		pri_cc_ptp_request(ctrl, call, msgtype, invoke);
+		break;
+	case ROSE_ETSI_CCBS_T_Call:
+		if (msgtype != Q931_SETUP) {
+			/* Ignore since it did not come in on the correct message. */
+			break;
+		}
+
+		/*
+		 * If we cannot find the cc_record we should still pass up the
+		 * CC call indication but with a -1 for the cc_id.
+		 * The upper layer would then need to search its records for a
+		 * matching CC.  The call may have come in on a different interface.
+		 */
+		q931_party_id_to_address(&party_address, &call->remote_id);
+		cc_record = pri_cc_find_by_addressing(ctrl, &party_address, &call->called,
+			call->cc.saved_ie_contents.length, call->cc.saved_ie_contents.data);
+		if (cc_record) {
+			pri_cc_event(ctrl, call, cc_record, CC_EVENT_RECALL);
+		} else {
+			subcmd = q931_alloc_subcommand(ctrl);
+			if (!subcmd) {
+				break;
+			}
+
+			subcmd->cmd = PRI_SUBCMD_CC_CALL;
+			subcmd->u.cc_call.cc_id = -1;
+		}
+		break;
+	case ROSE_ETSI_CCBS_T_Suspend:
+		cc_record = call->cc.record;
+		if (!cc_record) {
+			break;
+		}
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_SUSPEND);
+		break;
+	case ROSE_ETSI_CCBS_T_Resume:
+		cc_record = call->cc.record;
+		if (!cc_record) {
+			break;
+		}
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_RESUME);
+		break;
+	case ROSE_ETSI_CCBS_T_RemoteUserFree:
+		cc_record = call->cc.record;
+		if (!cc_record) {
+			break;
+		}
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_REMOTE_USER_FREE);
+		break;
+	case ROSE_ETSI_CCBS_T_Available:
+		if (!PRI_MASTER(ctrl)->cc_support) {
+			/*
+			 * Blocking the cc-available event effectively
+			 * disables call completion for outgoing calls.
+			 */
+			break;
+		}
+		if (call->cc.record) {
+			/* Duplicate message!  Should not happen. */
+			break;
+		}
+		cc_record = pri_cc_new_record(ctrl, call);
+		if (!cc_record) {
+			break;
+		}
+		cc_record->original_call = call;
+		call->cc.record = cc_record;
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_AVAILABLE);
+		break;
 	case ROSE_QSIG_CallingName:
 		/* CallingName is put in remote_id.name */
 		rose_copy_name_to_q931(ctrl, &call->remote_id.name,
@@ -3754,7 +4101,6 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		/* Setup connected line subcommand */
 		subcmd = q931_alloc_subcommand(ctrl);
 		if (!subcmd) {
-			pri_error(ctrl, "ERROR: Too many facility subcommands\n");
 			break;
 		}
 		subcmd->cmd = PRI_SUBCMD_CONNECTED_LINE;
@@ -3799,7 +4145,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		call->incoming_ct_state = INCOMING_CT_STATE_POST_CONNECTED_LINE;
 
 		/* connectedAddress is put in remote_id */
-		rose_copy_presented_address_screened_to_q931(ctrl, &call->remote_id,
+		rose_copy_presented_address_screened_to_id_q931(ctrl, &call->remote_id,
 			&invoke->args.qsig.CallTransferActive.connected);
 
 		/* connectedName is put in remote_id.name */
@@ -3878,7 +4224,6 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		if (!subcmd) {
 			send_facility_error(ctrl, call, invoke->invoke_id,
 				ROSE_ERROR_Gen_ResourceUnavailable);
-			pri_error(ctrl, "ERROR: Too many facility subcommands\n");
 			break;
 		}
 
@@ -3893,7 +4238,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		}
 
 		/* Rerouting to the new address. */
-		rose_copy_address_to_q931(ctrl, &deflection.to,
+		rose_copy_address_to_id_q931(ctrl, &deflection.to,
 			&invoke->args.qsig.CallRerouting.called);
 		switch (invoke->args.qsig.CallRerouting.subscription_option) {
 		default:
@@ -4072,7 +4417,6 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 			call->redirecting.state = Q931_REDIRECTING_STATE_IDLE;
 			subcmd = q931_alloc_subcommand(ctrl);
 			if (!subcmd) {
-				pri_error(ctrl, "ERROR: Too many facility subcommands\n");
 				break;
 			}
 			/* Setup redirecting subcommand */
@@ -4088,6 +4432,70 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 	case ROSE_QSIG_CfnrDivertedLegFailed:
 		break;
 #endif	/* Not handled yet */
+	case ROSE_QSIG_CcbsRequest:
+		pri_cc_qsig_request(ctrl, call, msgtype, invoke);
+		break;
+	case ROSE_QSIG_CcnrRequest:
+		pri_cc_qsig_request(ctrl, call, msgtype, invoke);
+		break;
+	case ROSE_QSIG_CcCancel:
+		pri_cc_qsig_cancel(ctrl, call, msgtype, invoke);
+		break;
+	case ROSE_QSIG_CcExecPossible:
+		pri_cc_qsig_exec_possible(ctrl, call, msgtype, invoke);
+		break;
+	case ROSE_QSIG_CcPathReserve:
+		/*!
+		 * \todo It may be possible for us to accept the ccPathReserve call.
+		 * We could certainly never initiate it.
+		 */
+		rose_error_msg_encode(ctrl, call, Q931_ANY_MESSAGE, invoke->invoke_id,
+			ROSE_ERROR_QSIG_FailedDueToInterworking);
+		call->cc.hangup_call = 1;
+		break;
+	case ROSE_QSIG_CcRingout:
+		if (msgtype != Q931_SETUP) {
+			/*
+			 * Ignore since it did not come in on the correct message.
+			 *
+			 * It could come in on a FACILITY message if we supported
+			 * incoming ccPathReserve calls.
+			 */
+			break;
+		}
+
+		q931_party_id_to_address(&party_address, &call->remote_id);
+		cc_record = pri_cc_find_by_addressing(ctrl, &party_address, &call->called,
+			call->cc.saved_ie_contents.length, call->cc.saved_ie_contents.data);
+		if (cc_record) {
+			/* Save off data to know how to send back any response. */
+			cc_record->response.signaling = call;
+			cc_record->response.invoke_operation = invoke->operation;
+			cc_record->response.invoke_id = invoke->invoke_id;
+
+			pri_cc_event(ctrl, call, cc_record, CC_EVENT_RECALL);
+		} else {
+			rose_error_msg_encode(ctrl, call, Q931_ANY_MESSAGE, invoke->invoke_id,
+				ROSE_ERROR_QSIG_FailureToMatch);
+			call->cc.hangup_call = 1;
+		}
+		break;
+	case ROSE_QSIG_CcSuspend:
+		cc_record = call->cc.record;
+		if (!cc_record) {
+			break;
+		}
+		cc_record->fsm.qsig.msgtype = msgtype;
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_SUSPEND);
+		break;
+	case ROSE_QSIG_CcResume:
+		cc_record = call->cc.record;
+		if (!cc_record) {
+			break;
+		}
+		cc_record->fsm.qsig.msgtype = msgtype;
+		pri_cc_event(ctrl, call, cc_record, CC_EVENT_RESUME);
+		break;
 #if 0	/* Not handled yet */
 	case ROSE_QSIG_MWIActivate:
 		break;

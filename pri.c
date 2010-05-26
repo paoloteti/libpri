@@ -40,11 +40,10 @@
 #include "libpri.h"
 #include "pri_internal.h"
 #include "pri_facility.h"
-#include "pri_q921.h"
-#include "pri_q931.h"
 
 #define PRI_BIT(a_bit)		(1UL << (a_bit))
 #define PRI_ALL_SWITCHES	0xFFFFFFFF
+#define PRI_ETSI_SWITCHES	(PRI_BIT(PRI_SWITCH_EUROISDN_E1) | PRI_BIT(PRI_SWITCH_EUROISDN_T1))
 
 struct pri_timer_table {
 	const char *name;
@@ -89,6 +88,27 @@ static const struct pri_timer_table pri_timer[] = {
 	{ "T-HOLD",         PRI_TIMER_T_HOLD,           PRI_ALL_SWITCHES },
 	{ "T-RETRIEVE",     PRI_TIMER_T_RETRIEVE,       PRI_ALL_SWITCHES },
 	{ "T-RESPONSE",     PRI_TIMER_T_RESPONSE,       PRI_ALL_SWITCHES },
+	{ "T-STATUS",       PRI_TIMER_T_STATUS,         PRI_ETSI_SWITCHES },
+	{ "T-ACTIVATE",     PRI_TIMER_T_ACTIVATE,       PRI_ETSI_SWITCHES },
+	{ "T-DEACTIVATE",   PRI_TIMER_T_DEACTIVATE,     PRI_ETSI_SWITCHES },
+	{ "T-INTERROGATE",  PRI_TIMER_T_INTERROGATE,    PRI_ETSI_SWITCHES },
+	{ "T-RETENTION",    PRI_TIMER_T_RETENTION,      PRI_ETSI_SWITCHES | PRI_BIT(PRI_SWITCH_QSIG) },
+	{ "T-CCBS1",        PRI_TIMER_T_CCBS1,          PRI_ETSI_SWITCHES },
+	{ "T-CCBS2",        PRI_TIMER_T_CCBS2,          PRI_ETSI_SWITCHES },
+	{ "T-CCBS3",        PRI_TIMER_T_CCBS3,          PRI_ETSI_SWITCHES },
+	{ "T-CCBS4",        PRI_TIMER_T_CCBS4,          PRI_ETSI_SWITCHES },
+	{ "T-CCBS5",        PRI_TIMER_T_CCBS5,          PRI_ETSI_SWITCHES },
+	{ "T-CCBS6",        PRI_TIMER_T_CCBS6,          PRI_ETSI_SWITCHES },
+	{ "T-CCNR2",        PRI_TIMER_T_CCNR2,          PRI_ETSI_SWITCHES },
+	{ "T-CCNR5",        PRI_TIMER_T_CCNR5,          PRI_ETSI_SWITCHES },
+	{ "T-CCNR6",        PRI_TIMER_T_CCNR6,          PRI_ETSI_SWITCHES },
+	{ "CC-T1",          PRI_TIMER_QSIG_CC_T1,       PRI_BIT(PRI_SWITCH_QSIG) },
+	{ "CCBS-T2",        PRI_TIMER_QSIG_CCBS_T2,     PRI_BIT(PRI_SWITCH_QSIG) },
+	{ "CCNR-T2",        PRI_TIMER_QSIG_CCNR_T2,     PRI_BIT(PRI_SWITCH_QSIG) },
+	{ "CC-T3",          PRI_TIMER_QSIG_CC_T3,       PRI_BIT(PRI_SWITCH_QSIG) },
+#if defined(QSIG_PATH_RESERVATION_SUPPORT)
+	{ "CC-T4",          PRI_TIMER_QSIG_CC_T4,       PRI_BIT(PRI_SWITCH_QSIG) },
+#endif	/* defined(QSIG_PATH_RESERVATION_SUPPORT) */
 /* *INDENT-ON* */
 };
 
@@ -165,6 +185,33 @@ static void pri_default_timers(struct pri *ctrl, int switchtype)
 	ctrl->timers[PRI_TIMER_T_RETRIEVE] = 4 * 1000;/* Wait for RETRIEVE request response. */
 
 	ctrl->timers[PRI_TIMER_T_RESPONSE] = 4 * 1000;	/* Maximum time to wait for a typical APDU response. */
+
+	/* ETSI timers */
+	ctrl->timers[PRI_TIMER_T_STATUS] = 4 * 1000;	/* Max time to wait for all replies to check for compatible terminals */
+	ctrl->timers[PRI_TIMER_T_ACTIVATE] = 10 * 1000;	/* Request supervision timeout. */
+	ctrl->timers[PRI_TIMER_T_DEACTIVATE] = 4 * 1000;/* Deactivate supervision timeout. */
+	ctrl->timers[PRI_TIMER_T_INTERROGATE] = 4 * 1000;/* Interrogation supervision timeout. */
+
+	/* ETSI call-completion timers */
+	ctrl->timers[PRI_TIMER_T_RETENTION] = 30 * 1000;/* Max time to wait for user A to activate call-completion. */
+	ctrl->timers[PRI_TIMER_T_CCBS1] = 4 * 1000;		/* T-STATUS timer equivalent for CC user A status. */
+	ctrl->timers[PRI_TIMER_T_CCBS2] = 45 * 60 * 1000;/* Max time the CCBS service will be active */
+	ctrl->timers[PRI_TIMER_T_CCBS3] = 20 * 1000;	/* Max time to wait for user A to respond to user B availability. */
+	ctrl->timers[PRI_TIMER_T_CCBS4] = 5 * 1000;		/* CC user B guard time before sending CC recall indication. */
+	ctrl->timers[PRI_TIMER_T_CCBS5] = 60 * 60 * 1000;/* Network B CCBS supervision timeout. */
+	ctrl->timers[PRI_TIMER_T_CCBS6] = 60 * 60 * 1000;/* Network A CCBS supervision timeout. */
+	ctrl->timers[PRI_TIMER_T_CCNR2] = 180 * 60 * 1000;/* Max time the CCNR service will be active */
+	ctrl->timers[PRI_TIMER_T_CCNR5] = 195 * 60 * 1000;/* Network B CCNR supervision timeout. */
+	ctrl->timers[PRI_TIMER_T_CCNR6] = 195 * 60 * 1000;/* Network A CCNR supervision timeout. */
+
+	/* Q.SIG call-completion timers */
+	ctrl->timers[PRI_TIMER_QSIG_CC_T1] = 30 * 1000;/* CC request supervision timeout. */
+	ctrl->timers[PRI_TIMER_QSIG_CCBS_T2] = 60 * 60 * 1000;/* CCBS supervision timeout. */
+	ctrl->timers[PRI_TIMER_QSIG_CCNR_T2] = 195 * 60 * 1000;/* CCNR supervision timeout. */
+	ctrl->timers[PRI_TIMER_QSIG_CC_T3] = 30 * 1000;/* Max time to wait for user A to respond to user B availability. */
+#if defined(QSIG_PATH_RESERVATION_SUPPORT)
+	ctrl->timers[PRI_TIMER_QSIG_CC_T4] = 40 * 1000;/* Path reservation supervision timeout. */
+#endif	/* defined(QSIG_PATH_RESERVATION_SUPPORT) */
 
 	/* Set any switch specific override default values */
 	switch (switchtype) {
@@ -246,6 +293,7 @@ void __pri_free_tei(struct pri * p)
 			pri_call_apdu_queue_cleanup(call);
 		}
 		free(p->msg_line);
+		free(p->sched.timer);
 		free(p);
 	}
 }
@@ -903,6 +951,52 @@ int pri_redirecting_update(struct pri *ctrl, q931_call *call, const struct pri_p
 	return 0;
 }
 
+#if defined(STATUS_REQUEST_PLACE_HOLDER)
+/*!
+ * \brief Poll/ping for the status of any "called" party.
+ *
+ * \param ctrl D channel controller.
+ * \param request_id The upper layer's ID number to match with the response in case
+ *		there are several requests at the same time.
+ * \param req Setup request for "called" party to determine the status.
+ *
+ * \note
+ * There could be one or more PRI_SUBCMD_STATUS_REQ_RSP to the status request
+ * depending upon how many endpoints respond to the request.
+ * (This includes the timeout termination response.)
+ * \note
+ * Could be used to poll for the status of call-completion party B.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+int pri_status_req(struct pri *ctrl, int request_id, const struct pri_sr *req)
+{
+	return -1;
+}
+#endif	/* defined(STATUS_REQUEST_PLACE_HOLDER) */
+
+#if defined(STATUS_REQUEST_PLACE_HOLDER)
+/*!
+ * \brief Response to a poll/ping request for status of any "called" party by libpri.
+ *
+ * \param ctrl D channel controller.
+ * \param invoke_id ID given by libpri when it requested the party status.
+ * \param status free(0)/busy(1)/incompatible(2)
+ *
+ * \note
+ * There could be zero, one, or more responses to the original
+ * status request depending upon how many endpoints respond to the request.
+ * \note
+ * Could be used to poll for the status of call-completion party B.
+ *
+ * \return Nothing
+ */
+void pri_status_req_rsp(struct pri *ctrl, int invoke_id, int status)
+{
+}
+#endif	/* defined(STATUS_REQUEST_PLACE_HOLDER) */
+
 #if 0
 /* deprecated routines, use pri_hangup */
 int pri_release(struct pri *pri, q931_call *call, int cause)
@@ -930,7 +1024,7 @@ int pri_channel_bridge(q931_call *call1, q931_call *call2)
 		return -1;
 
 	/* Check for bearer capability */
-	if (call1->transcapability != call2->transcapability)
+	if (call1->bc.transcapability != call2->bc.transcapability)
 		return -1;
 
 	/* Check to see if we're on the same PRI */
@@ -1040,7 +1134,7 @@ void pri_dump_event(struct pri *pri, pri_event *e)
 	}
 }
 
-static void pri_sr_init(struct pri_sr *req)
+void pri_sr_init(struct pri_sr *req)
 {
 	memset(req, 0, sizeof(struct pri_sr));
 	q931_party_redirecting_init(&req->redirecting);
@@ -1617,4 +1711,36 @@ int pri_reroute_call(struct pri *ctrl, q931_call *call, const struct pri_party_i
 	}
 
 	return send_reroute_request(ctrl, call, caller_id, &reroute, subscription_option);
+}
+
+void pri_cc_enable(struct pri *ctrl, int enable)
+{
+	if (ctrl) {
+		ctrl = PRI_MASTER(ctrl);
+		ctrl->cc_support = enable ? 1 : 0;
+	}
+}
+
+void pri_cc_recall_mode(struct pri *ctrl, int mode)
+{
+	if (ctrl) {
+		ctrl = PRI_MASTER(ctrl);
+		ctrl->cc.option.recall_mode = mode ? 1 : 0;
+	}
+}
+
+void pri_cc_retain_signaling_req(struct pri *ctrl, int signaling_retention)
+{
+	if (ctrl && 0 <= signaling_retention && signaling_retention < 3) {
+		ctrl = PRI_MASTER(ctrl);
+		ctrl->cc.option.signaling_retention_req = signaling_retention;
+	}
+}
+
+void pri_cc_retain_signaling_rsp(struct pri *ctrl, int signaling_retention)
+{
+	if (ctrl) {
+		ctrl = PRI_MASTER(ctrl);
+		ctrl->cc.option.signaling_retention_rsp = signaling_retention ? 1 : 0;
+	}
 }

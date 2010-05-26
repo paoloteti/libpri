@@ -238,6 +238,135 @@ const unsigned char *rose_dec_etsi_EctLoopTest_RES(struct pri *ctrl, unsigned ta
 	const unsigned char *pos, const unsigned char *end,
 	union rose_msg_result_args *args);
 
+/* ETSI Status Request */
+unsigned char *rose_enc_etsi_StatusRequest_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_StatusRequest_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+
+const unsigned char *rose_dec_etsi_StatusRequest_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_StatusRequest_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+
+/* ETSI Call-Completion Busy Status (CCBS) / Call-Completion No Reply (CCNR) */
+unsigned char *rose_enc_etsi_CallInfoRetain_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_EraseCallLinkageID_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCBSDeactivate_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCBSErase_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCBSRemoteUserFree_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCBSCall_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCBSBFree_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCBSStopAlerting_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCBSStatusRequest_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCBSStatusRequest_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_etsi_CCBSRequest_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCNRRequest_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCBSRequest_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_etsi_CCNRRequest_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_etsi_CCBSInterrogate_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCNRInterrogate_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCBSInterrogate_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_etsi_CCNRInterrogate_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+
+const unsigned char *rose_dec_etsi_CallInfoRetain_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_EraseCallLinkageID_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCBSDeactivate_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCBSErase_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCBSRemoteUserFree_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCBSCall_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCBSBFree_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCBSStopAlerting_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCBSStatusRequest_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCBSStatusRequest_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_etsi_CCBSRequest_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCNRRequest_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCBSRequest_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_etsi_CCNRRequest_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_etsi_CCBSInterrogate_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCNRInterrogate_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCBSInterrogate_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_etsi_CCNRInterrogate_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+
+/* ETSI CCBS-T/CCNR-T */
+unsigned char *rose_enc_etsi_CCBS_T_Request_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCNR_T_Request_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_CCBS_T_Request_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_etsi_CCNR_T_Request_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+
+const unsigned char *rose_dec_etsi_CCBS_T_Request_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCNR_T_Request_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_CCBS_T_Request_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_etsi_CCNR_T_Request_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+
 /* Q.SIG Name-Operations */
 unsigned char *rose_enc_qsig_Name(struct pri *ctrl, unsigned char *pos,
 	unsigned char *end, const struct roseQsigName *name);
@@ -413,6 +542,64 @@ const unsigned char *rose_dec_qsig_CallTransferUpdate_ARG(struct pri *ctrl, unsi
 	const unsigned char *pos, const unsigned char *end,
 	union rose_msg_invoke_args *args);
 const unsigned char *rose_dec_qsig_SubaddressTransfer_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+
+/* Q.SIG SS-CC-Operations */
+unsigned char *rose_enc_qsig_CcbsRequest_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_qsig_CcnrRequest_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_qsig_CcbsRequest_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_qsig_CcnrRequest_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enq_qsig_CcCancel_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enq_qsig_CcExecPossible_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_qsig_CcPathReserve_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_qsig_CcPathReserve_RES(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_result_args *args);
+unsigned char *rose_enc_qsig_CcRingout_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_qsig_CcSuspend_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_qsig_CcResume_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+
+const unsigned char *rose_dec_qsig_CcbsRequest_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_CcnrRequest_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_CcbsRequest_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_qsig_CcnrRequest_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_qsig_CcCancel_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_CcExecPossible_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_CcPathReserve_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_CcPathReserve_RES(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_result_args *args);
+const unsigned char *rose_dec_qsig_CcRingout_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_CcSuspend_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_qsig_CcResume_ARG(struct pri *ctrl, unsigned tag,
 	const unsigned char *pos, const unsigned char *end,
 	union rose_msg_invoke_args *args);
 

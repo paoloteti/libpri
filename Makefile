@@ -47,16 +47,19 @@ STATIC_OBJS= \
 	q921.o \
 	prisched.o \
 	q931.o \
+	pri_cc.o \
 	pri_facility.o \
 	asn1_primitive.o \
 	rose.o \
 	rose_address.o \
 	rose_etsi_aoc.o \
+	rose_etsi_cc.o \
 	rose_etsi_diversion.o \
 	rose_etsi_ect.o \
 	rose_other.o \
 	rose_q931.o \
 	rose_qsig_aoc.o \
+	rose_qsig_cc.o \
 	rose_qsig_ct.o \
 	rose_qsig_diversion.o \
 	rose_qsig_mwi.o \
@@ -68,16 +71,19 @@ DYNAMIC_OBJS= \
 	q921.lo \
 	prisched.lo \
 	q931.lo \
+	pri_cc.lo \
 	pri_facility.lo \
 	asn1_primitive.lo \
 	rose.lo \
 	rose_address.lo \
 	rose_etsi_aoc.lo \
+	rose_etsi_cc.lo \
 	rose_etsi_diversion.lo \
 	rose_etsi_ect.lo \
 	rose_other.lo \
 	rose_q931.lo \
 	rose_qsig_aoc.lo \
+	rose_qsig_cc.lo \
 	rose_qsig_ct.lo \
 	rose_qsig_diversion.lo \
 	rose_qsig_mwi.lo \
