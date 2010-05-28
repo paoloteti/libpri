@@ -98,6 +98,7 @@
 #define PRI_EVENT_RETRIEVE		24	/* RETRIEVE request received */
 #define PRI_EVENT_RETRIEVE_ACK	25	/* RETRIEVE_ACKNOWLEDGE received */
 #define PRI_EVENT_RETRIEVE_REJ	26	/* RETRIEVE_REJECT received */
+#define PRI_EVENT_CONNECT_ACK	27	/* CONNECT_ACKNOWLEDGE received */
 
 /* Simple states */
 #define PRI_STATE_DOWN		0
@@ -1160,6 +1161,13 @@ struct pri_event_retrieve_rej {
 	struct pri_subcommands *subcmds;
 };
 
+struct pri_event_connect_ack {
+	int e;
+	int channel;
+	q931_call *call;
+	struct pri_subcommands *subcmds;
+};
+
 typedef union {
 	int e;
 	pri_event_generic gen;		/* Generic view */
@@ -1184,6 +1192,7 @@ typedef union {
 	struct pri_event_retrieve retrieve;
 	struct pri_event_retrieve_ack retrieve_ack;
 	struct pri_event_retrieve_rej retrieve_rej;
+	struct pri_event_connect_ack connect_ack;
 } pri_event;
 
 struct pri;
@@ -1284,9 +1293,32 @@ int pri_keypad_facility(struct pri *pri, q931_call *call, const char *digits);
    Set non-isdn to non-zero if you are not connecting to ISDN equipment */
 int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
-/* Answer the call on the given channel (ignored if you called acknowledge already).
+/* Answer(CONNECT) the call on the given channel.
    Set non-isdn to non-zero if you are not connecting to ISDN equipment */
 int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn);
+
+/*!
+ * \brief Send the manual CONNECT_ACKNOWLEDGE message.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param channel Selected channel to assign to the call waiting call.
+ * Zero if do not include the channel id ie in the CONNECT_ACKNOWLEDGE message.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+int pri_connect_ack(struct pri *ctrl, q931_call *call, int channel);
+
+/*!
+ * \brief Set the manual CONNECT_ACKNOWLEDGE message enable flag.
+ *
+ * \param ctrl D channel controller.
+ * \param enable TRUE to enable manual CONNECT_ACKNOWLEDGE message feature.
+ *
+ * \return Nothing
+ */
+void pri_connect_ack_enable(struct pri *ctrl, int enable);
 
 /*!
  * \brief Give connected line information to a call

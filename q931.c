@@ -1063,6 +1063,10 @@ static int transmit_channel_id(int full_ie, struct pri *ctrl, q931_call *call, i
 	}
 	if (call->chanflags & FLAG_EXCLUSIVE) {
 		/* Channel is exclusive */
+		if (!(ie->data[pos] & 0x03)) {
+			/* An exclusive no channel id ie is to be discarded. */
+			return 0;
+		}
 		ie->data[pos] |= 0x08;
 	} else if (!call->chanflags) {
 		/* Don't need this IE */
@@ -5179,20 +5183,6 @@ static int q931_release_complete(struct pri *ctrl, q931_call *c, int cause)
 	return res;
 }
 
-static int connect_acknowledge_ies[] = { -1 };
-
-static int gr303_connect_acknowledge_ies[] = { Q931_CHANNEL_IDENT, -1 };
-
-static int q931_connect_acknowledge(struct pri *ctrl, q931_call *c)
-{
-	if (ctrl->subchannel && !ctrl->bri) {
-		if (ctrl->localtype == PRI_CPE)
-			return send_message(ctrl, c, Q931_CONNECT_ACKNOWLEDGE, gr303_connect_acknowledge_ies);
-	} else
-		return send_message(ctrl, c, Q931_CONNECT_ACKNOWLEDGE, connect_acknowledge_ies);
-	return 0;
-}
-
 /*!
  * \brief Find the winning subcall if it exists or current call if not outboundbroadcast.
  *
@@ -5216,6 +5206,49 @@ struct q931_call *q931_find_winning_call(struct q931_call *call)
 		}
 	}
 	return call;
+}
+
+static int connect_ack_ies[] = { -1 };
+static int connect_ack_w_chan_id_ies[] = { Q931_CHANNEL_IDENT, -1 };
+static int gr303_connect_ack_ies[] = { Q931_CHANNEL_IDENT, -1 };
+
+int q931_connect_acknowledge(struct pri *ctrl, q931_call *call, int channel)
+{
+	int *use_ies;
+	struct q931_call *winner;
+
+	winner = q931_find_winning_call(call);
+	if (!winner) {
+		return -1;
+	}
+
+	if (winner != call) {
+		UPDATE_OURCALLSTATE(ctrl, call, Q931_CALL_STATE_ACTIVE);
+		call->peercallstate = Q931_CALL_STATE_ACTIVE;
+	}
+	UPDATE_OURCALLSTATE(ctrl, winner, Q931_CALL_STATE_ACTIVE);
+	winner->peercallstate = Q931_CALL_STATE_ACTIVE;
+	if (channel) {
+		winner->ds1no = (channel & 0xff00) >> 8;
+		winner->ds1explicit = (channel & 0x10000) >> 16;
+		winner->channelno = channel & 0xff;
+		winner->chanflags &= ~FLAG_PREFERRED;
+		winner->chanflags |= FLAG_EXCLUSIVE;
+	}
+	use_ies = NULL;
+	if (ctrl->subchannel && !ctrl->bri) {
+		if (ctrl->localtype == PRI_CPE) {
+			use_ies = gr303_connect_ack_ies;
+		}
+	} else if (channel) {
+		use_ies = connect_ack_w_chan_id_ies;
+	} else {
+		use_ies = connect_ack_ies;
+	}
+	if (use_ies) {
+		return send_message(ctrl, winner, Q931_CONNECT_ACKNOWLEDGE, use_ies);
+	}
+	return 0;
 }
 
 /*!
@@ -5693,6 +5726,8 @@ static int __q931_hangup(struct pri *ctrl, q931_call *c, int cause)
 			release_compl = 1;
 			break;
 		}
+		/* Fall through */
+	case PRI_CAUSE_INCOMPATIBLE_DESTINATION:
 		/* See Q.931 Section 5.3.2 a) */
 		switch (c->ourcallstate) {
 		case Q931_CALL_STATE_NULL:
@@ -5704,6 +5739,13 @@ static int __q931_hangup(struct pri *ctrl, q931_call *c, int cause)
 			 */
 			disconnect = 0;
 			release_compl = 1;
+			break;
+		case Q931_CALL_STATE_CONNECT_REQUEST:
+			/*
+			 * Send RELEASE because the B channel negotiation failed
+			 * for call waiting.
+			 */
+			disconnect = 0;
 			break;
 		default:
 			/*
@@ -7291,8 +7333,6 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			q931_status(ctrl, c, PRI_CAUSE_WRONG_MESSAGE);
 			break;
 		}
-		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_ACTIVE);
-		c->peercallstate = Q931_CALL_STATE_CONNECT_REQUEST;
 
 		ctrl->ev.e = PRI_EVENT_ANSWER;
 		ctrl->ev.answer.subcmds = &ctrl->subcmds;
@@ -7304,7 +7344,12 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		libpri_copy_string(ctrl->ev.answer.useruserinfo, c->useruserinfo, sizeof(ctrl->ev.answer.useruserinfo));
 		c->useruserinfo[0] = '\0';
 
-		q931_connect_acknowledge(ctrl, c);
+		if (!PRI_MASTER(ctrl)->manual_connect_ack) {
+			q931_connect_acknowledge(ctrl, c, 0);
+		} else {
+			UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_CONNECT_REQUEST);
+			c->peercallstate = Q931_CALL_STATE_CONNECT_REQUEST;
+		}
 
 		if (c->cis_auto_disconnect && c->cis_call) {
 			/* Make sure WE release when we initiate a signalling only connection */
@@ -7390,14 +7435,26 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			q931_release_complete(ctrl,c,PRI_CAUSE_INVALID_CALL_REFERENCE);
 			break;
 		}
-		if (!(c->ourcallstate == Q931_CALL_STATE_CONNECT_REQUEST) &&
-		    !(c->ourcallstate == Q931_CALL_STATE_ACTIVE &&
-		      (ctrl->localtype == PRI_NETWORK || ctrl->switchtype == PRI_SWITCH_QSIG))) {
-			q931_status(ctrl,c,PRI_CAUSE_WRONG_MESSAGE);
+		switch (c->ourcallstate) {
+		default:
+			if (ctrl->localtype == PRI_NETWORK || ctrl->switchtype == PRI_SWITCH_QSIG) {
+				q931_status(ctrl, c, PRI_CAUSE_WRONG_MESSAGE);
+				break;
+			}
+			/* Fall through */
+		case Q931_CALL_STATE_CONNECT_REQUEST:
+		case Q931_CALL_STATE_ACTIVE:
+			UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_ACTIVE);
+			c->peercallstate = Q931_CALL_STATE_ACTIVE;
+			if (PRI_MASTER(ctrl)->manual_connect_ack) {
+				ctrl->ev.e = PRI_EVENT_CONNECT_ACK;
+				ctrl->ev.connect_ack.subcmds = &ctrl->subcmds;
+				ctrl->ev.connect_ack.channel = q931_encode_channel(c);
+				ctrl->ev.connect_ack.call = c->master_call;
+				return Q931_RES_HAVEEVENT;
+			}
 			break;
 		}
-		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_ACTIVE);
-		c->peercallstate = Q931_CALL_STATE_ACTIVE;
 		break;
 	case Q931_STATUS:
 		if (missingmand) {

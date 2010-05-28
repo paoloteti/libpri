@@ -108,6 +108,7 @@ struct pri {
 	unsigned int cc_support:1;/* TRUE if upper layer supports call completion. */
 	unsigned int transfer_support:1;/* TRUE if the upper layer supports ECT */
 	unsigned int aoc_support:1;/* TRUE if can send AOC events to the upper layer. */
+	unsigned int manual_connect_ack:1;/* TRUE if the CONNECT_ACKNOWLEDGE is sent with API call */
 
 	/* MDL variables */
 	int mdl_error;

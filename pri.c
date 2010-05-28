@@ -507,6 +507,7 @@ char *pri_event2str(int id)
 		{ PRI_EVENT_RETRIEVE,       "Retrieve" },
 		{ PRI_EVENT_RETRIEVE_ACK,   "Retrieve ACK" },
 		{ PRI_EVENT_RETRIEVE_REJ,   "Retrieve Rej" },
+		{ PRI_EVENT_CONNECT_ACK,    "Connect ACK" },
 /* *INDENT-ON* */
 	};
 
@@ -691,6 +692,22 @@ int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn)
 	if (!pri || !call)
 		return -1;
 	return q931_connect(pri, call, channel, nonisdn);
+}
+
+int pri_connect_ack(struct pri *ctrl, q931_call *call, int channel)
+{
+	if (!ctrl || !call) {
+		return -1;
+	}
+	return q931_connect_acknowledge(ctrl, call, channel);
+}
+
+void pri_connect_ack_enable(struct pri *ctrl, int enable)
+{
+	if (ctrl) {
+		ctrl = PRI_MASTER(ctrl);
+		ctrl->manual_connect_ack = enable ? 1 : 0;
+	}
 }
 
 /*!
