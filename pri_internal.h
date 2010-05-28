@@ -107,6 +107,7 @@ struct pri {
 	unsigned int hangup_fix_enabled:1;/* TRUE if should follow Q.931 Section 5.3.2 instead of blindly sending RELEASE_COMPLETE for certain causes */
 	unsigned int cc_support:1;/* TRUE if upper layer supports call completion. */
 	unsigned int transfer_support:1;/* TRUE if the upper layer supports ECT */
+	unsigned int aoc_support:1;/* TRUE if can send AOC events to the upper layer. */
 
 	/* MDL variables */
 	int mdl_error;

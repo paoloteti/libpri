@@ -47,6 +47,7 @@ STATIC_OBJS= \
 	q921.o \
 	prisched.o \
 	q931.o \
+	pri_aoc.o \
 	pri_cc.o \
 	pri_facility.o \
 	asn1_primitive.o \
@@ -71,6 +72,7 @@ DYNAMIC_OBJS= \
 	q921.lo \
 	prisched.lo \
 	q931.lo \
+	pri_aoc.lo \
 	pri_cc.lo \
 	pri_facility.lo \
 	asn1_primitive.lo \

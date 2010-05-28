@@ -245,4 +245,11 @@ void pri_cc_qsig_request(struct pri *ctrl, q931_call *call, int msgtype, const s
 void pri_cc_qsig_cancel(struct pri *ctrl, q931_call *call, int msgtype, const struct rose_msg_invoke *invoke);
 void pri_cc_qsig_exec_possible(struct pri *ctrl, q931_call *call, int msgtype, const struct rose_msg_invoke *invoke);
 
+void aoc_etsi_aoc_s_currency(struct pri *ctrl, const struct rose_msg_invoke *invoke);
+void aoc_etsi_aoc_s_special_arrangement(struct pri *ctrl, const struct rose_msg_invoke *invoke);
+void aoc_etsi_aoc_d_currency(struct pri *ctrl, const struct rose_msg_invoke *invoke);
+void aoc_etsi_aoc_d_charging_unit(struct pri *ctrl, const struct rose_msg_invoke *invoke);
+void aoc_etsi_aoc_e_currency(struct pri *ctrl, q931_call *call, const struct rose_msg_invoke *invoke);
+void aoc_etsi_aoc_e_charging_unit(struct pri *ctrl, q931_call *call, const struct rose_msg_invoke *invoke);
+
 #endif /* _PRI_FACILITY_H */

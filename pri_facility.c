@@ -2700,82 +2700,6 @@ static enum rose_error_code etsi_explicit_ect_execute_transfer(struct pri *ctrl,
 	return error_code;
 }
 
-/* AOC */
-/*!
- * \internal
- * \brief Encode the ETSI AOCEChargingUnit invoke message.
- *
- * \param ctrl D channel controller for diagnostic messages or global options.
- * \param pos Starting position to encode the facility ie contents.
- * \param end End of facility ie contents encoding data buffer.
- * \param chargedunits Number of units charged to encode.
- *
- * \retval Start of the next ASN.1 component to encode on success.
- * \retval NULL on error.
- */
-static unsigned char *enc_etsi_aoce_charging_unit(struct pri *ctrl, unsigned char *pos,
-	unsigned char *end, long chargedunits)
-{
-	struct rose_msg_invoke msg;
-
-	pos = facility_encode_header(ctrl, pos, end, NULL);
-	if (!pos) {
-		return NULL;
-	}
-
-	memset(&msg, 0, sizeof(msg));
-	msg.operation = ROSE_ETSI_AOCEChargingUnit;
-	msg.invoke_id = get_invokeid(ctrl);
-	msg.args.etsi.AOCEChargingUnit.type = 1;	/* charging_unit */
-	if (chargedunits <= 0) {
-		msg.args.etsi.AOCEChargingUnit.charging_unit.free_of_charge = 1;
-	} else {
-		msg.args.etsi.AOCEChargingUnit.charging_unit.specific.recorded.num_records = 1;
-		msg.args.etsi.AOCEChargingUnit.charging_unit.specific.recorded.list[0].
-			number_of_units = chargedunits;
-	}
-	pos = rose_encode_invoke(ctrl, pos, end, &msg);
-
-	return pos;
-}
-
-/*!
- * \internal
- * \brief Send the ETSI AOCEChargingUnit invoke message.
- *
- * \param ctrl D channel controller for diagnostic messages or global options.
- * \param call Call leg from which to encode AOC.
- * \param chargedunits Number of units charged to encode.
- *
- * \retval 0 on success.
- * \retval -1 on error.
- */
-static int aoc_aoce_charging_unit_encode(struct pri *ctrl, q931_call *call,
-	long chargedunits)
-{
-	unsigned char buffer[255];
-	unsigned char *end;
-
-	/* sample data: [ 91 a1 12 02 02 3a 78 02 01 24 30 09 30 07 a1 05 30 03 02 01 01 ] */
-
-	end =
-		enc_etsi_aoce_charging_unit(ctrl, buffer, buffer + sizeof(buffer), chargedunits);
-	if (!end) {
-		return -1;
-	}
-
-	/* Remember that if we queue a facility IE for a facility message we
-	 * have to explicitly send the facility message ourselves */
-	if (pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL)
-		|| q931_facility(call->pri, call)) {
-		pri_message(ctrl, "Could not schedule facility message for call %d\n", call->cr);
-		return -1;
-	}
-
-	return 0;
-}
-/* End AOC */
-
 /* ===== Call Transfer Supplementary Service (ECMA-178) ===== */
 
 /*!
@@ -4129,40 +4053,23 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 	case ROSE_ETSI_ChargingRequest:
 		/* Ignore messsage */
 		break;
-#if 0	/* Not handled yet */
 	case ROSE_ETSI_AOCSCurrency:
+		aoc_etsi_aoc_s_currency(ctrl, invoke);
 		break;
 	case ROSE_ETSI_AOCSSpecialArr:
+		aoc_etsi_aoc_s_special_arrangement(ctrl, invoke);
 		break;
 	case ROSE_ETSI_AOCDCurrency:
+		aoc_etsi_aoc_d_currency(ctrl, invoke);
 		break;
 	case ROSE_ETSI_AOCDChargingUnit:
+		aoc_etsi_aoc_d_charging_unit(ctrl, invoke);
 		break;
 	case ROSE_ETSI_AOCECurrency:
+		aoc_etsi_aoc_e_currency(ctrl, call, invoke);
 		break;
-#endif	/* Not handled yet */
 	case ROSE_ETSI_AOCEChargingUnit:
-		call->aoc_units = 0;
-		if (invoke->args.etsi.AOCEChargingUnit.type == 1
-			&& !invoke->args.etsi.AOCEChargingUnit.charging_unit.free_of_charge) {
-			unsigned index;
-
-			for (index =
-				invoke->args.etsi.AOCEChargingUnit.charging_unit.specific.recorded.
-				num_records; index--;) {
-				if (!invoke->args.etsi.AOCEChargingUnit.charging_unit.specific.recorded.
-					list[index].not_available) {
-					call->aoc_units +=
-						invoke->args.etsi.AOCEChargingUnit.charging_unit.specific.
-						recorded.list[index].number_of_units;
-				}
-			}
-		}
-		/* the following function is currently not used - just to make the compiler happy */
-		if (0) {
-			/* use this function to forward the aoc-e on a bridged channel */
-			aoc_aoce_charging_unit_encode(ctrl, call, call->aoc_units);
-		}
+		aoc_etsi_aoc_e_charging_unit(ctrl, call, invoke);
 		break;
 #if 0	/* Not handled yet */
 	case ROSE_ITU_IdentificationOfCharge:

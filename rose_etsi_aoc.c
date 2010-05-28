@@ -623,8 +623,13 @@ unsigned char *rose_enc_etsi_AOCSCurrency_ARG(struct pri *ctrl, unsigned char *p
 		ASN1_CALL(pos, asn1_enc_null(pos, end, ASN1_TYPE_NULL));
 		break;
 	case 1:	/* currency_info_list */
-		ASN1_CALL(pos, rose_enc_etsi_AOCSCurrencyInfoList(ctrl, pos, end,
-			ASN1_TAG_SEQUENCE, &args->etsi.AOCSCurrency.currency_info));
+		if (args->etsi.AOCSCurrency.currency_info.num_records) {
+			ASN1_CALL(pos, rose_enc_etsi_AOCSCurrencyInfoList(ctrl, pos, end,
+				ASN1_TAG_SEQUENCE, &args->etsi.AOCSCurrency.currency_info));
+		} else {
+			/* There were no records so encode as charge_not_available */
+			ASN1_CALL(pos, asn1_enc_null(pos, end, ASN1_TYPE_NULL));
+		}
 		break;
 	default:
 		ASN1_ENC_ERROR(ctrl, "Unknown AOCSCurrency type");
