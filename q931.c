@@ -2437,17 +2437,18 @@ static int transmit_facility(int full_ie, struct pri *ctrl, q931_call *call, int
 	cur->sent = 1;
 
 	if (cur->response.callback && cur->response.timeout_time) {
-		int duration;
+		int failed;
 
 		if (0 < cur->response.timeout_time) {
-			/* Sender specified timeout duration. */
-			duration = cur->response.timeout_time;
+			/* Sender specified a timeout duration. */
+			cur->timer = pri_schedule_event(ctrl, cur->response.timeout_time,
+				q931_apdu_timeout, cur);
+			failed = !cur->timer;
 		} else {
-			/* Sender wants to use the typical timeout duration. */
-			duration = ctrl->timers[PRI_TIMER_T_RESPONSE];
+			/* Sender wants to "timeout" only when specified messages are received. */
+			failed = !cur->response.num_messages;
 		}
-		cur->timer = pri_schedule_event(ctrl, duration, q931_apdu_timeout, cur);
-		if (!cur->timer) {
+		if (failed) {
 			/* Remove APDU from list. */
 			*prev = cur->next;
 
@@ -2456,7 +2457,7 @@ static int transmit_facility(int full_ie, struct pri *ctrl, q931_call *call, int
 
 			free(cur);
 		}
-	} else if (!cur->timer) {
+	} else {
 		/* Remove APDU from list. */
 		*prev = cur->next;
 		free(cur);
@@ -2573,6 +2574,52 @@ static void q931_handle_facilities(struct pri *ctrl, q931_call *call, int msgtyp
 			pri_message(ctrl, "-- Delayed processing IE %d (cs%d, %s)\n", ie->ie, codeset, ie2str(full_ie));
 		}
 		process_facility(ctrl, call, msgtype, ie);
+	}
+}
+
+/*!
+ * \internal
+ * \brief Check if any APDU responses "timeout" with the current Q.931 message.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param msgtype Q.931 message type received.
+ *
+ * \return Nothing
+ */
+static void q931_apdu_msg_expire(struct pri *ctrl, struct q931_call *call, int msgtype)
+{
+	struct apdu_event **prev;
+	struct apdu_event **prev_next;
+	struct apdu_event *cur;
+	unsigned idx;
+
+	for (prev = &call->apdus; *prev; prev = prev_next) {
+		cur = *prev;
+		prev_next = &cur->next;
+		if (cur->sent) {
+			for (idx = 0; idx < cur->response.num_messages; ++idx) {
+				if (cur->response.message_type[idx] == msgtype) {
+					/*
+					 * APDU response message "timeout".
+					 *
+					 * Extract the APDU from the list so it cannot be
+					 * deleted from under us by the callback.
+					 */
+					prev_next = prev;
+					*prev = cur->next;
+
+					/* Stop any response timeout. */
+					pri_schedule_del(ctrl, cur->timer);
+					cur->timer = 0;
+
+					cur->response.callback(APDU_CALLBACK_REASON_TIMEOUT, ctrl, call, cur, NULL);
+
+					free(cur);
+					break;
+				}
+			}
+		}
 	}
 }
 
@@ -5093,6 +5140,8 @@ int q931_setup(struct pri *ctrl, q931_call *c, struct pri_sr *req)
 
 	c->reversecharge = req->reversecharge;
 
+	c->aoc_charging_request = req->aoc_charging_request;
+
 	pri_call_add_standard_apdus(ctrl, c);
 
 	/* Save the initial cc-parties. */
@@ -6423,6 +6472,7 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 		/* Now handle the facility ie's after all the other ie's were processed. */
 		q931_handle_facilities(ctrl, c, mh->msg);
 	}
+	q931_apdu_msg_expire(ctrl, c, mh->msg);
 
 	/* Post handling */
 	switch (h->pd) {
@@ -6436,6 +6486,9 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 
 		if (c->master_call->outboundbroadcast) {
 			nt_ptmp_handle_q931_message(ctrl, mh, c, &allow_event, &allow_posthandle);
+			if (allow_event) {
+				q931_apdu_msg_expire(ctrl, c->master_call, mh->msg);
+			}
 		}
 
 		if (allow_posthandle) {

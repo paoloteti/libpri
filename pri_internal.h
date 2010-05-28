@@ -366,6 +366,7 @@ struct pri_sr {
 	const char *keypad_digits;
 	int transferable;
 	int reversecharge;
+	int aoc_charging_request;
 };
 
 /* Internal switch types */
@@ -632,6 +633,9 @@ struct q931_call {
 		/*! TRUE if outgoing call was already redirected. */
 		unsigned char initially_redirected;
 	} cc;
+
+	/* AOC charge requesting on Setup */
+	int aoc_charging_request;
 };
 
 enum CC_STATES {

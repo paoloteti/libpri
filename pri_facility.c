@@ -3296,6 +3296,9 @@ int pri_call_add_standard_apdus(struct pri *ctrl, q931_call *call)
 	switch (ctrl->switchtype) {
 	case PRI_SWITCH_EUROISDN_E1:
 	case PRI_SWITCH_EUROISDN_T1:
+		if (call->aoc_charging_request) {
+			aoc_charging_request_send(ctrl, call, call->aoc_charging_request);
+		}
 		if (PTMP_MODE(ctrl)) {
 			/* PTMP mode */
 			break;
@@ -4336,7 +4339,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		}
 		break;
 	case ROSE_ETSI_ChargingRequest:
-		/* Ignore messsage */
+		aoc_etsi_aoc_request(ctrl, call, invoke);
 		break;
 	case ROSE_ETSI_AOCSCurrency:
 		aoc_etsi_aoc_s_currency(ctrl, invoke);

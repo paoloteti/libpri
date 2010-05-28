@@ -128,15 +128,21 @@ union apdu_callback_param {
 /* So calls to pri_call_apdu_find() will not find an aliased event. */
 #define APDU_INVALID_INVOKE_ID  0x10000
 
+#define APDU_TIMEOUT_MSGS_ONLY	-1
+
 struct apdu_callback_data {
 	/*! APDU invoke id to match with any response messages. (Result/Error/Reject) */
 	int invoke_id;
 	/*!
 	 * \brief Time to wait for responses to APDU in ms.
 	 * \note Set to 0 if send the message only.
-	 * \note Set to less than 0 for PRI_TIMER_T_RESPONSE time.
+	 * \note Set to APDU_TIMEOUT_MSGS_ONLY to "timeout" with the message_type list only.
 	 */
 	int timeout_time;
+	/*! Number of Q.931 messages the APDU can "timeout" on. */
+	unsigned num_messages;
+	/*! Q.931 message list to "timeout" on. */
+	int message_type[5];
 	/*!
 	 * \brief APDU callback function.
 	 *
@@ -245,6 +251,8 @@ void pri_cc_qsig_request(struct pri *ctrl, q931_call *call, int msgtype, const s
 void pri_cc_qsig_cancel(struct pri *ctrl, q931_call *call, int msgtype, const struct rose_msg_invoke *invoke);
 void pri_cc_qsig_exec_possible(struct pri *ctrl, q931_call *call, int msgtype, const struct rose_msg_invoke *invoke);
 
+int aoc_charging_request_send(struct pri *ctrl, q931_call *c, enum PRI_AOC_REQUEST aoc_request_flag);
+void aoc_etsi_aoc_request(struct pri *ctrl, q931_call *call, const struct rose_msg_invoke *invoke);
 void aoc_etsi_aoc_s_currency(struct pri *ctrl, const struct rose_msg_invoke *invoke);
 void aoc_etsi_aoc_s_special_arrangement(struct pri *ctrl, const struct rose_msg_invoke *invoke);
 void aoc_etsi_aoc_d_currency(struct pri *ctrl, const struct rose_msg_invoke *invoke);
