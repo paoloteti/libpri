@@ -126,7 +126,7 @@ unsigned char *rose_enc_qsig_MWIActivate_ARG(struct pri *ctrl, unsigned char *po
 	}
 	if (mwi_activate->timestamp_present) {
 		ASN1_CALL(pos, asn1_enc_string_max(pos, end, ASN1_TYPE_GENERALIZED_TIME,
-			mwi_activate->timestamp, sizeof(mwi_activate->timestamp) - 1));
+			mwi_activate->timestamp.str, sizeof(mwi_activate->timestamp.str) - 1));
 	}
 	if (mwi_activate->priority_present) {
 		ASN1_CALL(pos, asn1_enc_int(pos, end, ASN1_CLASS_CONTEXT_SPECIFIC | 5,
@@ -254,7 +254,7 @@ static unsigned char *rose_enc_qsig_MWIInterrogateResElt(struct pri *ctrl,
 	}
 	if (record->timestamp_present) {
 		ASN1_CALL(pos, asn1_enc_string_max(pos, end, ASN1_TYPE_GENERALIZED_TIME,
-			record->timestamp, sizeof(record->timestamp) - 1));
+			record->timestamp.str, sizeof(record->timestamp.str) - 1));
 	}
 	if (record->priority_present) {
 		ASN1_CALL(pos, asn1_enc_int(pos, end, ASN1_CLASS_CONTEXT_SPECIFIC | 5,
@@ -450,7 +450,8 @@ const unsigned char *rose_dec_qsig_MWIActivate_ARG(struct pri *ctrl, unsigned ta
 			break;
 		case ASN1_TYPE_GENERALIZED_TIME:
 			ASN1_CALL(pos, asn1_dec_string_max(ctrl, "timestamp", tag, pos, end,
-				sizeof(mwi_activate->timestamp), mwi_activate->timestamp, &str_len));
+				sizeof(mwi_activate->timestamp.str), mwi_activate->timestamp.str,
+				&str_len));
 			mwi_activate->timestamp_present = 1;
 			break;
 		case ASN1_CLASS_CONTEXT_SPECIFIC | 5:
@@ -710,7 +711,7 @@ static const unsigned char *rose_dec_qsig_MWIInterrogateResElt(struct pri *ctrl,
 			break;
 		case ASN1_TYPE_GENERALIZED_TIME:
 			ASN1_CALL(pos, asn1_dec_string_max(ctrl, "timestamp", tag, pos, end,
-				sizeof(record->timestamp), record->timestamp, &str_len));
+				sizeof(record->timestamp.str), record->timestamp.str, &str_len));
 			record->timestamp_present = 1;
 			break;
 		case ASN1_CLASS_CONTEXT_SPECIFIC | 5:

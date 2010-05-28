@@ -240,6 +240,14 @@ static const struct asn1_oid rose_etsi_ccnr_t = {
 /* *INDENT-ON* */
 };
 
+/*! \brief ETSI Message Waiting Indication OID prefix. */
+static const struct asn1_oid rose_etsi_mwi = {
+/* *INDENT-OFF* */
+	/* {ccitt(0) identified-organization(4) etsi(0) 745 operations-and-errors(1)} */
+	4, { 4, 0, 745, 1 }
+/* *INDENT-ON* */
+};
+
 /*! \brief ETSI specific invoke/result encode/decode message table */
 static const struct rose_convert_msg rose_etsi_msgs[] = {
 /* *INDENT-OFF* */
@@ -541,6 +549,26 @@ static const struct rose_convert_msg rose_etsi_msgs[] = {
 			NULL,									NULL,
 			NULL,									NULL
 	},
+
+	/*
+	 * globalValue's (OIDs) from MWI-Operations-and-Errors
+	 * {ccitt identified-organization etsi(0) 745 operations-and-errors(1)}
+	 */
+	{
+		ROSE_ETSI_MWIActivate,						&rose_etsi_mwi, 1,
+			rose_enc_etsi_MWIActivate_ARG,			NULL,
+			rose_dec_etsi_MWIActivate_ARG,			NULL
+	},
+	{
+		ROSE_ETSI_MWIDeactivate,					&rose_etsi_mwi, 2,
+			rose_enc_etsi_MWIDeactivate_ARG,		NULL,
+			rose_dec_etsi_MWIDeactivate_ARG,		NULL
+	},
+	{
+		ROSE_ETSI_MWIIndicate,						&rose_etsi_mwi, 3,
+			rose_enc_etsi_MWIIndicate_ARG,			NULL,
+			rose_dec_etsi_MWIIndicate_ARG,			NULL
+	},
 /* *INDENT-ON* */
 };
 
@@ -695,6 +723,35 @@ static const struct rose_convert_error rose_etsi_errors[] = {
 	},
 	{
 		ROSE_ERROR_CCBS_T_ShortTermDenial,			&rose_etsi_ccbs_t, 21,
+			NULL,									NULL
+	},
+
+	/*
+	 * globalValue's (OIDs) from MWI-Operations-and-Errors
+	 * {ccitt identified-organization etsi(0) 745 operations-and-errors(1)}
+	 */
+	{
+		ROSE_ERROR_MWI_InvalidReceivingUserNr,		&rose_etsi_mwi, 10,
+			NULL,									NULL
+	},
+	{
+		ROSE_ERROR_MWI_ReceivingUserNotSubscribed,	&rose_etsi_mwi, 11,
+			NULL,									NULL
+	},
+	{
+		ROSE_ERROR_MWI_ControllingUserNotRegistered,&rose_etsi_mwi, 12,
+			NULL,									NULL
+	},
+	{
+		ROSE_ERROR_MWI_IndicationNotDelivered,		&rose_etsi_mwi, 13,
+			NULL,									NULL
+	},
+	{
+		ROSE_ERROR_MWI_MaxNumOfControllingUsersReached,&rose_etsi_mwi, 14,
+			NULL,									NULL
+	},
+	{
+		ROSE_ERROR_MWI_MaxNumOfActiveInstancesReached,&rose_etsi_mwi, 15,
 			NULL,									NULL
 	},
 /* *INDENT-ON* */
@@ -1403,6 +1460,10 @@ const char *rose_operation2str(enum rose_operation operation)
 
 		{ ROSE_ETSI_MCIDRequest,                    "ROSE_ETSI_MCIDRequest" },
 
+		{ ROSE_ETSI_MWIActivate,                    "ROSE_ETSI_MWIActivate" },
+		{ ROSE_ETSI_MWIDeactivate,                  "ROSE_ETSI_MWIDeactivate" },
+		{ ROSE_ETSI_MWIIndicate,                    "ROSE_ETSI_MWIIndicate" },
+
 		{ ROSE_QSIG_CallingName,                    "ROSE_QSIG_CallingName" },
 		{ ROSE_QSIG_CalledName,                     "ROSE_QSIG_CalledName" },
 		{ ROSE_QSIG_ConnectedName,                  "ROSE_QSIG_ConnectedName" },
@@ -1516,6 +1577,13 @@ const char *rose_error2str(enum rose_error_code code)
 
 		{ ROSE_ERROR_CCBS_T_LongTermDenial,           "CCBS-T: Long Term Denial" },
 		{ ROSE_ERROR_CCBS_T_ShortTermDenial,          "CCBS-T: Short Term Denial" },
+
+		{ ROSE_ERROR_MWI_InvalidReceivingUserNr,      "MWI: Invalid Receiving User Number" },
+		{ ROSE_ERROR_MWI_ReceivingUserNotSubscribed,  "MWI: Receiving User Not Subscribed" },
+		{ ROSE_ERROR_MWI_ControllingUserNotRegistered,"MWI: Controlling User Not Registered" },
+		{ ROSE_ERROR_MWI_IndicationNotDelivered,      "MWI: Indication Not Delivered" },
+		{ ROSE_ERROR_MWI_MaxNumOfControllingUsersReached,"MWI: Max Num Of Controlling Users Reached" },
+		{ ROSE_ERROR_MWI_MaxNumOfActiveInstancesReached,"MWI: Max Num Of Active Instances Reached" },
 
 		/* Q.SIG specific errors */
 		{ ROSE_ERROR_QSIG_Unspecified,                "Unspecified" },

@@ -367,6 +367,24 @@ const unsigned char *rose_dec_etsi_CCNR_T_Request_RES(struct pri *ctrl, unsigned
 	const unsigned char *pos, const unsigned char *end,
 	union rose_msg_result_args *args);
 
+/* ETSI Message Waiting Indication (MWI) */
+unsigned char *rose_enc_etsi_MWIActivate_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_MWIDeactivate_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+unsigned char *rose_enc_etsi_MWIIndicate_ARG(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const union rose_msg_invoke_args *args);
+
+const unsigned char *rose_dec_etsi_MWIActivate_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_MWIDeactivate_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+const unsigned char *rose_dec_etsi_MWIIndicate_ARG(struct pri *ctrl, unsigned tag,
+	const unsigned char *pos, const unsigned char *end,
+	union rose_msg_invoke_args *args);
+
 /* Q.SIG Name-Operations */
 unsigned char *rose_enc_qsig_Name(struct pri *ctrl, unsigned char *pos,
 	unsigned char *end, const struct roseQsigName *name);

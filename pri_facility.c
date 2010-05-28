@@ -1738,6 +1738,146 @@ int mwi_message_send(struct pri *ctrl, q931_call *call, struct pri_sr *req, int 
 
 	return pri_call_apdu_queue(call, Q931_SETUP, buffer, end - buffer, NULL);
 }
+
+/*!
+ * \internal
+ * \brief Encode a MWI indication.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param pos Starting position to encode the facility ie contents.
+ * \param end End of facility ie contents encoding data buffer.
+ * \param mailbox Controlling party number (NULL if not present).
+ * \param basic_service Basic service enum (-1 if not present).
+ * \param num_messages NumberOfMessages (-1 if not present).
+ * \param caller_id Controlling party privided number (NULL if not present).
+ * \param timestamp Generalized Time format (NULL if not present).
+ * \param message_reference Message reference number (-1 if not present).
+ * \param message_status Message status: added(0), removed(1).
+ *
+ * \retval Start of the next ASN.1 component to encode on success.
+ * \retval NULL on error.
+ */
+static unsigned char *enc_etsi_mwi_indicate_message(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, const struct pri_party_id *mailbox, int basic_service,
+	int num_messages, const struct pri_party_id *caller_id, const char *timestamp,
+	int message_reference, int message_status)
+{
+	struct rose_msg_invoke msg;
+	struct q931_party_number number;
+
+	pos = facility_encode_header(ctrl, pos, end, NULL);
+	if (!pos) {
+		return NULL;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.operation = ROSE_ETSI_MWIIndicate;
+	msg.invoke_id = get_invokeid(ctrl);
+
+	if (mailbox && mailbox->number.valid) {
+		pri_copy_party_number_to_q931(&number, &mailbox->number);
+		q931_copy_number_to_rose(ctrl, &msg.args.etsi.MWIIndicate.controlling_user_number,
+			&number);
+	}
+	if (-1 < basic_service) {
+		msg.args.etsi.MWIIndicate.basic_service_present = 1;
+		msg.args.etsi.MWIIndicate.basic_service = basic_service;
+	}
+	if (-1 < num_messages) {
+		msg.args.etsi.MWIIndicate.number_of_messages_present = 1;
+		msg.args.etsi.MWIIndicate.number_of_messages = num_messages;
+	}
+	if (caller_id && caller_id->number.valid) {
+		pri_copy_party_number_to_q931(&number, &caller_id->number);
+		q931_copy_number_to_rose(ctrl,
+			&msg.args.etsi.MWIIndicate.controlling_user_provided_number, &number);
+	}
+	if (timestamp && timestamp[0]) {
+		msg.args.etsi.MWIIndicate.time_present = 1;
+		libpri_copy_string((char *) msg.args.etsi.MWIIndicate.time.str, timestamp,
+			sizeof(msg.args.etsi.MWIIndicate.time.str));
+	}
+	if (-1 < message_reference) {
+		msg.args.etsi.MWIIndicate.message_id_present = 1;
+		msg.args.etsi.MWIIndicate.message_id.reference_number = message_reference;
+		msg.args.etsi.MWIIndicate.message_id.status = message_status;
+	}
+
+	pos = rose_encode_invoke(ctrl, pos, end, &msg);
+
+	return pos;
+}
+
+/*!
+ * \internal
+ * \brief Encode and queue a MWI indication.
+ *
+ * \param ctrl D channel controller.
+ * \param call Call leg to queue message.
+ * \param mailbox Controlling party number (NULL if not present).
+ * \param basic_service Basic service enum (-1 if not present).
+ * \param num_messages NumberOfMessages (-1 if not present).
+ * \param caller_id Controlling party privided number (NULL if not present).
+ * \param timestamp Generalized Time format (NULL if not present).
+ * \param message_reference Message reference number (-1 if not present).
+ * \param message_status Message status: added(0), removed(1).
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int rose_mwi_indicate_encode(struct pri *ctrl, struct q931_call *call,
+	const struct pri_party_id *mailbox, int basic_service, int num_messages,
+	const struct pri_party_id *caller_id, const char *timestamp, int message_reference,
+	int message_status)
+{
+	unsigned char buffer[255];
+	unsigned char *end;
+
+	end = enc_etsi_mwi_indicate_message(ctrl, buffer, buffer + sizeof(buffer), mailbox,
+		basic_service, num_messages, caller_id, timestamp, message_reference,
+		message_status);
+	if (!end) {
+		return -1;
+	}
+
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL);
+}
+
+int pri_mwi_indicate(struct pri *ctrl, const struct pri_party_id *mailbox,
+	int basic_service, int num_messages, const struct pri_party_id *caller_id,
+	const char *timestamp, int message_reference, int message_status)
+{
+	struct q931_call *call;
+
+	if (!ctrl) {
+		return -1;
+	}
+
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_EUROISDN_E1:
+	case PRI_SWITCH_EUROISDN_T1:
+		if (!BRI_NT_PTMP(ctrl)) {
+			return -1;
+		}
+		call = PRI_MASTER(ctrl)->dummy_call;
+		if (!call) {
+			return -1;
+		}
+		break;
+	default:
+		return -1;
+	}
+
+	if (rose_mwi_indicate_encode(ctrl, call, mailbox, basic_service, num_messages,
+		caller_id, timestamp, message_reference, message_status)
+		|| q931_facility(ctrl, call)) {
+		pri_message(ctrl,
+			"Could not schedule facility message for MWI indicate message.\n");
+		return -1;
+	}
+
+	return 0;
+}
 /* End MWI */
 
 /* EECT functions */
@@ -4558,6 +4698,14 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 			break;
 		}
 		break;
+#if 0	/* Not handled yet */
+	case ROSE_ETSI_MWIActivate:
+		break;
+	case ROSE_ETSI_MWIDeactivate:
+		break;
+	case ROSE_ETSI_MWIIndicate:
+		break;
+#endif	/* Not handled yet */
 	case ROSE_QSIG_CallingName:
 		/* CallingName is put in remote_id.name */
 		rose_copy_name_to_q931(ctrl, &call->remote_id.name,

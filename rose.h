@@ -137,6 +137,11 @@ enum rose_operation {
 	/* ETSI MCID-Operations */
 	ROSE_ETSI_MCIDRequest,                  /*!< Invoke/Result */
 
+	/* ETSI MWI-Operations-and-Errors */
+	ROSE_ETSI_MWIActivate,                  /*!< Invoke/Result */
+	ROSE_ETSI_MWIDeactivate,                /*!< Invoke/Result */
+	ROSE_ETSI_MWIIndicate,                  /*!< Invoke only */
+
 	/* Q.SIG Name-Operations */
 	ROSE_QSIG_CallingName,                  /*!< Invoke only */
 	ROSE_QSIG_CalledName,                   /*!< Invoke only */
@@ -256,6 +261,14 @@ enum rose_error_code {
 	/* ETSI CCBS-private-networks-Operations-and-Errors */
 	ROSE_ERROR_CCBS_T_LongTermDenial,
 	ROSE_ERROR_CCBS_T_ShortTermDenial,
+
+	/* ETSI MWI-Operations-and-Errors */
+	ROSE_ERROR_MWI_InvalidReceivingUserNr,
+	ROSE_ERROR_MWI_ReceivingUserNotSubscribed,
+	ROSE_ERROR_MWI_ControllingUserNotRegistered,
+	ROSE_ERROR_MWI_IndicationNotDelivered,
+	ROSE_ERROR_MWI_MaxNumOfControllingUsersReached,
+	ROSE_ERROR_MWI_MaxNumOfActiveInstancesReached,
 
 	/* Q.SIG from various specifications */
 	ROSE_ERROR_QSIG_Unspecified,
@@ -384,6 +397,31 @@ enum {
 	 * ITU-T allows up to 2.
 	 */
 	ROSE_Q931_MAX_PROGRESS = 3 * 4,
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
+ * Comment obtained from ECMA-242 ASN.1 source.
+ * a VisibleString containing:
+ *   - the (local) date in 8 digits (YYYYMMDD),
+ *   - followed by (local) time of day in 4 or 6 digits (HHMM[SS]),
+ *   - optionally followed by the letter "Z" or
+ *     by a local time differential in 5 digits ("+"HHMM or "-"HHMM);
+ *     this date and time representation follows ISO 8601
+ * Examples:
+ * 1) 19970621194530, meaning 21 June 1997, 19:45:30;
+ * 2) 19970621194530Z, meaning the same as 1);
+ * 3) 19970621194530-0500, meaning the same as 1),
+ *      5 hours retarded in relation to UTC time
+ *
+ * GeneralizedTime ::= [UNIVERSAL 24] IMPLICIT VisibleString
+ */
+struct roseGeneralizedTime {
+	/*! GeneralizedTime (SIZE (12..19)) */
+	unsigned char str[19 + 1];
 };
 
 
@@ -2083,6 +2121,206 @@ struct roseEtsiCCBS_T_Request_RES {
 
 
 /*
+ * MessageID ::= SEQUENCE {
+ *     messageRef  MessageRef,
+ *     status      MessageStatus
+ * }
+ */
+struct roseEtsiMessageID {
+	/*! \brief Message reference number. (INTEGER (0..65535)) */
+	u_int16_t reference_number;
+	/*!
+	 * \brief Message status
+	 * \details
+	 * added_message(0),
+	 * removed_message(1)
+	 */
+	u_int8_t status;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     receivingUserNr             PartyNumber,
+ *     basicService                BasicService,
+ *     controllingUserNr           [1] EXPLICIT PartyNumber     OPTIONAL,
+ *     numberOfMessages            [2] EXPLICIT MessageCounter  OPTIONAL,
+ *     controllingUserProvidedNr   [3] EXPLICIT PartyNumber     OPTIONAL,
+ *     time                        [4] EXPLICIT GeneralizedTime OPTIONAL,
+ *     messageId                   [5] EXPLICIT MessageID       OPTIONAL,
+ *     mode                        [6] EXPLICIT InvocationMode  OPTIONAL
+ * }
+ */
+struct roseEtsiMWIActivate_ARG {
+	/*! \brief Number of messages in mailbox. (INTEGER (0..65535)) (Optional) */
+	u_int16_t number_of_messages;
+
+	/*! \brief Message ID (Status of this message) (Optional)*/
+	struct roseEtsiMessageID message_id;
+
+	/*! \brief Receiving user number (Who the message is for.) */
+	struct rosePartyNumber receiving_user_number;
+	/*! \brief Controlling user number (Mailbox number) (Optional) */
+	struct rosePartyNumber controlling_user_number;
+	/*! \brief Controlling user provided number (Caller-ID of party leaving message) (Optional) */
+	struct rosePartyNumber controlling_user_provided_number;
+
+	/*! \brief When message left. (optional) */
+	struct roseGeneralizedTime time;
+
+	/*!
+	 * \brief Type of call leaving message.
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3k1Hz(3),
+	 * unrestrictedDigitalInformationWithTonesAndAnnouncements(4),
+	 * multirate(5),
+	 * telephony3k1Hz(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * telephony7kHz(38),
+	 * euroFileTransfer(39),
+	 * fileTransferAndAccessManagement(40),
+	 * videoconference(41),
+	 * audioGraphicConference(42)
+	 */
+	u_int8_t basic_service;
+	/*!
+	 * \brief Invocation mode (When it should be delivered.) (Optional)
+	 * \details
+	 * deferred(0),
+	 * immediate(1),
+	 * combined(2)
+	 */
+	u_int8_t mode;
+
+	/*! \brief TRUE if NumberOfMessages present */
+	u_int8_t number_of_messages_present;
+	/*! \brief TRUE if time present */
+	u_int8_t time_present;
+	/*! \brief TRUE if MessageId present */
+	u_int8_t message_id_present;
+	/*! \brief TRUE if invocation mode present */
+	u_int8_t mode_present;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     receivingUserNr     PartyNumber,
+ *     basicService        BasicService,
+ *     controllingUserNr   PartyNumber    OPTIONAL,
+ *     mode                InvocationMode OPTIONAL
+ * }
+ */
+struct roseEtsiMWIDeactivate_ARG {
+	/*! \brief Receiving user number (Who the message is for.) */
+	struct rosePartyNumber receiving_user_number;
+	/*! \brief Controlling user number (Mailbox number) (Optional) */
+	struct rosePartyNumber controlling_user_number;
+
+	/*!
+	 * \brief Type of call leaving message.
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3k1Hz(3),
+	 * unrestrictedDigitalInformationWithTonesAndAnnouncements(4),
+	 * multirate(5),
+	 * telephony3k1Hz(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * telephony7kHz(38),
+	 * euroFileTransfer(39),
+	 * fileTransferAndAccessManagement(40),
+	 * videoconference(41),
+	 * audioGraphicConference(42)
+	 */
+	u_int8_t basic_service;
+
+	/*!
+	 * \brief Invocation mode (When it should be delivered.) (Optional)
+	 * \details
+	 * deferred(0),
+	 * immediate(1),
+	 * combined(2)
+	 */
+	u_int8_t mode;
+
+	/*! \brief TRUE if invocation mode present */
+	u_int8_t mode_present;
+};
+
+/*
+ * ARGUMENT SEQUENCE {
+ *     controllingUserNr           [1] EXPLICIT PartyNumber     OPTIONAL,
+ *     basicService                [2] EXPLICIT BasicService    OPTIONAL,
+ *     numberOfMessages            [3] EXPLICIT MessageCounter  OPTIONAL,
+ *     controllingUserProvidedNr   [4] EXPLICIT PartyNumber     OPTIONAL,
+ *     time                        [5] EXPLICIT GeneralizedTime OPTIONAL,
+ *     messageId                   [6] EXPLICIT MessageID       OPTIONAL
+ * }
+ */
+struct roseEtsiMWIIndicate_ARG {
+	/*! \brief Number of messages in mailbox. (INTEGER (0..65535)) (Optional) */
+	u_int16_t number_of_messages;
+
+	/*! \brief Message ID (Status of this message) (Optional)*/
+	struct roseEtsiMessageID message_id;
+
+	/*! \brief Controlling user number (Mailbox number) (Optional) */
+	struct rosePartyNumber controlling_user_number;
+	/*! \brief Controlling user provided number (Caller-ID of party leaving message) (Optional) */
+	struct rosePartyNumber controlling_user_provided_number;
+
+	/*! \brief When message left. (optional) */
+	struct roseGeneralizedTime time;
+
+	/*!
+	 * \brief Type of call leaving message.
+	 * \details
+	 * allServices(0),
+	 * speech(1),
+	 * unrestrictedDigitalInformation(2),
+	 * audio3k1Hz(3),
+	 * unrestrictedDigitalInformationWithTonesAndAnnouncements(4),
+	 * multirate(5),
+	 * telephony3k1Hz(32),
+	 * teletex(33),
+	 * telefaxGroup4Class1(34),
+	 * videotexSyntaxBased(35),
+	 * videotelephony(36),
+	 * telefaxGroup2-3(37),
+	 * telephony7kHz(38),
+	 * euroFileTransfer(39),
+	 * fileTransferAndAccessManagement(40),
+	 * videoconference(41),
+	 * audioGraphicConference(42)
+	 */
+	u_int8_t basic_service;
+
+	/*! \brief TRUE if basic_service present */
+	u_int8_t basic_service_present;
+	/*! \brief TRUE if NumberOfMessages present */
+	u_int8_t number_of_messages_present;
+	/*! \brief TRUE if time present */
+	u_int8_t time_present;
+	/*! \brief TRUE if MessageId present */
+	u_int8_t message_id_present;
+};
+
+
+/* ------------------------------------------------------------------- */
+
+
+/*
  * Name ::= CHOICE {
  *     -- iso8859-1 is implied in namePresentationAllowedSimple.
  *     namePresentationAllowedSimple   [0] IMPLICIT NameData,
@@ -3450,7 +3688,7 @@ struct roseQsigMWIActivateArg {
 	struct rosePartyNumber originating_number;
 
 	/*! \brief GeneralizedTime (SIZE (12..19)) (optional) */
-	unsigned char timestamp[19 + 1];
+	struct roseGeneralizedTime timestamp;
 
 	/*!
 	 * \details
@@ -3675,7 +3913,7 @@ struct roseQsigMWIInterrogateResElt {
 	struct rosePartyNumber originating_number;
 
 	/*! \brief GeneralizedTime (SIZE (12..19)) (optional) */
-	unsigned char timestamp[19 + 1];
+	struct roseGeneralizedTime timestamp;
 
 	/*!
 	 * \details
@@ -3862,6 +4100,11 @@ union rose_msg_invoke_etsi_args {
 
 	/* ETSI CCNR-T */
 	struct roseEtsiCCBS_T_Request_ARG CCNR_T_Request;
+
+	/* ETSI Message Waiting Indication (MWI) */
+	struct roseEtsiMWIActivate_ARG MWIActivate;
+	struct roseEtsiMWIDeactivate_ARG MWIDeactivate;
+	struct roseEtsiMWIIndicate_ARG MWIIndicate;
 };
 
 /*! \brief Facility ie result etsi messages with arguments. */
