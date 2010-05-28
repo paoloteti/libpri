@@ -3542,6 +3542,151 @@ int pri_transfer_rsp(struct pri *ctrl, q931_call *call, int invoke_id, int is_su
 }
 
 /*!
+ * \internal
+ * \brief MCIDRequest response callback function.
+ *
+ * \param reason Reason callback is called.
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param apdu APDU queued entry.  Do not change!
+ * \param msg APDU response message data.  (NULL if was not the reason called.)
+ *
+ * \return TRUE if no more responses are expected.
+ */
+static int mcid_req_response(enum APDU_CALLBACK_REASON reason, struct pri *ctrl, struct q931_call *call, struct apdu_event *apdu, const struct apdu_msg_data *msg)
+{
+	struct pri_subcommand *subcmd;
+	int status;
+	int fail_code;
+
+	switch (reason) {
+	case APDU_CALLBACK_REASON_TIMEOUT:
+		status = 1;/* timeout */
+		fail_code = 0;
+		break;
+	case APDU_CALLBACK_REASON_MSG_RESULT:
+		status = 0;/* success */
+		fail_code = 0;
+		break;
+	case APDU_CALLBACK_REASON_MSG_ERROR:
+		status = 2;/* error */
+		fail_code = msg->response.error->code;
+		break;
+	case APDU_CALLBACK_REASON_MSG_REJECT:
+		status = 3;/* reject */
+		fail_code = 0;
+		fail_code = msg->response.reject->code;
+		break;
+	default:
+		return 1;
+	}
+	subcmd = q931_alloc_subcommand(ctrl);
+	if (subcmd) {
+		/* Indicate that our MCID request has completed. */
+		subcmd->cmd = PRI_SUBCMD_MCID_RSP;
+		subcmd->u.mcid_rsp.status = status;
+		subcmd->u.mcid_rsp.fail_code = fail_code;
+	} else {
+		/* Oh, well. */
+	}
+	return 1;
+}
+
+/*!
+ * \internal
+ * \brief Encode a MCIDRequest message.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param pos Starting position to encode the facility ie contents.
+ * \param end End of facility ie contents encoding data buffer.
+ * \param call Call leg from which to encode message.
+ *
+ * \retval Start of the next ASN.1 component to encode on success.
+ * \retval NULL on error.
+ */
+static unsigned char *enc_etsi_mcid_req(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, q931_call *call)
+{
+	struct rose_msg_invoke msg;
+
+	pos = facility_encode_header(ctrl, pos, end, NULL);
+	if (!pos) {
+		return NULL;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.invoke_id = get_invokeid(ctrl);
+	msg.operation = ROSE_ETSI_MCIDRequest;
+
+	pos = rose_encode_invoke(ctrl, pos, end, &msg);
+
+	return pos;
+}
+
+/*!
+ * \internal
+ * \brief Encode and queue a MCID request message.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param call Call leg from which to encode message.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int rose_mcid_req_encode(struct pri *ctrl, q931_call *call)
+{
+	unsigned char buffer[256];
+	unsigned char *end;
+	struct apdu_callback_data response;
+
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_EUROISDN_E1:
+	case PRI_SWITCH_EUROISDN_T1:
+		end = enc_etsi_mcid_req(ctrl, buffer, buffer + sizeof(buffer), call);
+		break;
+	default:
+		return -1;
+	}
+	if (!end) {
+		return -1;
+	}
+
+	memset(&response, 0, sizeof(response));
+	response.invoke_id = ctrl->last_invoke;
+	response.timeout_time = ctrl->timers[PRI_TIMER_T_RESPONSE];
+	response.callback = mcid_req_response;
+
+	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, &response);
+}
+
+int pri_mcid_req_send(struct pri *ctrl, q931_call *call)
+{
+	if (!ctrl || !call) {
+		return -1;
+	}
+	if (call->cc.originated) {
+		/* We can only send MCID if we answered the call. */
+		return -1;
+	}
+
+	if (rose_mcid_req_encode(ctrl, call) || q931_facility(ctrl, call)) {
+		pri_message(ctrl,
+			"Could not schedule facility message for MCID request message.\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+void pri_mcid_enable(struct pri *ctrl, int enable)
+{
+	if (ctrl) {
+		ctrl = PRI_MASTER(ctrl);
+		ctrl->mcid_support = enable ? 1 : 0;
+	}
+}
+
+/*!
  * \brief Handle the ROSE reject message.
  *
  * \param ctrl D channel controller for diagnostic messages or global options.
@@ -4374,6 +4519,44 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		cc_record->original_call = call;
 		call->cc.record = cc_record;
 		pri_cc_event(ctrl, call, cc_record, CC_EVENT_AVAILABLE);
+		break;
+	case ROSE_ETSI_MCIDRequest:
+		if (q931_is_dummy_call(call)) {
+			/* Don't even dignify this with a response. */
+			break;
+		}
+		if (!PRI_MASTER(ctrl)->mcid_support) {
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Gen_NotSubscribed);
+			break;
+		}
+		if (!call->cc.originated) {
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Gen_NotIncomingCall);
+			break;
+		}
+		switch (call->ourcallstate) {
+		case Q931_CALL_STATE_ACTIVE:
+		case Q931_CALL_STATE_DISCONNECT_INDICATION:
+		case Q931_CALL_STATE_DISCONNECT_REQUEST:/* XXX We are really in the wrong state for this mode. */
+			subcmd = q931_alloc_subcommand(ctrl);
+			if (!subcmd) {
+				send_facility_error(ctrl, call, invoke->invoke_id,
+					ROSE_ERROR_Gen_NotAvailable);
+				break;
+			}
+
+			subcmd->cmd = PRI_SUBCMD_MCID_REQ;
+			q931_party_id_copy_to_pri(&subcmd->u.mcid_req.originator, &call->local_id);
+			q931_party_id_copy_to_pri(&subcmd->u.mcid_req.answerer, &call->remote_id);
+
+			send_facility_result_ok(ctrl, call, invoke->invoke_id);
+			break;
+		default:
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Gen_InvalidCallState);
+			break;
+		}
 		break;
 	case ROSE_QSIG_CallingName:
 		/* CallingName is put in remote_id.name */

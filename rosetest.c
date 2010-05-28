@@ -1389,6 +1389,13 @@ static const struct rose_message rose_etsi_msgs[] = {
 		.component.result.invoke_id = 53,
 		.component.result.args.etsi.CCNR_T_Request.retention_supported = 1,
 	},
+
+	/* MCID */
+	{
+		.type = ROSE_COMP_TYPE_INVOKE,
+		.component.invoke.operation = ROSE_ETSI_MCIDRequest,
+		.component.invoke.invoke_id = 54,
+	},
 /* *INDENT-ON* */
 };
 

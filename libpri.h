@@ -545,6 +545,8 @@ struct pri_rerouting_data {
 #define PRI_SUBCMD_AOC_E					20	/*!< Advice Of Charge End information */
 //#define PRI_SUBCMD_AOC_CHARGING_REQ			21	/*!< Advice Of Charge Request information */
 //#define PRI_SUBCMD_AOC_CHARGING_REQ_RSP		22	/*!< Advice Of Charge Request Response information */
+#define PRI_SUBCMD_MCID_REQ					23	/*!< Malicious Call ID Request */
+#define PRI_SUBCMD_MCID_RSP					24	/*!< Malicious Call ID Request response */
 
 #if defined(STATUS_REQUEST_PLACE_HOLDER)
 struct pri_subcmd_status_request {
@@ -875,6 +877,38 @@ struct pri_subcmd_aoc_e {
 	struct pri_aoc_e_charging_association associated;
 };
 
+struct pri_subcmd_mcid_req {
+	/*!
+	 * \brief Information libpri knows about the malicious caller.
+	 * \note For the convenience of the upper layer.  This information
+	 * may be incomplete if the upper layer redacted some caller
+	 * information because it was restricted.
+	 */
+	struct pri_party_id originator;
+	/*! \brief Information libpri knows about the callee. */
+	struct pri_party_id answerer;
+};
+
+struct pri_subcmd_mcid_rsp {
+	/*!
+	 * \brief MCID request response status.
+	 * \details
+	 * success(0),
+	 * timeout(1),
+	 * error(2),
+	 * reject(3)
+	 */
+	int status;
+	/*!
+	 * \brief Failure code that can be converted to a string to further
+	 * explain the non-timeout failure.
+	 * \note Valid when status is error or reject.
+	 * \note Use pri_facility_error2str() to convert the error_code.
+	 * \note Use pri_facility_reject2str() to convert the reject_code.
+	 */
+	int fail_code;
+};
+
 struct pri_subcommand {
 	/*! PRI_SUBCMD_xxx defined values */
 	int cmd;
@@ -903,6 +937,8 @@ struct pri_subcommand {
 		struct pri_subcmd_aoc_s aoc_s;
 		struct pri_subcmd_aoc_d aoc_d;
 		struct pri_subcmd_aoc_e aoc_e;
+		struct pri_subcmd_mcid_req mcid_req;
+		struct pri_subcmd_mcid_rsp mcid_rsp;
 	} u;
 };
 
@@ -1733,6 +1769,28 @@ int pri_retrieve_rej(struct pri *ctrl, q931_call *call, int cause);
 int pri_status_req(struct pri *ctrl, int request_id, const struct pri_sr *req);
 void pri_status_req_rsp(struct pri *ctrl, int invoke_id, int status);
 #endif	/* defined(STATUS_REQUEST_PLACE_HOLDER) */
+
+/*!
+ * \brief Set the Malicious Call ID feature enable flag.
+ *
+ * \param ctrl D channel controller.
+ * \param enable TRUE to enable MCID feature.
+ *
+ * \return Nothing
+ */
+void pri_mcid_enable(struct pri *ctrl, int enable);
+
+/*!
+ * \brief Send the MCID request message.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg
+ *
+ * \retval 0 on success.  You should wait for a PRI_SUBCMD_MCID_RSP
+ * to continue clearing the call if it was in progress.
+ * \retval -1 on error.
+ */
+int pri_mcid_req_send(struct pri *ctrl, q931_call *call);
 
 /*!
  * \brief Set the call completion feature enable flag.

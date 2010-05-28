@@ -531,6 +531,16 @@ static const struct rose_convert_msg rose_etsi_msgs[] = {
 			rose_enc_etsi_CCNR_T_Request_ARG,		rose_enc_etsi_CCNR_T_Request_RES,
 			rose_dec_etsi_CCNR_T_Request_ARG,		rose_dec_etsi_CCNR_T_Request_RES
 	},
+
+	/*
+	 * localValue's from MCID-Operations
+	 * {ccitt identified-organization etsi(0) 130 operations-and-errors(1)}
+	 */
+	{
+		ROSE_ETSI_MCIDRequest,						NULL, 3,
+			NULL,									NULL,
+			NULL,									NULL
+	},
 /* *INDENT-ON* */
 };
 
@@ -1390,6 +1400,8 @@ const char *rose_operation2str(enum rose_operation operation)
 		{ ROSE_ETSI_CCBS_T_Request,                 "ROSE_ETSI_CCBS_T_Request" },
 
 		{ ROSE_ETSI_CCNR_T_Request,                 "ROSE_ETSI_CCNR_T_Request" },
+
+		{ ROSE_ETSI_MCIDRequest,                    "ROSE_ETSI_MCIDRequest" },
 
 		{ ROSE_QSIG_CallingName,                    "ROSE_QSIG_CallingName" },
 		{ ROSE_QSIG_CalledName,                     "ROSE_QSIG_CalledName" },

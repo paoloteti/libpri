@@ -134,6 +134,9 @@ enum rose_operation {
 	/* ETSI CCNR-private-networks-Operations-and-Errors */
 	ROSE_ETSI_CCNR_T_Request,               /*!< Invoke/Result */
 
+	/* ETSI MCID-Operations */
+	ROSE_ETSI_MCIDRequest,                  /*!< Invoke/Result */
+
 	/* Q.SIG Name-Operations */
 	ROSE_QSIG_CallingName,                  /*!< Invoke only */
 	ROSE_QSIG_CalledName,                   /*!< Invoke only */
