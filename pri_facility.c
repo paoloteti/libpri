@@ -2362,6 +2362,344 @@ int anfpr_initiate_transfer(struct pri *ctrl, q931_call *c1, q931_call *c2)
 }
 /* End AFN-PR */
 
+/*!
+ * \internal
+ * \brief Encode ETSI ExplicitEctExecute message.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param pos Starting position to encode the facility ie contents.
+ * \param end End of facility ie contents encoding data buffer.
+ * \param link_id Identifier of other call involved in transfer.
+ *
+ * \retval Start of the next ASN.1 component to encode on success.
+ * \retval NULL on error.
+ */
+static unsigned char *enc_etsi_ect_explicit_execute(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, int link_id)
+{
+	struct rose_msg_invoke msg;
+
+	pos = facility_encode_header(ctrl, pos, end, NULL);
+	if (!pos) {
+		return NULL;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.invoke_id = get_invokeid(ctrl);
+	msg.operation = ROSE_ETSI_ExplicitEctExecute;
+
+	msg.args.etsi.ExplicitEctExecute.link_id = link_id;
+
+	pos = rose_encode_invoke(ctrl, pos, end, &msg);
+
+	return pos;
+}
+
+/*!
+ * \internal
+ * \brief ECT LinkId response callback function.
+ *
+ * \param reason Reason callback is called.
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param apdu APDU queued entry.  Do not change!
+ * \param msg APDU response message data.  (NULL if was not the reason called.)
+ *
+ * \return TRUE if no more responses are expected.
+ */
+static int etsi_ect_link_id_rsp(enum APDU_CALLBACK_REASON reason, struct pri *ctrl,
+	struct q931_call *call, struct apdu_event *apdu, const struct apdu_msg_data *msg)
+{
+	unsigned char buffer[256];
+	unsigned char *end;
+	q931_call *call_2;
+
+	switch (reason) {
+	case APDU_CALLBACK_REASON_MSG_RESULT:
+		call_2 = q931_find_call(ctrl, apdu->response.user.value);
+		if (!call_2) {
+			break;
+		}
+
+		end = enc_etsi_ect_explicit_execute(ctrl, buffer, buffer + sizeof(buffer),
+			msg->response.result->args.etsi.EctLinkIdRequest.link_id);
+		if (!end) {
+			break;
+		}
+
+		/* Remember that if we queue a facility IE for a facility message we
+		 * have to explicitly send the facility message ourselves */
+		if (pri_call_apdu_queue(call_2, Q931_FACILITY, buffer, end - buffer, NULL)
+			|| q931_facility(call_2->pri, call_2)) {
+			pri_message(ctrl, "Could not schedule facility message for call %d\n",
+				call_2->cr);
+		}
+		break;
+	default:
+		break;
+	}
+	return 1;
+}
+
+/*!
+ * \internal
+ * \brief Encode ETSI ECT LinkId request message.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param pos Starting position to encode the facility ie contents.
+ * \param end End of facility ie contents encoding data buffer.
+ *
+ * \retval Start of the next ASN.1 component to encode on success.
+ * \retval NULL on error.
+ */
+static unsigned char *enc_etsi_ect_link_id_req(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end)
+{
+	struct rose_msg_invoke msg;
+
+	pos = facility_encode_header(ctrl, pos, end, NULL);
+	if (!pos) {
+		return NULL;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.invoke_id = get_invokeid(ctrl);
+	msg.operation = ROSE_ETSI_EctLinkIdRequest;
+
+	pos = rose_encode_invoke(ctrl, pos, end, &msg);
+
+	return pos;
+}
+
+/*!
+ * \brief Start an Explicit Call Transfer (ECT) sequence between the two calls.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param call_1 Q.931 call leg 1
+ * \param call_2 Q.931 call leg 2
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+int etsi_initiate_transfer(struct pri *ctrl, q931_call *call_1, q931_call *call_2)
+{
+	unsigned char buffer[256];
+	unsigned char *end;
+	struct apdu_callback_data response;
+
+	end = enc_etsi_ect_link_id_req(ctrl, buffer, buffer + sizeof(buffer));
+	if (!end) {
+		return -1;
+	}
+
+	memset(&response, 0, sizeof(response));
+	response.invoke_id = ctrl->last_invoke;
+	response.timeout_time = ctrl->timers[PRI_TIMER_T_RESPONSE];
+	response.callback = etsi_ect_link_id_rsp;
+	response.user.value = call_2->cr;
+
+	/* Remember that if we queue a facility IE for a facility message we
+	 * have to explicitly send the facility message ourselves */
+	if (pri_call_apdu_queue(call_1, Q931_FACILITY, buffer, end - buffer, &response)
+		|| q931_facility(call_1->pri, call_1)) {
+		pri_message(ctrl, "Could not schedule facility message for call %d\n",
+			call_1->cr);
+		return -1;
+	}
+
+	return 0;
+}
+
+/*!
+ * \internal
+ * \brief Encode ETSI ECT LinkId result respnose message.
+ *
+ * \param ctrl D channel controller for diagnostic messages or global options.
+ * \param pos Starting position to encode the facility ie contents.
+ * \param end End of facility ie contents encoding data buffer.
+ * \param invoke_id Invoke id to put in result message.
+ * \param link_id Requested link id to put in result message.
+ *
+ * \retval Start of the next ASN.1 component to encode on success.
+ * \retval NULL on error.
+ */
+static unsigned char *enc_etsi_ect_link_id_rsp(struct pri *ctrl, unsigned char *pos,
+	unsigned char *end, int invoke_id, int link_id)
+{
+	struct rose_msg_result msg;
+
+	pos = facility_encode_header(ctrl, pos, end, NULL);
+	if (!pos) {
+		return NULL;
+	}
+
+	memset(&msg, 0, sizeof(msg));
+	msg.invoke_id = invoke_id;
+	msg.operation = ROSE_ETSI_EctLinkIdRequest;
+
+	msg.args.etsi.EctLinkIdRequest.link_id = link_id;
+
+	pos = rose_encode_result(ctrl, pos, end, &msg);
+
+	return pos;
+}
+
+/*!
+ * \internal
+ * \brief Send EctLinkIdRequest result response message.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param invoke_id Invoke id to put in result message.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int send_ect_link_id_rsp(struct pri *ctrl, q931_call *call, int invoke_id)
+{
+	unsigned char buffer[256];
+	unsigned char *end;
+
+	end = enc_etsi_ect_link_id_rsp(ctrl, buffer, buffer + sizeof(buffer), invoke_id,
+		call->link_id);
+	if (!end) {
+		return -1;
+	}
+
+	/* Remember that if we queue a facility IE for a facility message we
+	 * have to explicitly send the facility message ourselves */
+	if (pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL)
+		|| q931_facility(call->pri, call)) {
+		pri_message(ctrl, "Could not schedule facility message for call %d\n", call->cr);
+		return -1;
+	}
+
+	return 0;
+}
+
+/*!
+ * \internal
+ * \brief Process the received ETSI EctExecute message.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param invoke_id Invoke id to put in response message.
+ *
+ * \details
+ * 1) Find the active call implied by the transfer request.
+ * 2) Create the PRI_SUBCMD_TRANSFER_CALL event.
+ *
+ * \retval ROSE_ERROR_None on success.
+ * \retval error_code on error.
+ */
+static enum rose_error_code etsi_ect_execute_transfer(struct pri *ctrl, q931_call *call, int invoke_id)
+{
+	enum rose_error_code error_code;
+	struct pri_subcommand *subcmd;
+	q931_call *call_active;
+
+	switch (call->ourcallstate) {
+	case Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING:
+	case Q931_CALL_STATE_CALL_DELIVERED:
+	case Q931_CALL_STATE_CALL_RECEIVED:
+	case Q931_CALL_STATE_CONNECT_REQUEST:
+	case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
+	case Q931_CALL_STATE_ACTIVE:
+		if (call->master_call->hold_state != Q931_HOLD_STATE_CALL_HELD) {
+			/* EctExecute must be sent on the held call. */
+			error_code = ROSE_ERROR_Gen_InvalidCallState;
+			break;
+		}
+		/* Held call is being transferred. */
+		call_active = q931_find_held_active_call(ctrl, call);
+		if (!call_active) {
+			error_code = ROSE_ERROR_Gen_NotAvailable;
+			break;
+		}
+
+		/* Setup transfer subcommand */
+		subcmd = q931_alloc_subcommand(ctrl);
+		if (!subcmd) {
+			error_code = ROSE_ERROR_Gen_NotAvailable;
+			break;
+		}
+		subcmd->cmd = PRI_SUBCMD_TRANSFER_CALL;
+		subcmd->u.transfer.call_1 = call->master_call;
+		subcmd->u.transfer.call_2 = call_active;
+		subcmd->u.transfer.is_call_1_held = 1;
+		subcmd->u.transfer.is_call_2_held = 0;
+		subcmd->u.transfer.invoke_id = invoke_id;
+
+		error_code = ROSE_ERROR_None;
+		break;
+	default:
+		error_code = ROSE_ERROR_Gen_InvalidCallState;
+		break;
+	}
+
+	return error_code;
+}
+
+/*!
+ * \internal
+ * \brief Process the received ETSI ExplicitEctExecute message.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param invoke_id Invoke id to put in response message.
+ * \param link_id Link id of the other call involved in the transfer.
+ *
+ * \details
+ * 1) Find the other call specified by the link_id in transfer request.
+ * 2) Create the PRI_SUBCMD_TRANSFER_CALL event.
+ *
+ * \retval ROSE_ERROR_None on success.
+ * \retval error_code on error.
+ */
+static enum rose_error_code etsi_explicit_ect_execute_transfer(struct pri *ctrl, q931_call *call, int invoke_id, int link_id)
+{
+	enum rose_error_code error_code;
+	struct pri_subcommand *subcmd;
+	q931_call *call_2;
+
+	switch (call->ourcallstate) {
+	case Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING:
+	case Q931_CALL_STATE_CALL_DELIVERED:
+	case Q931_CALL_STATE_CALL_RECEIVED:
+	case Q931_CALL_STATE_CONNECT_REQUEST:
+	case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
+	case Q931_CALL_STATE_ACTIVE:
+		call_2 = q931_find_link_id_call(ctrl, link_id);
+		if (!call_2 || call_2 == call->master_call) {
+			error_code = ROSE_ERROR_Gen_NotAvailable;
+			break;
+		}
+
+		/* Setup transfer subcommand */
+		subcmd = q931_alloc_subcommand(ctrl);
+		if (!subcmd) {
+			error_code = ROSE_ERROR_Gen_NotAvailable;
+			break;
+		}
+		subcmd->cmd = PRI_SUBCMD_TRANSFER_CALL;
+		subcmd->u.transfer.call_1 = call->master_call;
+		subcmd->u.transfer.call_2 = call_2;
+		subcmd->u.transfer.is_call_1_held =
+			(call->master_call->hold_state == Q931_HOLD_STATE_CALL_HELD) ? 1 : 0;
+		subcmd->u.transfer.is_call_2_held =
+			(call_2->hold_state == Q931_HOLD_STATE_CALL_HELD) ? 1 : 0;
+		subcmd->u.transfer.invoke_id = invoke_id;
+
+		error_code = ROSE_ERROR_None;
+		break;
+	default:
+		error_code = ROSE_ERROR_Gen_InvalidCallState;
+		break;
+	}
+
+	return error_code;
+}
+
 /* AOC */
 /*!
  * \internal
@@ -3266,6 +3604,19 @@ int pri_rerouting_rsp(struct pri *ctrl, q931_call *call, int invoke_id, enum PRI
 	return send_facility_error(ctrl, call, invoke_id, rose_err);
 }
 
+int pri_transfer_rsp(struct pri *ctrl, q931_call *call, int invoke_id, int is_successful)
+{
+	if (!ctrl || !call) {
+		return -1;
+	}
+
+	if (is_successful) {
+		return rose_result_ok_encode(ctrl, call, Q931_DISCONNECT, invoke_id);
+	} else {
+		return send_facility_error(ctrl, call, invoke_id, ROSE_ERROR_Gen_NotAvailable);
+	}
+}
+
 /*!
  * \brief Handle the ROSE reject message.
  *
@@ -3517,6 +3868,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 	struct q931_party_id party_id;
 	struct q931_party_address party_address;
 	struct q931_party_redirecting deflection;
+	enum rose_error_code error_code;
 
 	switch (invoke->operation) {
 #if 0	/* Not handled yet */
@@ -3816,21 +4168,46 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 	case ROSE_ITU_IdentificationOfCharge:
 		break;
 #endif	/* Not handled yet */
-#if 0	/* Not handled yet */
 	case ROSE_ETSI_EctExecute:
+		if (!PRI_MASTER(ctrl)->transfer_support) {
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Gen_NotSubscribed);
+			break;
+		}
+		error_code = etsi_ect_execute_transfer(ctrl, call, invoke->invoke_id);
+		if (error_code != ROSE_ERROR_None) {
+			send_facility_error(ctrl, call, invoke->invoke_id, error_code);
+		}
 		break;
 	case ROSE_ETSI_ExplicitEctExecute:
+		error_code = etsi_explicit_ect_execute_transfer(ctrl, call, invoke->invoke_id,
+			invoke->args.etsi.ExplicitEctExecute.link_id);
+		if (error_code != ROSE_ERROR_None) {
+			send_facility_error(ctrl, call, invoke->invoke_id, error_code);
+		}
 		break;
-#endif	/* Not handled yet */
 	case ROSE_ETSI_RequestSubaddress:
 		/* Ignore since we are not handling subaddresses yet. */
 		break;
 #if 0	/* Not handled yet */
 	case ROSE_ETSI_SubaddressTransfer:
 		break;
-	case ROSE_ETSI_EctLinkIdRequest:
-		break;
 #endif	/* Not handled yet */
+	case ROSE_ETSI_EctLinkIdRequest:
+		if (!PRI_MASTER(ctrl)->transfer_support) {
+			send_facility_error(ctrl, call, invoke->invoke_id,
+				ROSE_ERROR_Gen_ResourceUnavailable);
+			break;
+		}
+		/*
+		 * Use the invoke_id sequence number as a link_id.
+		 * It should be safe enough to do this.  If not then we will have to search
+		 * the call pool to ensure that the link_id is not already in use.
+		 */
+		call->master_call->link_id = get_invokeid(ctrl);
+		call->master_call->is_link_id_valid = 1;
+		send_ect_link_id_rsp(ctrl, call, invoke->invoke_id);
+		break;
 	case ROSE_ETSI_EctInform:
 		/* redirectionNumber is put in remote_id.number */
 		if (invoke->args.etsi.EctInform.redirection_present) {
@@ -3844,10 +4221,13 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 			call->incoming_ct_state = INCOMING_CT_STATE_POST_CONNECTED_LINE;
 		}
 		break;
-#if 0	/* Not handled yet */
 	case ROSE_ETSI_EctLoopTest:
+		/*
+		 * The ETS 300 369 specification does a very poor job describing
+		 * how this message is used to detect loops.
+		 */
+		send_facility_error(ctrl, call, invoke->invoke_id, ROSE_ERROR_Gen_NotAvailable);
 		break;
-#endif	/* Not handled yet */
 #if defined(STATUS_REQUEST_PLACE_HOLDER)
 	case ROSE_ETSI_StatusRequest:
 		/* Not handled yet */

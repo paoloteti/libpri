@@ -106,6 +106,7 @@ struct pri {
 	unsigned int deflection_support:1;/* TRUE if upper layer supports call deflection/rerouting. */
 	unsigned int hangup_fix_enabled:1;/* TRUE if should follow Q.931 Section 5.3.2 instead of blindly sending RELEASE_COMPLETE for certain causes */
 	unsigned int cc_support:1;/* TRUE if upper layer supports call completion. */
+	unsigned int transfer_support:1;/* TRUE if the upper layer supports ECT */
 
 	/* MDL variables */
 	int mdl_error;
@@ -577,6 +578,11 @@ struct q931_call {
 	int transferable;			/* RLT call is transferable */
 	unsigned int rlt_call_id;	/* RLT call id */
 
+	/*! ETSI Explicit Call Transfer link id. */
+	int link_id;
+	/*! TRUE if link_id is valid. */
+	int is_link_id_valid;
+
 	/* Bridged call info */
 	q931_call *bridged_call;        /* Pointer to other leg of bridged call (Used by Q.SIG when eliminating tromboned calls) */
 
@@ -933,8 +939,12 @@ int q931_party_id_presentation(const struct q931_party_id *id);
 const char *q931_call_state_str(enum Q931_CALL_STATE callstate);
 const char *msg2str(int msg);
 
+struct q931_call *q931_find_winning_call(struct q931_call *call);
 int q931_master_pass_event(struct pri *ctrl, struct q931_call *subcall, int msg_type);
 struct pri_subcommand *q931_alloc_subcommand(struct pri *ctrl);
+
+struct q931_call *q931_find_link_id_call(struct pri *ctrl, int link_id);
+struct q931_call *q931_find_held_active_call(struct pri *ctrl, struct q931_call *held_call);
 
 int q931_notify_redirection(struct pri *ctrl, q931_call *call, int notify, const struct q931_party_number *number);
 

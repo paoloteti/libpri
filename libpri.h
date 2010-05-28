@@ -538,6 +538,7 @@ struct pri_rerouting_data {
 #define PRI_SUBCMD_CC_CALL					14	/*!< Indicate that this call is a CC callback */
 #define PRI_SUBCMD_CC_CANCEL				15	/*!< Unsolicited indication that CC is canceled */
 #define PRI_SUBCMD_CC_STOP_ALERTING			16	/*!< Indicate that someone else has responed to remote user free */
+#define PRI_SUBCMD_TRANSFER_CALL			17	/*!< Request to transfer the specified calls together. */
 
 #if defined(STATUS_REQUEST_PLACE_HOLDER)
 struct pri_subcmd_status_request {
@@ -634,6 +635,19 @@ struct pri_subcmd_cc_cancel {
 	int is_agent;
 };
 
+struct pri_subcmd_transfer {
+	/*! \brief Opaque call pointer for transfer with other call. */
+	q931_call *call_1;
+	/*! \brief Opaque call pointer for transfer with other call. */
+	q931_call *call_2;
+	/*! TRUE if call_1 is on hold. */
+	int is_call_1_held;
+	/*! TRUE if call_2 is on hold. */
+	int is_call_2_held;
+	/*! Invocation ID to use when sending a reply to the transfer request. */
+	int invoke_id;
+};
+
 struct pri_subcommand {
 	/*! PRI_SUBCMD_xxx defined values */
 	int cmd;
@@ -658,6 +672,7 @@ struct pri_subcommand {
 		struct pri_subcmd_cc_status cc_status;
 		struct pri_subcmd_cc_id cc_call;
 		struct pri_subcmd_cc_cancel cc_cancel;
+		struct pri_subcmd_transfer transfer;
 	} u;
 };
 
@@ -1216,7 +1231,7 @@ int pri_set_service_message_support(struct pri *pri, int supportflag);
 
 #define PRI_2BCT
 /* Attempt to pass the channels back to the NET side if compatable and
- * suscribed.  Sometimes called 2 bchannel transfer (2BCT) */
+ * subscribed.  Sometimes called 2 bchannel transfer (2BCT) */
 int pri_channel_bridge(q931_call *call1, q931_call *call2);
 
 /* Override message and error stuff */
@@ -1339,6 +1354,29 @@ enum PRI_REROUTING_RSP_CODE {
  * \retval -1 on error.
  */
 int pri_rerouting_rsp(struct pri *ctrl, q931_call *call, int invoke_id, enum PRI_REROUTING_RSP_CODE code);
+
+/*!
+ * \brief Set the call transfer feature enable flag.
+ *
+ * \param ctrl D channel controller.
+ * \param enable TRUE to enable call transfer feature.
+ *
+ * \return Nothing
+ */
+void pri_transfer_enable(struct pri *ctrl, int enable);
+
+/*!
+ * \brief Send the call transfer response message.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param invoke_id Value given by the initiating request.
+ * \param is_successful TRUE if the transfer was successful.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+int pri_transfer_rsp(struct pri *ctrl, q931_call *call, int invoke_id, int is_successful);
 
 /*!
  * \brief Set the call hold feature enable flag.

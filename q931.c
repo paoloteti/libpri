@@ -3603,7 +3603,8 @@ static inline void q931_dumpie(struct pri *ctrl, int codeset, q931_ie *ie, char 
  *
  * \param ctrl D channel controller.
  * \param call Q.931 call leg.
- * 
+ * \param cr Call Reference identifier.
+ *
  * \note The call record is assumed to already be memset() to zero.
  *
  * \return Nothing
@@ -5193,7 +5194,6 @@ static int q931_connect_acknowledge(struct pri *ctrl, q931_call *c)
 }
 
 /*!
- * \internal
  * \brief Find the winning subcall if it exists or current call if not outboundbroadcast.
  *
  * \param call Starting Q.931 call record of search.
@@ -5201,7 +5201,7 @@ static int q931_connect_acknowledge(struct pri *ctrl, q931_call *c)
  * \retval winning-call or given call if not outboundbroadcast.
  * \retval NULL if no winning call yet.
  */
-static struct q931_call *q931_find_winning_call(struct q931_call *call)
+struct q931_call *q931_find_winning_call(struct q931_call *call)
 {
 	struct q931_call *master;
 
@@ -6986,7 +6986,53 @@ void q931_cc_indirect(struct pri *ctrl, struct pri_cc_record *cc_record, void (*
 }
 
 /*!
- * \internal
+ * \brief Find the transfer call indicated by the given link_id.
+ *
+ * \param ctrl D channel controller.
+ * \param link_id Link id of the other call involved in the transfer.
+ *
+ * \retval found-master-call on success.
+ * \retval NULL on error.
+ */
+struct q931_call *q931_find_link_id_call(struct pri *ctrl, int link_id)
+{
+	struct pri *master;
+	struct q931_call *cur;
+	struct q931_call *winner;
+	struct q931_call *match;
+
+	match = NULL;
+	master = PRI_MASTER(ctrl);
+	for (cur = *master->callpool; cur; cur = cur->next) {
+		if (cur->is_link_id_valid && cur->link_id == link_id) {
+			/* Found the link_id call. */
+			winner = q931_find_winning_call(cur);
+			if (!winner) {
+				/* There is no winner. */
+				break;
+			}
+			switch (winner->ourcallstate) {
+			case Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING:
+			case Q931_CALL_STATE_CALL_DELIVERED:
+			case Q931_CALL_STATE_CALL_RECEIVED:
+			case Q931_CALL_STATE_CONNECT_REQUEST:
+			case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
+			case Q931_CALL_STATE_ACTIVE:
+				/* The link_id call is in a state suitable for transfer. */
+				match = cur;
+				break;
+			default:
+				/* The link_id call is not in a good state to transfer. */
+				break;
+			}
+			break;
+		}
+	}
+
+	return match;
+}
+
+/*!
  * \brief Find the active call given the held call.
  *
  * \param ctrl D channel controller.
@@ -6995,7 +7041,7 @@ void q931_cc_indirect(struct pri *ctrl, struct pri_cc_record *cc_record, void (*
  * \retval master-active-call on success.
  * \retval NULL on error.
  */
-static struct q931_call *q931_find_held_active_call(struct pri *ctrl, struct q931_call *held_call)
+struct q931_call *q931_find_held_active_call(struct pri *ctrl, struct q931_call *held_call)
 {
 	struct pri *master;
 	struct q931_call *cur;

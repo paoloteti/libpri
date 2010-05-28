@@ -1016,47 +1016,64 @@ int pri_disconnect(struct pri *pri, q931_call *call, int cause)
 
 int pri_channel_bridge(q931_call *call1, q931_call *call2)
 {
+	struct q931_call *winner;
+
 	if (!call1 || !call2)
 		return -1;
 
-	/* Make sure we have compatible switchtypes */
-	if (call1->pri->switchtype != call2->pri->switchtype)
+	winner = q931_find_winning_call(call1);
+	if (!winner) {
+		/* Cannot transfer: Call 1 does not have a winner yet. */
 		return -1;
+	}
+	call1 = winner;
+
+	winner = q931_find_winning_call(call2);
+	if (!winner) {
+		/* Cannot transfer: Call 2 does not have a winner yet. */
+		return -1;
+	}
+	call2 = winner;
+
+	/* Check to see if we're on the same PRI */
+	if (call1->pri != call2->pri) {
+		return -1;
+	}
 
 	/* Check for bearer capability */
 	if (call1->bc.transcapability != call2->bc.transcapability)
 		return -1;
 
-	/* Check to see if we're on the same PRI */
-	if (call1->pri != call2->pri)
-		return -1;
-	
 	switch (call1->pri->switchtype) {
-		case PRI_SWITCH_NI2:
-		case PRI_SWITCH_LUCENT5E:
-		case PRI_SWITCH_ATT4ESS:
-			if (eect_initiate_transfer(call1->pri, call1, call2))
-				return -1;
-			else
-				return 0;
-			break;
-		case PRI_SWITCH_DMS100:
-			if (rlt_initiate_transfer(call1->pri, call1, call2))
-				return -1;
-			else
-				return 0;
-			break;
-		case PRI_SWITCH_QSIG:
-			call1->bridged_call = call2;
-			call2->bridged_call = call1;
-			if (anfpr_initiate_transfer(call1->pri, call1, call2))
-				return -1;
-			else
-				return 0;
-			break;
-		default:
+	case PRI_SWITCH_NI2:
+	case PRI_SWITCH_LUCENT5E:
+	case PRI_SWITCH_ATT4ESS:
+		if (eect_initiate_transfer(call1->pri, call1, call2)) {
 			return -1;
+		}
+		break;
+	case PRI_SWITCH_DMS100:
+		if (rlt_initiate_transfer(call1->pri, call1, call2)) {
+			return -1;
+		}
+		break;
+	case PRI_SWITCH_QSIG:
+		call1->bridged_call = call2;
+		call2->bridged_call = call1;
+		if (anfpr_initiate_transfer(call1->pri, call1, call2)) {
+			return -1;
+		}
+		break;
+	case PRI_SWITCH_EUROISDN_E1:
+	case PRI_SWITCH_EUROISDN_T1:
+		if (etsi_initiate_transfer(call1->pri, call1, call2)) {
+			return -1;
+		}
+		break;
+	default:
+		return -1;
 	}
+	return 0;
 }
 
 void pri_hangup_fix_enable(struct pri *ctrl, int enable)
@@ -1595,6 +1612,14 @@ void pri_sr_set_reversecharge(struct pri_sr *sr, int requested)
 void pri_sr_set_keypad_digits(struct pri_sr *sr, const char *keypad_digits)
 {
 	sr->keypad_digits = keypad_digits;
+}
+
+void pri_transfer_enable(struct pri *ctrl, int enable)
+{
+	if (ctrl) {
+		ctrl = PRI_MASTER(ctrl);
+		ctrl->transfer_support = enable ? 1 : 0;
+	}
 }
 
 void pri_hold_enable(struct pri *ctrl, int enable)
