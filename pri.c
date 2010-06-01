@@ -348,6 +348,7 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 	pri_default_timers(p, switchtype);
 	if (master) {
 		pri_set_debug(p, master->debug);
+		pri_set_inbanddisconnect(p, master->acceptinbanddisconnect);
 		if (master->sendfacility)
 			pri_facility_enable(p);
 	}
