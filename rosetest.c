@@ -1524,7 +1524,6 @@ static unsigned char rose_etsi_indefinite_len[] = {
 			0x00, 0x00,
 			0x05, 0x00,
 		0x00, 0x00,
-	0x00, 0x00,
 	0x00, 0x00
 /* *INDENT-ON* */
 };
@@ -1569,7 +1568,6 @@ static unsigned char rose_etsi_unused_indefinite_len[] = {
 			0x00, 0x00,
 			0x05, 0x00,
 		0x00, 0x00,
-	0x00, 0x00,
 	0x00, 0x00
 /* *INDENT-ON* */
 };
@@ -1606,45 +1604,7 @@ static unsigned char rose_etsi_unused[] = {
 			0x30, 0x06,
 				0x84, 0x04,
 					0x31, 0x38, 0x30, 0x33,
-			0x05, 0x00,
-	0x00, 0x00
-/* *INDENT-ON* */
-};
-
-static unsigned char rose_etsi_extra[] = {
-/* *INDENT-OFF* */
-/*
- *	Context Specific/C [1 0x01] <A1> Len:24 <18>
- *		Integer(2 0x02) <02> Len:1 <01>
- *			<44>
- *		Integer(2 0x02) <02> Len:1 <01>
- *			<07>
- *		Sequence/C(48 0x30) <30> Len:16 <10>
- *			Enumerated(10 0x0A) <0A> Len:1 <01>
- *				<01>
- *			Enumerated(10 0x0A) <0A> Len:1 <01>
- *				<05>
- *			Sequence/C(48 0x30) <30> Len:6 <06>
- *				Context Specific [4 0x04] <84> Len:4 <04>
- *					<31 38 30 33>
- *			NULL(5 0x05) <05> Len:0 <00>
- */
-	0x91,
-	0xA1, 0x18,
-		0x02, 0x01,
-			0x44,
-		0x02, 0x01,
-			0x07,
-		0x30, 0x10,
-			0x0A, 0x01,
-				0x01,
-			0x0A, 0x01,
-				0x05,
-			0x30, 0x06,
-				0x84, 0x04,
-					0x31, 0x38, 0x30, 0x33,
-			0x05, 0x00,
-	0x00, 0x00
+			0x05, 0x00
 /* *INDENT-ON* */
 };
 
@@ -2783,6 +2743,62 @@ static const struct rose_message rose_qsig_msgs[] = {
 /* *INDENT-ON* */
 };
 
+static unsigned char rose_qsig_multiple_msg[] = {
+/* *INDENT-OFF* */
+/*
+ *	Context Specific/C [10 0x0A] <AA> Len:6 <06>
+ *		Context Specific [0 0x00] <80> Len:1 <01>
+ *			<00> - "~"
+ *		Context Specific [2 0x02] <82> Len:1 <01>
+ *			<00> - "~"
+ *	Context Specific [11 0x0B] <8B> Len:1 <01>
+ *		<00> - "~"
+ *	Context Specific/C [1 0x01] <A1> Len:16 <10>
+ *		Integer(2 0x02) <02> Len:1 <01>
+ *			<01> - "~"
+ *		Integer(2 0x02) <02> Len:1 <01>
+ *			<55> - "U"
+ *		Sequence/C(48 0x30) <30> Len:8 <08>
+ *			Context Specific [2 0x02] <82> Len:3 <03>
+ *				<01 30 40> - "~0@"
+ *			Context Specific [6 0x06] <86> Len:1 <01>
+ *				<01> - "~"
+ *	Context Specific/C [1 0x01] <A1> Len:19 <13>
+ *		Integer(2 0x02) <02> Len:1 <01>
+ *			<02> - "~"
+ *		Integer(2 0x02) <02> Len:1 <01>
+ *			<00> - "~"
+ *		Context Specific [0 0x00] <80> Len:11 <0B>
+ *			<4D 6F 64 65 6D 20 44 69-73 63 6F> - "Modem Disco"
+ */
+	0x9f,
+	0xaa, 0x06,
+		0x80, 0x01,
+			0x00,
+		0x82, 0x01,
+			0x00,
+		0x8b, 0x01,
+			0x00,
+	0xa1, 0x10,
+		0x02, 0x01,
+			0x01,
+		0x02, 0x01,
+			0x55,
+		0x30, 0x08,
+			0x82, 0x03,
+				0x01, 0x30, 0x40,
+			0x86, 0x01,
+				0x01,
+	0xa1, 0x13,
+		0x02, 0x01,
+			0x02,
+		0x02, 0x01,
+			0x00,
+		0x80, 0x0b,
+			0x4d, 0x6f, 0x64, 0x65, 0x6d, 0x20, 0x44, 0x69, 0x73, 0x63, 0x6f
+/* *INDENT-ON* */
+};
+
 
 static const struct rose_message rose_dms100_msgs[] = {
 /* *INDENT-OFF* */
@@ -2890,17 +2906,22 @@ static void rose_test_msg(struct pri *ctrl, unsigned index,
 			if (!dec_pos) {
 				pri_error(ctrl, "Error: Message:%u failed to decode header\n", index);
 			} else {
-				dec_pos = rose_decode(ctrl, dec_pos, dec_end, &decoded_msg);
-				if (!dec_pos) {
-					pri_error(ctrl, "Error: Message:%u failed to decode ROSE\n", index);
-				} else {
-					if (header
-						&& memcmp(header, &decoded_header, sizeof(decoded_header))) {
-						pri_error(ctrl, "Error: Message:%u Header did not match\n",
+				while (dec_pos < dec_end) {
+					dec_pos = rose_decode(ctrl, dec_pos, dec_end, &decoded_msg);
+					if (!dec_pos) {
+						pri_error(ctrl, "Error: Message:%u failed to decode ROSE\n",
 							index);
-					}
-					if (memcmp(encode_msg, &decoded_msg, sizeof(decoded_msg))) {
-						pri_error(ctrl, "Error: Message:%u ROSE did not match\n", index);
+						break;
+					} else {
+						if (header
+							&& memcmp(header, &decoded_header, sizeof(decoded_header))) {
+							pri_error(ctrl, "Error: Message:%u Header did not match\n",
+								index);
+						}
+						if (memcmp(encode_msg, &decoded_msg, sizeof(decoded_msg))) {
+							pri_error(ctrl, "Error: Message:%u ROSE did not match\n",
+								index);
+						}
 					}
 				}
 			}
@@ -2938,9 +2959,12 @@ static void rose_test_exception(struct pri *ctrl, const char *name,
 	if (!pos) {
 		pri_error(ctrl, "Error: %s test: Message failed to decode header\n", name);
 	} else {
-		pos = rose_decode(ctrl, pos, end, &decoded_msg);
-		if (!pos) {
-			pri_error(ctrl, "Error: %s test: Message failed to decode ROSE\n", name);
+		while (pos < end) {
+			pos = rose_decode(ctrl, pos, end, &decoded_msg);
+			if (!pos) {
+				pri_error(ctrl, "Error: %s test: Message failed to decode ROSE\n", name);
+				break;
+			}
 		}
 	}
 
@@ -3049,23 +3073,19 @@ int main(int argc, char *argv[])
 
 	dummy_ctrl.switchtype = PRI_SWITCH_EUROISDN_E1;
 
-	rose_test_exception(&dummy_ctrl, "Extra bytes on end", rose_etsi_extra,
-		sizeof(rose_etsi_extra));
-
 	rose_test_exception(&dummy_ctrl, "Indefinite length", rose_etsi_indefinite_len,
-		sizeof(rose_etsi_indefinite_len) - 2);
-	rose_test_exception(&dummy_ctrl, "Indefinite length (extra)",
-		rose_etsi_indefinite_len, sizeof(rose_etsi_indefinite_len));
+		sizeof(rose_etsi_indefinite_len));
 
 	rose_test_exception(&dummy_ctrl, "Unused components (indefinite length)",
-		rose_etsi_unused_indefinite_len, sizeof(rose_etsi_unused_indefinite_len) - 2);
-	rose_test_exception(&dummy_ctrl, "Unused components (indefinite length, extra)",
 		rose_etsi_unused_indefinite_len, sizeof(rose_etsi_unused_indefinite_len));
 
 	rose_test_exception(&dummy_ctrl, "Unused components", rose_etsi_unused,
-		sizeof(rose_etsi_unused) - 2);
-	rose_test_exception(&dummy_ctrl, "Unused components (extra)", rose_etsi_unused,
 		sizeof(rose_etsi_unused));
+
+	dummy_ctrl.switchtype = PRI_SWITCH_QSIG;
+
+	rose_test_exception(&dummy_ctrl, "Multiple component messages",
+		rose_qsig_multiple_msg, sizeof(rose_qsig_multiple_msg));
 
 /* ------------------------------------------------------------------- */
 

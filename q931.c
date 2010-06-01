@@ -2536,25 +2536,28 @@ static int process_facility(struct pri *ctrl, q931_call *call, int msgtype, q931
 		return -1;
 	}
 
-	pos = rose_decode(ctrl, pos, end, &rose);
-	if (!pos) {
-		return -1;
-	}
-	switch (rose.type) {
-	case ROSE_COMP_TYPE_INVOKE:
-		rose_handle_invoke(ctrl, call, msgtype, ie, &header, &rose.component.invoke);
-		break;
-	case ROSE_COMP_TYPE_RESULT:
-		rose_handle_result(ctrl, call, msgtype, ie, &header, &rose.component.result);
-		break;
-	case ROSE_COMP_TYPE_ERROR:
-		rose_handle_error(ctrl, call, msgtype, ie, &header, &rose.component.error);
-		break;
-	case ROSE_COMP_TYPE_REJECT:
-		rose_handle_reject(ctrl, call, msgtype, ie, &header, &rose.component.reject);
-		break;
-	default:
-		return -1;
+	/* Process all components in the facility. */
+	while (pos < end) {
+		pos = rose_decode(ctrl, pos, end, &rose);
+		if (!pos) {
+			return -1;
+		}
+		switch (rose.type) {
+		case ROSE_COMP_TYPE_INVOKE:
+			rose_handle_invoke(ctrl, call, msgtype, ie, &header, &rose.component.invoke);
+			break;
+		case ROSE_COMP_TYPE_RESULT:
+			rose_handle_result(ctrl, call, msgtype, ie, &header, &rose.component.result);
+			break;
+		case ROSE_COMP_TYPE_ERROR:
+			rose_handle_error(ctrl, call, msgtype, ie, &header, &rose.component.error);
+			break;
+		case ROSE_COMP_TYPE_REJECT:
+			rose_handle_reject(ctrl, call, msgtype, ie, &header, &rose.component.reject);
+			break;
+		default:
+			return -1;
+		}
 	}
 	return 0;
 }
