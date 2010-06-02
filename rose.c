@@ -2241,13 +2241,6 @@ const unsigned char *rose_decode(struct pri *ctrl, const unsigned char *pos,
 		return NULL;
 	}
 
-	if (pos < end) {
-		if (ctrl->debug & PRI_DEBUG_APDU) {
-			pri_message(ctrl, "  %u byte(s) of trailing data not consumed.\n",
-				(unsigned) (end - pos));
-		}
-	}
-
 	return pos;
 }
 
