@@ -1,6 +1,23 @@
 2010-06-02 Leif Madsen <lmadsen@digium.com>
 
-	* libpri 1.4.11.11 released.
+	* libpri 1.4.11.1 released.
+
+2010-06-02 11:26 +0000 [r1805-1806]  Richard Mudgett <rmudgett@digium.com>
+
+	* pri.c: Inband disconnect setting does nothing on BRI spans.
+	  The acceptinbanddisconnect flag is not inherited when creating
+	  a new TEI and thus rendering the setting (and its respective
+	  equivalent in Asterisk) a no-op on BRI setups. (closes issue
+	  #15265) Reported by: paravoid Patches: inband-bri.diff uploaded
+	  by paravoid (license 200) Tested by: paravoid
+
+	* q931.c, rose.c, rosetest.c: Multi component FACILITY messages
+	  only process the first component. The code was only processing
+	  the first ROSE component in the facility message. I also updated
+	  rosetest.c to have a multiple component ROSE message test.
+	  (closes issue #17428) Reported by: patrol-cz Patches:
+	  issue17428.patch uploaded by rmudgett (license 664) Tested by:
+	  rmudgett, patrol-cz
 
 2010-05-20 Russell Bryant <russell@digium.com>
 
