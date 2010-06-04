@@ -4713,24 +4713,64 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		/* CallingName is put in remote_id.name */
 		rose_copy_name_to_q931(ctrl, &call->remote_id.name,
 			&invoke->args.qsig.CallingName.name);
+
+		switch (msgtype) {
+		case Q931_SETUP:
+		case Q931_CONNECT:
+			/* The caller name will automatically be reported. */
+			break;
+		default:
+			/* Setup connected line subcommand */
+			subcmd = q931_alloc_subcommand(ctrl);
+			if (!subcmd) {
+				break;
+			}
+			subcmd->cmd = PRI_SUBCMD_CONNECTED_LINE;
+			q931_party_id_copy_to_pri(&subcmd->u.connected_line.id, &call->remote_id);
+			break;
+		}
 		break;
 	case ROSE_QSIG_CalledName:
 		/* CalledName is put in remote_id.name */
 		rose_copy_name_to_q931(ctrl, &call->remote_id.name,
 			&invoke->args.qsig.CalledName.name);
 
-		/* Setup connected line subcommand */
-		subcmd = q931_alloc_subcommand(ctrl);
-		if (!subcmd) {
+		switch (msgtype) {
+		case Q931_SETUP:
+		case Q931_CONNECT:
+			/* The called name will automatically be reported. */
+			break;
+		default:
+			/* Setup connected line subcommand */
+			subcmd = q931_alloc_subcommand(ctrl);
+			if (!subcmd) {
+				break;
+			}
+			subcmd->cmd = PRI_SUBCMD_CONNECTED_LINE;
+			q931_party_id_copy_to_pri(&subcmd->u.connected_line.id, &call->remote_id);
 			break;
 		}
-		subcmd->cmd = PRI_SUBCMD_CONNECTED_LINE;
-		q931_party_id_copy_to_pri(&subcmd->u.connected_line.id, &call->remote_id);
 		break;
 	case ROSE_QSIG_ConnectedName:
 		/* ConnectedName is put in remote_id.name */
 		rose_copy_name_to_q931(ctrl, &call->remote_id.name,
 			&invoke->args.qsig.ConnectedName.name);
+
+		switch (msgtype) {
+		case Q931_SETUP:
+		case Q931_CONNECT:
+			/* The connected line name will automatically be reported. */
+			break;
+		default:
+			/* Setup connected line subcommand */
+			subcmd = q931_alloc_subcommand(ctrl);
+			if (!subcmd) {
+				break;
+			}
+			subcmd->cmd = PRI_SUBCMD_CONNECTED_LINE;
+			q931_party_id_copy_to_pri(&subcmd->u.connected_line.id, &call->remote_id);
+			break;
+		}
 		break;
 #if 0	/* Not handled yet */
 	case ROSE_QSIG_BusyName:
