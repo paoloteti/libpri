@@ -2,6 +2,17 @@
 
 	*libpri 1.4.11.2 released.
 
+2010-06-04 17:45 +0000 [r1810]  Richard Mudgett <rmudgett@digium.com>
+
+	* pri_facility.c: Q.SIG calling name in FACILITY message not
+	  reported to the upper layer. Q.SIG can send the CallingName,
+	  CalledName, and ConnectedName in stand alone FACILITY messages.
+	  If the CallingName was not sent in the SETUP message, the caller
+	  id name was not reported to the upper layer. (closes issue #17458)
+	  Reported by: jsmith Patches: issue17458_post_qsig_name.patch uploaded
+	  by rmudgett (license 664) issue17458_post_qsig_name_v1.4.11.1.patch
+	  uploaded by rmudgett (license 664) Tested by: rmudgett, jsmith
+
 2010-06-02 Leif Madsen <lmadsen@digium.com>
 
 	* libpri 1.4.11.1 released.
