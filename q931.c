@@ -1907,8 +1907,10 @@ static void dump_connected_number(int full_ie, struct pri *ctrl, q931_ie *ie, in
 	do {
 		switch(i) {
 		case 0:	/* Octet 3 */
-			pri_message(ctrl, "%c Connected Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)",
-				prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
+			pri_message(ctrl, "%c %s (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)",
+				prefix, ie2str(full_ie), len, ie->data[0] >> 7,
+				ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07,
+				npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
 			break;
 		case 1: /* Octet 3a */
 			pri_message(ctrl, "\n");
@@ -3453,7 +3455,7 @@ static struct ie ies[] = {
 	{ 1, Q931_IE_ESCAPE_FOR_EXT, "Escape for Extension" },
 	{ 1, Q931_IE_CALL_STATUS, "Call Status" },
 	{ 1, Q931_IE_CHANGE_STATUS, "Change Status", dump_change_status, receive_change_status, transmit_change_status },
-	{ 1, Q931_IE_CONNECTED_ADDR, "Connected Number", dump_connected_number },
+	{ 1, Q931_IE_CONNECTED_ADDR, "Connected Address", dump_connected_number, receive_connected_number, transmit_connected_number },
 	{ 1, Q931_IE_CONNECTED_NUM, "Connected Number", dump_connected_number, receive_connected_number, transmit_connected_number },
 	{ 1, Q931_IE_CONNECTED_SUBADDR, "Connected Subaddress", dump_connected_subaddr, receive_connected_subaddr, transmit_connected_subaddr },
 	{ 1, Q931_IE_ORIGINAL_CALLED_NUMBER, "Original Called Number", dump_redirecting_number, receive_redirecting_number, transmit_redirecting_number },
@@ -3472,7 +3474,7 @@ static struct ie ies[] = {
 	/* Codeset 7 */
 };
 
-static char *ie2str(int ie) 
+static char *ie2str(int ie)
 {
 	unsigned int x;
 
@@ -3496,7 +3498,10 @@ static char *ie2str(int ie)
 			return "Locking Shift To Codeset 6";
 		case 7:
 			return "Locking Shift To Codeset 7";
+		default:
+			break;
 		}
+		break;
 	case Q931_NON_LOCKING_SHIFT:
 		switch (ie & 7) {
 		case 0:
@@ -3515,14 +3520,20 @@ static char *ie2str(int ie)
 			return "Non-Locking Shift To Codeset 6";
 		case 7:
 			return "Non-Locking Shift To Codeset 7";
+		default:
+			break;
 		}
+		break;
 	default:
-		for (x=0;x<sizeof(ies) / sizeof(ies[0]); x++) 
-			if (ie == ies[x].ie)
-				return ies[x].name;
-		return "Unknown Information Element";
+		break;
 	}
-}	
+	for (x = 0; x < ARRAY_LEN(ies); ++x) {
+		if (ie == ies[x].ie) {
+			return ies[x].name;
+		}
+	}
+	return "Unknown Information Element";
+}
 
 static inline unsigned int ielen(q931_ie *ie)
 {
@@ -4211,6 +4222,7 @@ static int q931_handle_ie(int codeset, struct pri *ctrl, q931_call *c, int msg, 
 {
 	unsigned int x;
 	int full_ie = Q931_FULL_IE(codeset, ie->ie);
+
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
 		pri_message(ctrl, "-- Processing IE %d (cs%d, %s)\n", ie->ie, codeset, ie2str(full_ie));
 	if (msg == Q931_SETUP && codeset == 0) {
@@ -4246,12 +4258,12 @@ static int q931_handle_ie(int codeset, struct pri *ctrl, q931_call *c, int msg, 
 				return ies[x].receive(full_ie, ctrl, c, msg, ie, ielen(ie));
 			else {
 				if (ctrl->debug & PRI_DEBUG_Q931_ANOMALY)
-					pri_error(ctrl, "!! No handler for IE %d (cs%d, %s)\n", ie->ie, codeset, ie2str(full_ie));
+					pri_message(ctrl, "!! No handler for IE %d (cs%d, %s)\n", ie->ie, codeset, ie2str(full_ie));
 				return -1;
 			}
 		}
 	}
-	pri_message(ctrl, "!! Unknown IE %d (cs%d, %s)\n", ie->ie, codeset, ie2str(full_ie));
+	pri_message(ctrl, "!! Unknown IE %d (cs%d)\n", ie->ie, codeset);
 	return -1;
 }
 
@@ -6450,8 +6462,14 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 			default:
 				y = q931_handle_ie(cur_codeset, ctrl, c, mh->msg, ie);
 				/* XXX Applicable to codeset 0 only? XXX */
-				if (!cur_codeset && !(ie->ie & 0xf0) && (y < 0))
+				if (!cur_codeset && !(ie->ie & 0xf0) && (y < 0)) {
+					/*
+					 * Q.931 Section 5.8.7.1
+					 * Unhandled ies in codeset 0 with the
+					 * upper nybble zero are mandatory.
+					 */
 					mandies[MAX_MAND_IES - 1] = Q931_FULL_IE(cur_codeset, ie->ie);
+				}
 				break;
 			}
 			/* Reset current codeset */
