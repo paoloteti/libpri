@@ -534,6 +534,8 @@ struct q931_call {
 	 *    (Caller-ID for answered or connected-line for originated calls.)
 	 */
 	struct q931_party_id remote_id;
+	/*! \brief Automatic Number Identification (ANI) */
+	struct q931_party_number ani;
 
 	/*!
 	 * \brief Staging place for the Q.931 redirection number ie.
