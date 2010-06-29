@@ -2,6 +2,17 @@
 
 	* libpri 1.4.11.3 released.
 
+2010-06-29 11:17 +0000 [r1824]  Richard Mudgett <rmudgett@digium.com>
+
+	* pri_internal.h, q931.c: [regression] Calling Number assignment
+	  logic change in libpri 1.4.11. Restored the old behaviour if
+	  there is more than one calling number in the incoming SETUP
+	  message.  A network provided number is reported as ANI. (closes
+	  issue #17495) Reported by: ibercom Patches:
+	  issue_17495_v1.4.11.2.patch uploaded by rmudgett (license 664)
+	  issue_17495_v1.4.patch uploaded by rmudgett (license 664) Tested
+	  by: ibercom
+
 2010-06-02 Leif Madsen <lmadsen@digium.com>
 
 	* libpri 1.4.11.2 released.
