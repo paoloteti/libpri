@@ -1994,26 +1994,41 @@ static int transmit_called_party_number(int full_ie, struct pri *ctrl, q931_call
 static int receive_calling_party_number(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
 	int i = 0;
+	struct q931_party_number number;
 
-	call->remote_id.number.valid = 1;
-	call->remote_id.number.presentation =
-		PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
+	q931_party_number_init(&number);
+	number.valid = 1;
+	number.presentation = PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
+
 	/* To follow Q.931 (4.5.1), we must search for start of octet 4 by
 	   walking through all bytes until one with ext bit (8) set to 1 */
 	do {
 		switch (i) {
 		case 0:
-			call->remote_id.number.plan = ie->data[i] & 0x7f;
+			number.plan = ie->data[i] & 0x7f;
 			break;
 		case 1:
 			/* Keep only the presentation and screening fields */
-			call->remote_id.number.presentation =
+			number.presentation =
 				ie->data[i] & (PRI_PRES_RESTRICTION | PRI_PRES_NUMBER_TYPE);
 			break;
 		}
 	} while (!(ie->data[i++] & 0x80));
-	q931_get_number((unsigned char *) call->remote_id.number.str,
-		sizeof(call->remote_id.number.str), ie->data + i, ie->len - i);
+	q931_get_number((unsigned char *) number.str, sizeof(number.str), ie->data + i,
+		ie->len - i);
+
+	/* There can be more than one calling party number ie in the SETUP message. */
+	if (number.presentation == (PRI_PRES_ALLOWED | PRI_PRES_NETWORK_NUMBER)
+		|| number.presentation == (PRI_PRES_RESTRICTED | PRI_PRES_NETWORK_NUMBER)) {
+		/* The number is network provided so it is an ANI number. */
+		call->ani = number;
+		if (!call->remote_id.number.valid) {
+			/* Copy ANI to CallerID if CallerID is not already set. */
+			call->remote_id.number = number;
+		}
+	} else {
+		call->remote_id.number = number;
+	}
 
 	return 0;
 }
@@ -3514,6 +3529,7 @@ void q931_init_call_record(struct pri *ctrl, struct q931_call *call, int cr)
 	q931_party_address_init(&call->called);
 	q931_party_id_init(&call->local_id);
 	q931_party_id_init(&call->remote_id);
+	q931_party_number_init(&call->ani);
 	q931_party_redirecting_init(&call->redirecting);
 
 	/* PRI is set to whoever called us */
@@ -5673,6 +5689,7 @@ static int prepare_to_handle_q931_message(struct pri *ctrl, q931_mh *mh, q931_ca
 		q931_party_address_init(&c->called);
 		q931_party_id_init(&c->local_id);
 		q931_party_id_init(&c->remote_id);
+		q931_party_number_init(&c->ani);
 		q931_party_redirecting_init(&c->redirecting);
 
 		/*
@@ -6477,11 +6494,9 @@ static void q931_fill_ring_event(struct pri *ctrl, struct q931_call *call)
 	/* Calling party information */
 	ctrl->ev.ring.callingpres = q931_party_id_presentation(&call->remote_id);
 	ctrl->ev.ring.callingplan = call->remote_id.number.plan;
-	if (call->remote_id.number.valid
-		&& (call->remote_id.number.presentation == PRES_ALLOWED_NETWORK_NUMBER
-			|| call->remote_id.number.presentation == PRES_PROHIB_NETWORK_NUMBER)) {
-		ctrl->ev.ring.callingplanani = call->remote_id.number.plan;
-		libpri_copy_string(ctrl->ev.ring.callingani, call->remote_id.number.str,
+	if (call->ani.valid) {
+		ctrl->ev.ring.callingplanani = call->ani.plan;
+		libpri_copy_string(ctrl->ev.ring.callingani, call->ani.str,
 			sizeof(ctrl->ev.ring.callingani));
 	} else {
 		ctrl->ev.ring.callingplanani = -1;
