@@ -3031,6 +3031,9 @@ int main(int argc, char *argv[])
 	memset(&dummy_ctrl, 0, sizeof(dummy_ctrl));
 	dummy_ctrl.debug = PRI_DEBUG_APDU;
 
+	pri_message(&dummy_ctrl, "LibPRI version tested: %s\n", pri_get_version());
+	pri_error(&dummy_ctrl, "LibPRI version tested: %s\n", pri_get_version());
+
 	offset = 0;
 	pri_message(&dummy_ctrl, "Encode/decode message(s)\n");
 	if (argc <= 1) {
