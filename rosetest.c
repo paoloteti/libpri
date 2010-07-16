@@ -2799,6 +2799,44 @@ static unsigned char rose_qsig_multiple_msg[] = {
 /* *INDENT-ON* */
 };
 
+static unsigned char rose_qsig_name_alt_encode_msg[] = {
+/* *INDENT-OFF* */
+/*
+ *	Context Specific/C [10 0x0A] <AA> Len:6 <06>
+ *		Context Specific [0 0x00] <80> Len:1 <01>
+ *			<00> - "~"
+ *		Context Specific [2 0x02] <82> Len:1 <01>
+ *			<00> - "~"
+ *	Context Specific [11 0x0B] <8B> Len:1 <01>
+ *		<00> - "~"
+ *	Context Specific/C [1 0x01] <A1> Len:21 <15>
+ *		Integer(2 0x02) <02> Len:1 <01>
+ *			<1D> - "~"
+ *		Integer(2 0x02) <02> Len:1 <01>
+ *			<00> - "~"
+ *		Sequence/C(48 0x30) <30> Len:13 <0D>
+ *			Context Specific [0 0x00] <80> Len:11 <0B>
+ *				<55 54 49 4C 49 54 59 20-54 45 4C> - "UTILITY TEL"
+ */
+	0x9F,
+	0xAA, 0x06,
+		0x80, 0x01,
+			0x00,
+		0x82, 0x01,
+			0x00,
+		0x8B, 0x01,
+			0x00,
+	0xA1, 0x15,
+		0x02, 0x01,
+			0x1D,
+		0x02, 0x01,
+			0x00,
+		0x30, 0x0D,
+			0x80, 0x0B,
+				0x55, 0x54, 0x49, 0x4C, 0x49, 0x54, 0x59, 0x20, 0x54, 0x45, 0x4C
+/* *INDENT-ON* */
+};
+
 
 static const struct rose_message rose_dms100_msgs[] = {
 /* *INDENT-OFF* */
@@ -3086,6 +3124,9 @@ int main(int argc, char *argv[])
 
 	rose_test_exception(&dummy_ctrl, "Multiple component messages",
 		rose_qsig_multiple_msg, sizeof(rose_qsig_multiple_msg));
+
+	rose_test_exception(&dummy_ctrl, "Alternate name encoded messages",
+		rose_qsig_name_alt_encode_msg, sizeof(rose_qsig_name_alt_encode_msg));
 
 /* ------------------------------------------------------------------- */
 
