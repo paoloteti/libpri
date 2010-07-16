@@ -178,7 +178,7 @@ uninstall:
 	rm -f $(INSTALL_PREFIX)$(INSTALL_BASE)/include/libpri.h
 
 pritest: pritest.o
-	$(CC) -o pritest pritest.o -L. -lpri -lzap $(CFLAGS)
+	$(CC) -o pritest pritest.o -L. -lpri $(CFLAGS)
 
 testprilib.o: testprilib.c
 	$(CC) $(CFLAGS) -D_REENTRANT -D_GNU_SOURCE -o $@ -c $<
