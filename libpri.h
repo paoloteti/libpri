@@ -1308,6 +1308,9 @@ struct pri *pri_new_bri(int fd, int ptpmode, int nodetype, int switchtype);
 /* Create D-channel just as above with user defined I/O callbacks and data */
 struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata);
 
+/* Create BRI D-channel just as above with user defined I/O callbacks and data */
+struct pri *pri_new_bri_cb(int fd, int ptpmode, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata);
+
 /* Retrieve the user data associated with the D channel */
 void *pri_get_userdata(struct pri *pri);
 

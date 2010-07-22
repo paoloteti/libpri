@@ -457,6 +457,21 @@ struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, 
 	return __pri_new_tei(fd, nodetype, switchtype, NULL, io_read, io_write, userdata, Q921_TEI_PRI, 0);
 }
 
+struct pri *pri_new_bri_cb(int fd, int ptpmode, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata)
+{
+	if (!io_read) {
+		io_read = __pri_read;
+	}
+	if (!io_write) {
+		io_write = __pri_write;
+	}
+	if (ptpmode) {
+		return __pri_new_tei(fd, nodetype, switchtype, NULL, io_read, io_write, userdata, Q921_TEI_PRI, 1);
+	} else {
+		return __pri_new_tei(fd, nodetype, switchtype, NULL, io_read, io_write, userdata, Q921_TEI_GROUP, 1);
+	}
+}
+
 void *pri_get_userdata(struct pri *pri)
 {
 	return pri ? pri->userdata : NULL;
