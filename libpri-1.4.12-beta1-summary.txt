@@ -1,0 +1,219 @@
+                                Release Summary
+
+                              libpri-1.4.12-beta1
+
+                                Date: 2010-07-26
+
+                           <asteriskteam@digium.com>
+
+     ----------------------------------------------------------------------
+
+                               Table of Contents
+
+    1. Summary
+    2. Contributors
+    3. Closed Issues
+    4. Other Changes
+    5. Diffstat
+
+     ----------------------------------------------------------------------
+
+                                    Summary
+
+                                 [Back to Top]
+
+   This release includes only bug fixes. The changes included were made only
+   to address problems that have been identified in this release series.
+   Users should be able to safely upgrade to this version if this release
+   series is already in use. Users considering upgrading from a previous
+   release series are strongly encouraged to review the UPGRADE.txt document
+   as well as the CHANGES document for information about upgrading to this
+   release series.
+
+   The data in this summary reflects changes that have been made since the
+   previous release, libpri-1.4.11.
+
+     ----------------------------------------------------------------------
+
+                                  Contributors
+
+                                 [Back to Top]
+
+   This table lists the people who have submitted code, those that have
+   tested patches, as well as those that reported issues on the issue tracker
+   that were resolved in this release. For coders, the number is how many of
+   their patches (of any size) were committed into this release. For testers,
+   the number is the number of times their name was listed as assisting with
+   testing a patch. Finally, for reporters, the number is the number of
+   issues that they reported that were closed by commits that went into this
+   release.
+
+     Coders                   Testers                  Reporters              
+   13 rmudgett              4 rmudgett               1 horape                 
+   1 dvossel                1 ibercom                1 ibercom                
+   1 horape                 1 jsmith                 1 jims8650               
+   1 nic                    1 paravoid               1 jsmith                 
+   1 paravoid               1 patrol-cz              1 kobaz                  
+                                                     1 nic_bellamy            
+                                                     1 paravoid               
+                                                     1 patrol-cz              
+                                                     1 tomaso                 
+
+     ----------------------------------------------------------------------
+
+                                 Closed Issues
+
+                                 [Back to Top]
+
+   This is a list of all issues from the issue tracker that were closed by
+   changes that went into this release.
+
+  Category: Channels/chan_dahdi
+
+   #16915: PRI: XXX Missing handling for mandatory IE 12
+   Revision: 1818
+   Reporter: kobaz
+   Coders: rmudgett
+
+  Category: Channels/chan_dahdi/NewFeature
+
+   #14292: [patch] CCBS/CCNR support for QSIG (libpri & chan_dahdi)
+   Revision: 1714
+   Reporter: tomaso
+   Testers: rmudgett
+   Coders: rmudgett
+
+  Category: General
+
+   #15265: [patch] Inband disconnect setting does nothing
+   Revision: 1794
+   Reporter: paravoid
+   Testers: paravoid
+   Coders: paravoid
+
+   #17274: [patch] pritest hadn't been ported to DAHDI
+   Revision: 1833
+   Reporter: horape
+   Coders: horape
+
+   #17428: [patch] Regression in libpri 1.4.11 - handling ROSE
+   Revision: 1785
+   Reporter: patrol-cz
+   Testers: rmudgett, patrol-cz
+   Coders: rmudgett
+
+   #17458: [patch] CallerID name not transmitted on versions of LibPRI after
+   1.4.10.2
+   Revision: 1810
+   Reporter: jsmith
+   Testers: rmudgett, jsmith
+   Coders: rmudgett
+
+   #17495: [patch] [regression] Calling Number assignment logic change in
+   libpri 1.4.11.
+   Revision: 1823
+   Reporter: ibercom
+   Testers: ibercom
+   Coders: rmudgett
+
+   #17619: [patch] Calling name not successfully processed on inbound QSIG
+   PRI calls from Mitel PBX
+   Revision: 1828
+   Reporter: jims8650
+   Testers: rmudgett
+   Coders: rmudgett
+
+  Category: NewFeature
+
+   #16477: [patch] Add pri_new_bri_cb() API - Create BRI D-channel with user
+   defined I/O callbacks and data
+   Revision: 1836
+   Reporter: nic_bellamy
+   Coders: nic
+
+     ----------------------------------------------------------------------
+
+                      Commits Not Associated with an Issue
+
+                                 [Back to Top]
+
+   This is a list of all changes that went into this release that did not
+   directly close an issue from the issue tracker. The commits may have been
+   marked as being related to an issue. If that is the case, the issue
+   numbers are listed here, as well.
+
+   +------------------------------------------------------------------------+
+   | Revision | Author   | Summary                      | Issues Referenced |
+   |----------+----------+------------------------------+-------------------|
+   | 1723     | rmudgett | Added ETSI Explicit Call     |                   |
+   |          |          | Transfer (ECT) support.      |                   |
+   |----------+----------+------------------------------+-------------------|
+   | 1737     | rmudgett | ETSI Advice Of Charge (AOC)  |                   |
+   |          |          | event reporting.             |                   |
+   |----------+----------+------------------------------+-------------------|
+   | 1746     | rmudgett | ETSI Call Waiting support.   |                   |
+   |----------+----------+------------------------------+-------------------|
+   | 1757     | rmudgett | ETSI Malicious Call ID       |                   |
+   |          |          | support.                     |                   |
+   |----------+----------+------------------------------+-------------------|
+   | 1767     | rmudgett | ETSI Message Waiting         |                   |
+   |          |          | Indication (MWI) support.    |                   |
+   |----------+----------+------------------------------+-------------------|
+   | 1776     | dvossel  | support for sending ETSI     |                   |
+   |          |          | advice of charge             |                   |
+   |----------+----------+------------------------------+-------------------|
+   |          |          | Added a libpri version       |                   |
+   | 1829     | rmudgett | output line as a sanity      |                   |
+   |          |          | check for rosetest.          |                   |
+   |----------+----------+------------------------------+-------------------|
+   |          |          | Only need to output one      |                   |
+   | 1830     | rmudgett | version of the version       |                   |
+   |          |          | message.                     |                   |
+   +------------------------------------------------------------------------+
+
+     ----------------------------------------------------------------------
+
+                                Diffstat Results
+
+                                 [Back to Top]
+
+   This is a summary of the changes to the source code that went into this
+   release that was generated using the diffstat utility.
+
+ Makefile                          |   12
+ doc/cc_ptmp_agent.fsm             |  366 +
+ doc/cc_ptmp_agent_flattened.fsm   |  483 ++
+ doc/cc_ptmp_monitor.fsm           |  181
+ doc/cc_ptmp_monitor_flattened.fsm |  225 +
+ doc/cc_ptp_agent.fsm              |  144
+ doc/cc_ptp_agent_flattened.fsm    |  191
+ doc/cc_ptp_monitor.fsm            |  168
+ doc/cc_ptp_monitor_flattened.fsm  |  217 +
+ doc/cc_qsig_agent.fsm             |  136
+ doc/cc_qsig_agent_flattened.fsm   |  183
+ doc/cc_qsig_monitor.fsm           |  249 +
+ doc/cc_qsig_monitor_flattened.fsm |  327 +
+ libpri.h                          |  776 +++
+ pri.c                             |  248 +
+ pri_aoc.c                         | 1765 ++++++++
+ pri_cc.c                          | 7872 ++++++++++++++++++++++++++++++++++++++
+ pri_facility.c                    | 1417 ++++++
+ pri_facility.h                    |   85
+ pri_internal.h                    |  398 +
+ pri_q931.h                        |    8
+ prisched.c                        |  148
+ pritest.c                         |   83
+ q931.c                            | 1038 ++++-
+ rose.c                            |  437 ++
+ rose.h                            |  856 ++++
+ rose_etsi_aoc.c                   |    9
+ rose_etsi_cc.c                    | 1853 ++++++++
+ rose_etsi_mwi.c                   |  686 +++
+ rose_internal.h                   |  205
+ rose_qsig_cc.c                    |  984 ++++
+ rose_qsig_mwi.c                   |    9
+ rose_qsig_name.c                  |    1
+ rosetest.c                        |  865 +++-
+ 34 files changed, 22060 insertions(+), 565 deletions(-)
+
+     ----------------------------------------------------------------------
