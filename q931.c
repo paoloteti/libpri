@@ -4328,19 +4328,23 @@ static void init_header(struct pri *ctrl, q931_call *call, unsigned char *buf, q
 
 static int q931_xmit(struct pri *ctrl, int tei, q931_h *h, int len, int cr, int uiframe)
 {
+	/*
+	 * Dump the Q.931 message first.  Q.921 may have to request a TEI or
+	 * bring the connection up before it can actually send the message.
+	 * Therefore, the Q.931 message may actually get sent a few seconds
+	 * later.
+	 */
+	if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
+		q931_dump(ctrl, tei, h, len, 1);
+	}
+#ifdef LIBPRI_COUNTERS
+	ctrl->q931_txcount++;
+#endif
 	if (uiframe) {
 		q921_transmit_uiframe(ctrl, h, len);
 	} else {
 		q921_transmit_iframe(ctrl, tei, h, len, cr);
 	}
-	/* The transmit operation might dump the q921 header, so logging the q931
-	   message body after the transmit puts the sections of the message in the
-	   right order in the log */
-	if (ctrl->debug & PRI_DEBUG_Q931_DUMP)
-		q931_dump(ctrl, tei, h, len, 1);
-#ifdef LIBPRI_COUNTERS
-	ctrl->q931_txcount++;
-#endif
 	return 0;
 }
 
@@ -4370,6 +4374,7 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 	int x;
 	int codeset;
 	int uiframe;
+	int tei;
 
 	if (call->outboundbroadcast && call->master_call == call && msgtype != Q931_SETUP) {
 		pri_error(ctrl,
@@ -4398,6 +4403,7 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 	/* Invert the logic */
 	len = sizeof(buf) - len;
 
+	tei = call->pri->tei;
 	uiframe = 0;
 	if (BRI_NT_PTMP(ctrl)) {
 		/* NT PTMP is the only mode that can broadcast Q.931 messages. */
@@ -4414,7 +4420,7 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 			uiframe = 1;
 			break;
 		case Q931_FACILITY:
-			if (call->pri->tei == Q921_TEI_GROUP) {
+			if (tei == Q921_TEI_GROUP) {
 				/* Broadcast TEI. */
 				if (q931_is_dummy_call(call)) {
 					/*
@@ -4439,8 +4445,14 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 				"Sending message for call %p on call->pri: %p with TEI/SAPI %d/%d\n",
 				call, call->pri, call->pri->tei, call->pri->sapi);
 		}
+	} else if (call->pri->subchannel && BRI_TE_PTMP(ctrl)) {
+		/*
+		 * Get the best available TEI value for the debug dump display.
+		 * We may not actually have a TEI assigned at the moment.
+		 */
+		tei = call->pri->subchannel->tei;
 	}
-	q931_xmit(call->pri, call->pri->tei, h, len, 1, uiframe);
+	q931_xmit(call->pri, tei, h, len, 1, uiframe);
 	call->acked = 1;
 	return 0;
 }
