@@ -97,6 +97,29 @@ static const char *q921_state2str(enum q921_state state)
 static void q921_setstate(struct pri *ctrl, int newstate)
 {
 	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
+		/*
+		 * Suppress displaying these state transitions:
+		 * Q921_MULTI_FRAME_ESTABLISHED <--> Q921_TIMER_RECOVERY
+		 *
+		 * Q921 keeps flipping back and forth between these two states
+		 * when it has nothing better to do.
+		 */
+		switch (ctrl->q921_state) {
+		case Q921_MULTI_FRAME_ESTABLISHED:
+		case Q921_TIMER_RECOVERY:
+			switch (newstate) {
+			case Q921_MULTI_FRAME_ESTABLISHED:
+			case Q921_TIMER_RECOVERY:
+				/* Suppress displaying this state transition. */
+				ctrl->q921_state = newstate;
+				return;
+			default:
+				break;
+			}
+			break;
+		default:
+			break;
+		}
 		if (ctrl->q921_state != newstate) {
 			pri_message(ctrl, "Changing from state %d(%s) to %d(%s)\n",
 				ctrl->q921_state, q921_state2str(ctrl->q921_state),
