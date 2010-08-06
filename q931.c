@@ -1003,7 +1003,12 @@ static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, in
 			return -1;
 		}
 		if (ie->data[pos] & 0x10) {
-			/* Expect Slot Map */
+			/*
+			 * Expect Slot Map
+			 * Note that we are assuming only T1's use slot maps which is wrong
+			 * but oh well...  We would need to know what type of line we are
+			 * connected with (T1 or E1) to interpret the map correctly anyway.
+			 */
 			call->slotmap = 0;
 			pos++;
 			for (x=0;x<3;x++) {
@@ -1085,22 +1090,26 @@ static int transmit_channel_id(int full_ie, struct pri *ctrl, q931_call *call, i
 		&& !(call->chanflags & FLAG_WHOLE_INTERFACE)) {
 		/* The 3.2 and 3.3 octets need to be present */
 		ie->data[pos] = 0x83;
-		if (call->slotmap != -1) {
-			int octet;
-
-			/* We have to send a channel map */
-			ie->data[pos++] |= 0x10;
-			for (octet = 3; octet--;) {
-				ie->data[pos++] = (call->slotmap >> (8 * octet)) & 0xff;
-			}
-		} else {
-			/* Channel number specified */
+		if (0 < call->channelno && call->channelno != 0xff) {
+			/* Channel number specified and preferred over slot map if we have one. */
 			++pos;
 			if (ctrl->chan_mapping_logical && call->channelno > 16) {
 				ie->data[pos++] = 0x80 | (call->channelno - 1);
 			} else {
 				ie->data[pos++] = 0x80 | call->channelno;
 			}
+		} else if (call->slotmap != -1) {
+			int octet;
+
+			/* We have to send a slot map */
+			ie->data[pos++] |= 0x10;
+			for (octet = 3; octet--;) {
+				ie->data[pos++] = (call->slotmap >> (8 * octet)) & 0xff;
+			}
+		} else {
+			pri_error(ctrl, "XXX We need either a channelno or slotmap but have neither!\n");
+			/* Discard this malformed ie. */
+			return 0;
 		}
 	}
 
