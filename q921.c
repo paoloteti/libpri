@@ -61,6 +61,7 @@ static void q921_dump_pri(struct pri *ctrl, char direction_tag);
 static void q921_establish_data_link(struct pri *ctrl);
 static void q921_mdl_error(struct pri *ctrl, char error);
 static void q921_mdl_remove(struct pri *ctrl);
+static void q921_restart_ptp_link_if_needed(struct pri *ctrl);
 
 /*!
  * \internal
@@ -1168,6 +1169,7 @@ static pri_event *q921_disc_rx(struct pri *ctrl, q921_h *h)
 		if (ctrl->q921_state == Q921_MULTI_FRAME_ESTABLISHED)
 			stop_t203(ctrl);
 		q921_setstate(ctrl, Q921_TEI_ASSIGNED);
+		q921_restart_ptp_link_if_needed(ctrl);
 		break;
 	default:
 		pri_error(ctrl, "Don't know what to do with DISC in state %d(%s)\n",
@@ -1284,6 +1286,10 @@ static int q921_mdl_handle_ptp_error(struct pri *ctrl, char error)
 	/* This is where we act a bit like L3 instead of L2, since we've got an L3 that depends on us
 	 * keeping L2 automatically alive and happy for point to point links */
 	switch (error) {
+	case 'Z':
+		/* This is a special MDL error that actually isn't a spec error, but just so we
+		 * have an asynchronous context from the state machine to kick a PTP link back
+		 * up after being requested to drop politely (using DISC or DM) */
 	case 'G':
 		/* We pick it back up and put it back together for this case */
 		q921_discard_iqueue(ctrl);
@@ -1302,6 +1308,13 @@ static int q921_mdl_handle_ptp_error(struct pri *ctrl, char error)
 	}
 
 	return handled;
+}
+
+static void q921_restart_ptp_link_if_needed(struct pri *ctrl)
+{
+	if (PTP_MODE(ctrl) && ctrl->mdl_error == 0) {
+		q921_mdl_error(ctrl, 'Z');
+	}
 }
 
 static void q921_mdl_handle_error(struct pri *ctrl, char error, int errored_state)
@@ -1816,6 +1829,7 @@ static pri_event *q921_dm_rx(struct pri *ctrl, q921_h *h)
 		q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
 		stop_t200(ctrl);
 		q921_setstate(ctrl, Q921_TEI_ASSIGNED);
+		q921_restart_ptp_link_if_needed(ctrl);
 		break;
 	case Q921_AWAITING_RELEASE:
 		if (!h->u.p_f)
