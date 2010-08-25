@@ -1312,7 +1312,7 @@ static int q921_mdl_handle_ptp_error(struct pri *ctrl, char error)
 
 static void q921_restart_ptp_link_if_needed(struct pri *ctrl)
 {
-	if (PTP_MODE(ctrl) && ctrl->mdl_error == 0) {
+	if (PTP_MODE(ctrl)) {
 		q921_mdl_error(ctrl, 'Z');
 	}
 }
