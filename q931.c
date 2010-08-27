@@ -3956,7 +3956,7 @@ void q931_destroycall(struct pri *ctrl, q931_call *c)
 		if (cur == c) {
 			slaveidx = -1;
 			if (slave) {
-				for (i = 0; i < Q931_MAX_TEI; i++) {
+				for (i = 0; i < ARRAY_LEN(cur->subcalls); ++i) {
 					if (cur->subcalls[i] == slave) {
 						if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
 							pri_message(ctrl, "Destroying subcall %p of call %p at %d\n",
@@ -3971,7 +3971,7 @@ void q931_destroycall(struct pri *ctrl, q931_call *c)
 			}
 
 			slavesleft = 0;
-			for (i = 0; i < Q931_MAX_TEI; i++) {
+			for (i = 0; i < ARRAY_LEN(cur->subcalls); ++i) {
 				if (cur->subcalls[i]) {
 					if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
 						pri_message(ctrl, "Subcall still present at %d\n", i);
@@ -3981,8 +3981,8 @@ void q931_destroycall(struct pri *ctrl, q931_call *c)
 			}
 
 			/* We have 3 different phases to deal with:
-			 * 1.) Sent outbound call, but no response, indicated by t203 present
-			 * 2.) Sent outbound call, with responses, indicated by lack of t203 and subcalls present
+			 * 1.) Sent outbound call, but no response (no subcalls present)
+			 * 2.) Sent outbound call, with responses (subcalls present)
 			 * 3.) Outbound call connected, indicated by pri_winner > -1
 			 *
 			 * If chan_dahdi hangs up in phase:
@@ -4005,7 +4005,7 @@ void q931_destroycall(struct pri *ctrl, q931_call *c)
 			 *  If, when the library user hangs up the master call, and there are more than one subcall up, we fake clear
 			 *  regardless of whether or not we drop down to one subcall left in the clearing process.
 			 *
-			 *  If there are only one call up, we mirror what it does.
+			 *  If there is only one call up, we mirror what it does.
 			 *
 			 *  OR
 			 *
@@ -4023,8 +4023,8 @@ void q931_destroycall(struct pri *ctrl, q931_call *c)
 			 *  call as dead and free it when the last subcall clears.
 			 */
 
-			if ((slave && !slavesleft) &&
-				((cur->pri_winner < 0) || (slave && slaveidx != cur->pri_winner))) {
+			if (slave && !slavesleft /* i.e., The last slave was just destroyed */
+				&& (cur->pri_winner < 0 || slaveidx != cur->pri_winner)) {
 				pri_create_fake_clearing(cur, ctrl);
 				return;
 			}
@@ -4606,7 +4606,7 @@ int q931_notify_redirection(struct pri *ctrl, q931_call *call, int notify, const
 
 	if (call->outboundbroadcast && call->master_call == call) {
 		status = 0;
-		for (idx = 0; idx < Q931_MAX_TEI; ++idx) {
+		for (idx = 0; idx < ARRAY_LEN(call->subcalls); ++idx) {
 			subcall = call->subcalls[idx];
 			if (subcall) {
 				/* Send to all subcalls that have given a positive response. */
@@ -5996,7 +5996,7 @@ int q931_hangup(struct pri *ctrl, q931_call *call, int cause)
 			int slaves = 0;
 
 			/* Master is called with hangup - initiate hangup with slaves */
-			for (i = 0; i < Q931_MAX_TEI; i++) {
+			for (i = 0; i < ARRAY_LEN(call->subcalls); ++i) {
 				if (call->subcalls[i]) {
 					slaves++;
 					if (i == call->master_call->pri_winner) {
@@ -6248,7 +6248,7 @@ static int q931_get_subcall_count(struct q931_call *call)
 	int i;
 
 	call = call->master_call;
-	for (i = 0; i < Q931_MAX_TEI; i++) {
+	for (i = 0; i < ARRAY_LEN(call->subcalls); ++i) {
 		if (call->subcalls[i])
 			count++;
 	}
@@ -6263,7 +6263,7 @@ static void q931_set_subcall_winner(struct q931_call *subcall)
 	int i;
 
 	/* Set the winner first */
-	for (i = 0; i < Q931_MAX_TEI; i++) {
+	for (i = 0; i < ARRAY_LEN(realcall->subcalls); ++i) {
 		if (realcall->subcalls[i] && realcall->subcalls[i] == subcall) {
 			realcall->pri_winner = i;
 		}
@@ -6274,7 +6274,7 @@ static void q931_set_subcall_winner(struct q931_call *subcall)
 	}
 
 	/* Start tear down of calls that were not chosen */
-	for (i = 0; i < Q931_MAX_TEI; i++) {
+	for (i = 0; i < ARRAY_LEN(realcall->subcalls); ++i) {
 		if (realcall->subcalls[i] && realcall->subcalls[i] != subcall) {
 			initiate_hangup_if_needed(realcall->subcalls[i]->pri, realcall->subcalls[i],
 				PRI_CAUSE_NONSELECTED_USER_CLEARING);
@@ -6289,7 +6289,7 @@ static struct q931_call *q931_get_subcall(struct pri *ctrl, struct q931_call *ma
 	int firstfree = -1;
 
 	/* First try to locate our subcall */
-	for (i = 0; i < Q931_MAX_TEI; i++) {
+	for (i = 0; i < ARRAY_LEN(master_call->subcalls); ++i) {
 		if (master_call->subcalls[i]) {
 			if (master_call->subcalls[i]->pri == ctrl) {
 				return master_call->subcalls[i];
@@ -6300,7 +6300,7 @@ static struct q931_call *q931_get_subcall(struct pri *ctrl, struct q931_call *ma
 	}
 	if (firstfree < 0) {
 		pri_error(ctrl, "Tried to add more than %d TEIs to call and failed\n",
-			Q931_MAX_TEI);
+			(int) ARRAY_LEN(master_call->subcalls));
 		return NULL;
 	}
 
@@ -6316,7 +6316,7 @@ static struct q931_call *q931_get_subcall(struct pri *ctrl, struct q931_call *ma
 	cur->apdus = NULL;
 	cur->bridged_call = NULL;
 	//cur->master_call = master_call; /* We get this assignment for free. */
-	for (i = 0; i < Q931_MAX_TEI; ++i) {
+	for (i = 0; i < ARRAY_LEN(cur->subcalls); ++i) {
 		cur->subcalls[i] = NULL;
 	}
 	cur->t303_timer = 0;/* T303 should only be on on the master call */

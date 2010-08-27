@@ -832,7 +832,7 @@ int pri_connected_line_update(struct pri *ctrl, q931_call *call, const struct pr
 
 	/* Update all subcalls with new local_id. */
 	if (call->outboundbroadcast && call->master_call == call) {
-		for (idx = 0; idx < Q931_MAX_TEI; ++idx) {
+		for (idx = 0; idx < ARRAY_LEN(call->subcalls); ++idx) {
 			subcall = call->subcalls[idx];
 			if (subcall) {
 				subcall->local_id = party_id;
@@ -899,7 +899,7 @@ int pri_redirecting_update(struct pri *ctrl, q931_call *call, const struct pri_p
 	 * but update it just in case.
 	 */
 	if (call->outboundbroadcast && call->master_call == call) {
-		for (idx = 0; idx < Q931_MAX_TEI; ++idx) {
+		for (idx = 0; idx < ARRAY_LEN(call->subcalls); ++idx) {
 			subcall = call->subcalls[idx];
 			if (subcall) {
 				subcall->redirecting.to = call->redirecting.to;
