@@ -470,6 +470,21 @@ static const struct rose_convert_error rose_etsi_errors[] = {
 /* ------------------------------------------------------------------- */
 
 
+/*
+ * Note the first value in oid.values[] is really the first two
+ * OID subidentifiers.  They are compressed using this formula:
+ * First_Value = (First_Subidentifier * 40) + Second_Subidentifier
+ */
+
+/*! \brief ECMA private-isdn-signalling-domain prefix. */
+static const struct asn1_oid rose_qsig_isdn_domain = {
+/* *INDENT-OFF* */
+	/* {iso(1) identified-organization(3) icd-ecma(12) private-isdn-signalling-domain(9)} */
+	3, { 43, 12, 9 }
+/* *INDENT-ON* */
+};
+
+
 /*! \brief Q.SIG specific invoke/result encode/decode message table */
 static const struct rose_convert_msg rose_qsig_msgs[] = {
 /* *INDENT-OFF* */
@@ -479,7 +494,7 @@ static const struct rose_convert_msg rose_qsig_msgs[] = {
  *			decode_invoke_args,                     decode_result_args
  */
 	/*
-	 * localValue's from Q.SIG Name-Operations
+	 * localValue's from Q.SIG Name-Operations 4th edition
 	 * { iso(1) standard(0) pss1-name(13868) name-operations(0) }
 	 */
 	{
@@ -499,6 +514,34 @@ static const struct rose_convert_msg rose_qsig_msgs[] = {
 	},
 	{
 		ROSE_QSIG_BusyName,							NULL, 3,
+			rose_enc_qsig_BusyName_ARG,				NULL,
+			rose_dec_qsig_BusyName_ARG,				NULL
+	},
+
+	/*
+	 * globalValue's (OIDs) from Q.SIG Name-Operations 2nd edition
+	 * { iso(1) identified-organization(3) icd-ecma(12) standard(0) qsig-name(164) name-operations(0) }
+	 *
+	 * This older version of the Q.SIG switch is not supported.
+	 * However, we will accept receiving these messages anyway.
+	 */
+	{
+		ROSE_QSIG_CallingName,						&rose_qsig_isdn_domain, 0,
+			rose_enc_qsig_CallingName_ARG,			NULL,
+			rose_dec_qsig_CallingName_ARG,			NULL
+	},
+	{
+		ROSE_QSIG_CalledName,						&rose_qsig_isdn_domain, 1,
+			rose_enc_qsig_CalledName_ARG,			NULL,
+			rose_dec_qsig_CalledName_ARG,			NULL
+	},
+	{
+		ROSE_QSIG_ConnectedName,					&rose_qsig_isdn_domain, 2,
+			rose_enc_qsig_ConnectedName_ARG,		NULL,
+			rose_dec_qsig_ConnectedName_ARG,		NULL
+	},
+	{
+		ROSE_QSIG_BusyName,							&rose_qsig_isdn_domain, 3,
 			rose_enc_qsig_BusyName_ARG,				NULL,
 			rose_dec_qsig_BusyName_ARG,				NULL
 	},

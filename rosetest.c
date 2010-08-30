@@ -2170,6 +2170,42 @@ static unsigned char rose_qsig_name_alt_encode_msg[] = {
 /* *INDENT-ON* */
 };
 
+static unsigned char rose_qsig_name_2nd_encode_msg[] = {
+/* *INDENT-OFF* */
+/*
+ *	Context Specific/C [10 0x0A] <AA> Len:6 <06>
+ *		Context Specific [0 0x00] <80> Len:1 <01>
+ *			<00> - "~"
+ *		Context Specific [2 0x02] <82> Len:1 <01>
+ *			<00> - "~"
+ *	Context Specific [11 0x0B] <8B> Len:1 <01>
+ *		<00> - "~"
+ *	Context Specific/C [1 0x01] <A1> Len:26 <1A>
+ *		Integer(2 0x02) <02> Len:1 <01>
+ *			<40> - "@"
+ *		OID(6 0x06) <06> Len:4 <04>
+ *			<2B 0C 09 00> - "+~~~"
+ *		Context Specific [0 0x00] <80> Len:15 <0F>
+ *			<4D 6F 64 65 6D 20 44 69-73 63 6F 42 61 6C 6C> - "Modem DiscoBall"
+ */
+	0x91,
+	0xaa, 0x06,
+		0x80, 0x01,
+			0x00,
+		0x82, 0x01,
+			0x00,
+		0x8b, 0x01,
+			0x00,
+	0xa1, 0x1a,
+		0x02, 0x01,
+			0x40,
+		0x06, 0x04,
+			0x2b, 0x0c, 0x09, 0x00,
+		0x80, 0x0f,
+			0x4d, 0x6f, 0x64, 0x65, 0x6d, 0x20, 0x44, 0x69, 0x73, 0x63, 0x6f, 0x42, 0x61, 0x6c, 0x6c
+/* *INDENT-ON* */
+};
+
 
 static const struct rose_message rose_dms100_msgs[] = {
 /* *INDENT-OFF* */
@@ -2464,6 +2500,9 @@ int main(int argc, char *argv[])
 
 	rose_test_exception(&dummy_ctrl, "Alternate name encoded messages",
 		rose_qsig_name_alt_encode_msg, sizeof(rose_qsig_name_alt_encode_msg));
+
+	rose_test_exception(&dummy_ctrl, "2nd edition name encoded messages",
+		rose_qsig_name_2nd_encode_msg, sizeof(rose_qsig_name_2nd_encode_msg));
 
 /* ------------------------------------------------------------------- */
 
