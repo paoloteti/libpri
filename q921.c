@@ -1781,10 +1781,20 @@ static pri_event *q921_rnr_rx(struct pri *ctrl, q921_h *h)
 		}
 		break;
 	case Q921_TIMER_RECOVERY:
+		/* Q.921 Figure B.8 Q921 (Sheet 6 of 9) Page 85 */
 		ctrl->peer_rx_busy = 1;
 		if (is_command(ctrl, h)) {
 			if (h->s.p_f) {
 				q921_enquiry_response(ctrl);
+				if (n_r_is_valid(ctrl, h->s.n_r)) {
+					update_v_a(ctrl, h->s.n_r);
+					break;
+				} else {
+					n_r_error_recovery(ctrl);
+					q921_setstate(ctrl, Q921_AWAITING_ESTABLISHMENT);
+					break;
+				}
+			} else {
 				if (n_r_is_valid(ctrl, h->s.n_r)) {
 					update_v_a(ctrl, h->s.n_r);
 					break;
@@ -1801,6 +1811,15 @@ static pri_event *q921_rnr_rx(struct pri *ctrl, q921_h *h)
 					restart_t200(ctrl);
 					q921_invoke_retransmission(ctrl, h->s.n_r);
 					q921_setstate(ctrl, Q921_MULTI_FRAME_ESTABLISHED);
+					break;
+				} else {
+					n_r_error_recovery(ctrl);
+					q921_setstate(ctrl, Q921_AWAITING_ESTABLISHMENT);
+					break;
+				}
+			} else {
+				if (n_r_is_valid(ctrl, h->s.n_r)) {
+					update_v_a(ctrl, h->s.n_r);
 					break;
 				} else {
 					n_r_error_recovery(ctrl);
