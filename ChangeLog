@@ -2,6 +2,159 @@
 
 	* libpri 1.4.11.4 released.
 
+2010-08-30 22:34 +0000 [r1939-1949]  Richard Mudgett <rmudgett@digium.com>
+
+	* q931.c, q921.c: Merged revisions 1923,1928-1929 via svnmerge from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ........ r1923
+	  | rmudgett | 2010-08-30 14:31:46 -0500 (Mon, 30 Aug 2010) | 18
+	  lines Q.921 improvements from comparing Q.921 SDL diagrams with
+	  implementation. * Handle sending and receiving DM response frames
+	  as needed. * Added handling of received FRMR frames. * Completed
+	  implementation of Q921_AWAITING_RELEASE state. (State is
+	  currently unreachable since we have no API to initiate sending
+	  the DISC message.) * Better NT PTMP TEI allocation. * Reduced
+	  more ERROR level severity messages so users will stop panicking
+	  when they see ERROR. This is especially true for the Q.921
+	  MDL-ERROR messages. * Added better Q.921 visibility when normal
+	  debug message level is enabled. ........ r1928 | rmudgett |
+	  2010-08-30 15:30:59 -0500 (Mon, 30 Aug 2010) | 9 lines
+	  Q.921/Q.931 message debug output improvements. The Q.931 message
+	  decode debug output now will follow the correct Q.921 header
+	  decode if Q.921 message dumping is enabled. Also the Q.931
+	  message decode will happen when the message actually goes out on
+	  the line instead of when Q.931 passes the message to Q.921. Q.921
+	  may have to request a TEI, bring the connection up, or retransmit
+	  previous frames before it can actually send the new message.
+	  ........ r1929 | rmudgett | 2010-08-30 15:49:11 -0500 (Mon, 30
+	  Aug 2010) | 2 lines Reduced fake MDL-ERROR (Z) message severity
+	  to be visible only when debugging enabled. ........
+
+	* q921.c: Merged revisions 1918 via svnmerge from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ........ r1918
+	  | rmudgett | 2010-08-30 12:53:33 -0500 (Mon, 30 Aug 2010) | 41
+	  lines ISDN BRI does not recover from line faults Q.921 was
+	  getting stuck in state 2 (Q921_ASSIGN_AWAITING_TEI). For some
+	  reason the network was removing the TEI. Libpri then immediately
+	  tried to get a new TEI assigned. The network did not reply to the
+	  N202(3) attempts to get a new TEI. Libpri then just gave up
+	  trying but did not leave the state. Some paths in Q.921 Figure
+	  B.3 were not implemented. Q.921 now transitions to the
+	  Q921_TEI_UNASSIGNED state when the N202 count is exceeded. Q.921
+	  will wait there until an incoming or outgoing call is attempted.
+	  * Fixed initializing the n202_counter. Not initializing the
+	  n202_counter would cause the Q921_TEI_IDENTITY_REQUEST to
+	  unexpectedly not go out and due to how state transitions were
+	  done, Q.921 would get stuck in the Q921_ASSIGN_AWAITING_TEI
+	  state. * Fixed start T202 timer fail causing Q.921 to get stuck
+	  in the Q921_ASSIGN_AWAITING_TEI state if the network did not
+	  respond to the request. * Fixed handling of
+	  Q921_TEI_IDENTITY_REMOVE to do the MDL-REMOVE primitive
+	  (q921_mdl_remove()) instead of transitioning directly to the
+	  Q921_TEI_UNASSIGNED state. Necessary state clean-up was not
+	  getting done. * Minor tweaks to q921_mdl_remove(). The worst
+	  problem was erroneously generating an error message. * Fixed
+	  potential for sending I-frames with an invalid TEI. The I-frame
+	  could have been queued when Q.921 did not have an assigned TEI. *
+	  Fixed testing of the q931_receive() return value when a UI-frame
+	  is received. (closes issue #17570) Reported by: jcovert Patches:
+	  issue17570_v1.4.11.3_v3.patch uploaded by rmudgett (license 664)
+	  issue17570_v1.4_v3.patch uploaded by rmudgett (license 664)
+	  Tested by: jcovert, rmudgett ........
+
+	* rose.c, rosetest.c: Merged revisions 1904 via svnmerge from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ........ r1904
+	  | rmudgett | 2010-08-27 10:54:17 -0500 (Fri, 27 Aug 2010) | 15
+	  lines Add support to receive ECMA-164 2nd edition OID name ROSE
+	  messages. NOTE: To add support to send the old style name
+	  messages will require implementing them as new ROSE operation
+	  message types. NOTE: To actually use them would likely require
+	  implementing another version of the Q.SIG switch type. Like (NI1
+	  & NI2) and (4ess & 5ess) for example. Patches: libpri37.patch
+	  uploaded by rmudgett (license 664) JIRA SWP-2100 JIRA LIBPRI-37
+	  ........
+
+	* rosetest.c, pri.c, q921.c: Merged revisions 1878,1883-1884,1894
+	  via svnmerge from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ........ r1878
+	  | mattf | 2010-08-23 17:13:44 -0500 (Mon, 23 Aug 2010) | 1 line
+	  Add silly fake MDL error Z for kicking L2 to reactivate if a DISC
+	  or DM is received in proper states on PTP links. ........ r1883 |
+	  rmudgett | 2010-08-25 11:38:29 -0500 (Wed, 25 Aug 2010) | 2 lines
+	  Don't silently fail to post our fake MDL-ERROR(Z). ........ r1884
+	  | rmudgett | 2010-08-25 12:17:09 -0500 (Wed, 25 Aug 2010) | 2
+	  lines Added gripe check to rosetest for invalid operation and
+	  error codes. ........ r1894 | rmudgett | 2010-08-26 18:26:16
+	  -0500 (Thu, 26 Aug 2010) | 1 line Make pri_dump_event() only
+	  print the event name. ........
+
+	* q931.c: Merged revisions 1853 via svnmerge from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ........ r1853
+	  | rmudgett | 2010-08-06 13:35:35 -0500 (Fri, 06 Aug 2010) | 18
+	  lines No audio on inbound J1 calls. Incoming calls specifying the
+	  channel using a slot map could not negotiate a B channel
+	  correctly. Libpri historically has handled this as an any channel
+	  request. However, when chan_dahdi picked a new channel, libpri
+	  sent out the recorded slot map and not the new channel selected.
+	  Thus the two endpoints would be attached to different B channels
+	  and the parties would not hear anything or would hear the wrong
+	  parties. This patch restores the historical preference of sending
+	  out the channel id using the channel number method if a channel
+	  number is available. JIRA LIBPRI-35 Patches:
+	  libpri-35_v1.4.11.3.patch uploaded by rmudgett (license 664)
+	  libpri-35_v1.4.patch uploaded by rmudgett (license 664) Tested
+	  by: rmudgett ........
+
+	* q931.c, q921.c: Merged revisions 1848,1852 via svnmerge from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ........ r1848
+	  | rmudgett | 2010-08-03 18:04:52 -0500 (Tue, 03 Aug 2010) | 11
+	  lines Improved Q.921/Q.931 debug output. * Debug output for a
+	  sent Q.931 message in TE PTMP now uses the best available TEI
+	  number instead of always using 127. It could still be wrong if
+	  layer 2 does not have a TEI assigned. * Q.921 debug output is
+	  grouped better so a decoded message is not split by a blank line.
+	  * The Q.921 state is also decoded to a name. ........ r1852 |
+	  rmudgett | 2010-08-06 13:22:39 -0500 (Fri, 06 Aug 2010) | 1 line
+	  Learn (AGAIN!) why state 7 and state 8 transitions were
+	  suppressed. ........
+
+	* q921.c: Merged revisions 1845 via svnmerge from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ........ r1845
+	  | rmudgett | 2010-08-03 12:33:54 -0500 (Tue, 03 Aug 2010) | 10
+	  lines Q921_TIMER_RECOVERY SDL issue in q921_rnr_rx() Added
+	  missing code specified by Q.921 (Figure B.8 Page 85) when receive
+	  RNR in "Timer Recovery" state. (closes issue #16791) Reported by:
+	  alecdavis Patches: rnr_timer_recovery.diff.txt uploaded by
+	  alecdavis (license 585) ........
+
+	* rosetest.c, q921.c: Merged revisions 1829-1830,1842 via svnmerge
+	  from https://origsvn.digium.com/svn/libpri/branches/1.4 ........
+	  r1829 | rmudgett | 2010-07-16 12:15:07 -0500 (Fri, 16 Jul 2010) |
+	  1 line Added a libpri version output line as a sanity check for
+	  rosetest. ........ r1830 | rmudgett | 2010-07-16 12:20:21 -0500
+	  (Fri, 16 Jul 2010) | 1 line Only need to output one version of
+	  the version message. ........ r1842 | rmudgett | 2010-08-02
+	  13:47:10 -0500 (Mon, 02 Aug 2010) | 5 lines Renamed local struct
+	  pri *pri variables to struct pri *ctrl in q921.c. The context
+	  tagging for my editor is much happier now that the struct and the
+	  variable do not have the same name. (At least for this file.)
+	  ........
+
+	* rosetest.c, rose_qsig_name.c: Merged revisions 1828 via svnmerge
+	  from https://origsvn.digium.com/svn/libpri/branches/1.4 ........
+	  r1828 | rmudgett | 2010-07-16 11:37:07 -0500 (Fri, 16 Jul 2010) |
+	  18 lines Calling name not successfully processed on inbound QSIG
+	  PRI calls from Mitel PBX The alternate form of the Q.SIG Name
+	  sequence that allows manufacturer extensions for CallingName,
+	  CalledName, ConnectedName, and BusyName was not consuming the
+	  next ASN.1 tag. The code that processed the ASN.1 Name structure
+	  was then using a stale tag value. The stale tag value was then
+	  rejected with the "Did not expect" message. I have added a test
+	  case using the supplied PRI debug output to the rosetest utility
+	  to verify that this alternate encoding is tested in the future.
+	  (closes issue #17619) Reported by: jims8650 Patches:
+	  issue17619_v1.4.11.3.patch uploaded by rmudgett (license 664)
+	  Tested by: rmudgett ........
+
 2010-06-29 Leif Madsen <lmadsen@digium.com>
 
 	* libpri 1.4.11.3 released.
