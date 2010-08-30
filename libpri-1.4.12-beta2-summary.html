@@ -1,0 +1,93 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" /><title>Release Summary - libpri-1.4.12-beta2</title></head>
+<body>
+<h1 align="center"><a name="top">Release Summary</a></h1>
+<h3 align="center">libpri-1.4.12-beta2</h3>
+<h3 align="center">Date: 2010-08-30</h3>
+<h3 align="center">&lt;asteriskteam@digium.com&gt;</h3>
+<hr/>
+<h2 align="center">Table of Contents</h2>
+<ol>
+   <li><a href="#summary">Summary</a></li>
+   <li><a href="#contributors">Contributors</a></li>
+   <li><a href="#issues">Closed Issues</a></li>
+   <li><a href="#commits">Other Changes</a></li>
+   <li><a href="#diffstat">Diffstat</a></li>
+</ol>
+<hr/>
+<a name="summary"><h2 align="center">Summary</h2></a>
+<center><a href="#top">[Back to Top]</a></center><br/><p>This release includes only bug fixes.  The changes included were made only to address problems that have been identified in this release series.  Users should be able to safely upgrade to this version if this release series is already in use.  Users considering upgrading from a previous release series are strongly encouraged to review the UPGRADE.txt document as well as the CHANGES document for information about upgrading to this release series.</p>
+<p>The data in this summary reflects changes that have been made since the previous release, libpri-1.4.12-beta1.</p>
+<hr/>
+<a name="contributors"><h2 align="center">Contributors</h2></a>
+<center><a href="#top">[Back to Top]</a></center><br/><p>This table lists the people who have submitted code, those that have tested patches, as well as those that reported issues on the issue tracker that were resolved in this release.  For coders, the number is how many of their patches (of any size) were committed into this release.  For testers, the number is the number of times their name was listed as assisting with testing a patch.  Finally, for reporters, the number is the number of issues that they reported that were closed by commits that went into this release.</p>
+<table width="100%" border="0">
+<tr>
+<td width="33%"><h3>Coders</h3></td>
+<td width="33%"><h3>Testers</h3></td>
+<td width="33%"><h3>Reporters</h3></td>
+</tr>
+<tr valign="top">
+<td>
+13 rmudgett<br/>
+1 alecdavis<br/>
+1 mattf<br/>
+</td>
+<td>
+1 jcovert<br/>
+1 rmudgett<br/>
+</td>
+<td>
+1 alecdavis<br/>
+1 jcovert<br/>
+</td>
+</tr>
+</table>
+<hr/>
+<a name="issues"><h2 align="center">Closed Issues</h2></a>
+<center><a href="#top">[Back to Top]</a></center><br/><p>This is a list of all issues from the issue tracker that were closed by changes that went into this release.</p>
+<h3>Category: General</h3><br/>
+<a href="https://issues.asterisk.org/view.php?id=16791">#16791</a>: [patch] q921_rnr_rx Q921_TIMER_RECOVERY SDL issue<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1845">1845</a><br/>
+Reporter: alecdavis<br/>
+Coders: alecdavis<br/>
+<br/>
+<a href="https://issues.asterisk.org/view.php?id=17570">#17570</a>: [patch] ISDN BRI does not recover from line faults<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1918">1918</a><br/>
+Reporter: jcovert<br/>
+Testers: jcovert, rmudgett<br/>
+Coders: rmudgett<br/>
+<br/>
+<hr/>
+<a name="commits"><h2 align="center">Commits Not Associated with an Issue</h2></a>
+<center><a href="#top">[Back to Top]</a></center><br/><p>This is a list of all changes that went into this release that did not directly close an issue from the issue tracker.  The commits may have been marked as being related to an issue.  If that is the case, the issue numbers are listed here, as well.</p>
+<table width="100%" border="1">
+<tr><td><b>Revision</b></td><td><b>Author</b></td><td><b>Summary</b></td><td><b>Issues Referenced</b></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1842">1842</a></td><td>rmudgett</td><td>Renamed local struct pri *pri variables to struct pri *ctrl in q921.c.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1848">1848</a></td><td>rmudgett</td><td>Improved Q.921/Q.931 debug output.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1852">1852</a></td><td>rmudgett</td><td>Learn (AGAIN!) why state 7 and state 8 transitions were suppressed.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1853">1853</a></td><td>rmudgett</td><td>No audio on inbound J1 calls.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1878">1878</a></td><td>mattf</td><td>Add silly fake MDL error Z for kicking L2 to reactivate if a DISC or DM is received in proper states on PTP links.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1883">1883</a></td><td>rmudgett</td><td>Don't silently fail to post our fake MDL-ERROR(Z).</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1884">1884</a></td><td>rmudgett</td><td>Added gripe check to rosetest for invalid operation and error codes.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1894">1894</a></td><td>rmudgett</td><td>Make pri_dump_event() only print the event name.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1904">1904</a></td><td>rmudgett</td><td>Add support to receive ECMA-164 2nd edition OID name ROSE messages.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1912">1912</a></td><td>rmudgett</td><td>Convert most references of Q931_MAX_TEI to use ARRAY_LEN().</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1923">1923</a></td><td>rmudgett</td><td>Q.921 improvements from comparing Q.921 SDL diagrams with implementation.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1928">1928</a></td><td>rmudgett</td><td>Q.921/Q.931 message debug output improvements.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1929">1929</a></td><td>rmudgett</td><td>Reduced fake MDL-ERROR (Z) message severity to be visible only when debugging enabled.</td>
+<td></td></tr></table>
+<hr/>
+<a name="diffstat"><h2 align="center">Diffstat Results</h2></a>
+<center><a href="#top">[Back to Top]</a></center><br/><p>This is a summary of the changes to the source code that went into this release that was generated using the diffstat utility.</p>
+<pre>
+pri.c      |   78 --
+q921.c     | 2135 ++++++++++++++++++++++++++++++++++++-------------------------
+q931.c     |  180 +++--
+rose.c     |   45 +
+rosetest.c |   54 +
+5 files changed, 1550 insertions(+), 942 deletions(-)
+</pre><br/>
+<hr/>
+</body>
+</html>
