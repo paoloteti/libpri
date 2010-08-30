@@ -3925,6 +3925,85 @@ static char *disc2str(int disc)
 }
 
 /*!
+ * \internal
+ * \brief Dump the Q.931 message header.
+ *
+ * \param ctrl D channel controller.
+ * \param tei TEI the packet is associated with.
+ * \param h Q.931 packet contents/header.
+ * \param len Received length of the Q.931 packet.
+ * \param c Message direction prefix character.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int q931_dump_header(struct pri *ctrl, int tei, q931_h *h, int len, char c)
+{
+	q931_mh *mh;
+	int cref;
+
+	pri_message(ctrl, "%c Protocol Discriminator: %s (%d)  len=%d\n", c, disc2str(h->pd), h->pd, len);
+
+	if (len < 2 || len < 2 + h->crlen) {
+		pri_message(ctrl, "%c Message too short for call reference. len=%d\n",
+			c, len);
+		return -1;
+	}
+	cref = q931_cr(h);
+	pri_message(ctrl, "%c TEI=%d Call Ref: len=%2d (reference %d/0x%X) (%s)\n",
+		c, tei, h->crlen, cref & ~Q931_CALL_REFERENCE_FLAG,
+		cref & ~Q931_CALL_REFERENCE_FLAG, (cref == Q931_DUMMY_CALL_REFERENCE)
+			? "Dummy"
+			: (cref & Q931_CALL_REFERENCE_FLAG)
+				? "Sent to originator" : "Sent from originator");
+
+	if (len < 3 + h->crlen) {
+		pri_message(ctrl, "%c Message too short for supported protocols. len=%d\n",
+			c, len);
+		return -1;
+	}
+
+	/* Message header begins at the end of the call reference number */
+	mh = (q931_mh *)(h->contents + h->crlen);
+	switch (h->pd) {
+	case MAINTENANCE_PROTOCOL_DISCRIMINATOR_1:
+	case MAINTENANCE_PROTOCOL_DISCRIMINATOR_2:
+		pri_message(ctrl, "%c Message Type: %s (%d)\n", c, maintenance_msg2str(mh->msg, h->pd), mh->msg);
+		break;
+	default:
+		/* Unknown protocol discriminator but we will treat it as Q.931 anyway. */
+	case GR303_PROTOCOL_DISCRIMINATOR:
+	case Q931_PROTOCOL_DISCRIMINATOR:
+		pri_message(ctrl, "%c Message Type: %s (%d)\n", c, msg2str(mh->msg), mh->msg);
+		break;
+	}
+
+	return 0;
+}
+
+/*!
+ * \internal
+ * \brief Q.931 is passing this message to Q.921 debug indication.
+ *
+ * \param ctrl D channel controller.
+ * \param tei TEI the packet is associated with.
+ * \param h Q.931 packet contents/header.
+ * \param len Received length of the Q.931 packet
+ *
+ * \return Nothing
+ */
+static void q931_to_q921_passing_dump(struct pri *ctrl, int tei, q931_h *h, int len)
+{
+	char c;
+
+	c = '>';
+
+	pri_message(ctrl, "\n");
+	pri_message(ctrl, "%c DL-DATA request\n", c);
+	q931_dump_header(ctrl, tei, h, len, c);
+}
+
+/*!
  * \brief Debug dump the given Q.931 packet.
  *
  * \param ctrl D channel controller.
@@ -3943,46 +4022,19 @@ void q931_dump(struct pri *ctrl, int tei, q931_h *h, int len, int txrx)
 	int r;
 	int cur_codeset;
 	int codeset;
-	int cref;
 
 	c = txrx ? '>' : '<';
 
-	pri_message(ctrl, "%c Protocol Discriminator: %s (%d)  len=%d\n", c, disc2str(h->pd), h->pd, len);
-
-	if (len < 2 || len < 2 + h->crlen) {
-		pri_message(ctrl, "%c Message too short for call reference. len=%d\n",
-			c, len);
-		return;
+	if (!(ctrl->debug & (PRI_DEBUG_Q921_DUMP | PRI_DEBUG_Q921_RAW))) {
+		/* Put out a blank line if Q.921 is not dumping. */
+		pri_message(ctrl, "\n");
 	}
-	cref = q931_cr(h);
-	pri_message(ctrl, "%c TEI=%d Call Ref: len=%2d (reference %d/0x%X) (%s)\n",
-		c, tei, h->crlen, cref & ~Q931_CALL_REFERENCE_FLAG,
-		cref & ~Q931_CALL_REFERENCE_FLAG, (cref == Q931_DUMMY_CALL_REFERENCE)
-			? "Dummy"
-			: (cref & Q931_CALL_REFERENCE_FLAG)
-				? "Sent to originator" : "Sent from originator");
-
-	if (len < 3 + h->crlen) {
-		pri_message(ctrl, "%c Message too short for supported protocols. len=%d\n",
-			c, len);
+	if (q931_dump_header(ctrl, tei, h, len, c)) {
 		return;
 	}
 
-	/* Message header begins at the end of the call reference number */
-	mh = (q931_mh *)(h->contents + h->crlen);
-	switch (h->pd) {
-	case MAINTENANCE_PROTOCOL_DISCRIMINATOR_1:
-	case MAINTENANCE_PROTOCOL_DISCRIMINATOR_2:
-		pri_message(ctrl, "%c Message Type: %s (%d)\n", c, maintenance_msg2str(mh->msg, h->pd), mh->msg);
-		break;
-	default:
-		/* Unknown protocol discriminator but we will treat it as Q.931 anyway. */
-	case GR303_PROTOCOL_DISCRIMINATOR:
-	case Q931_PROTOCOL_DISCRIMINATOR:
-		pri_message(ctrl, "%c Message Type: %s (%d)\n", c, msg2str(mh->msg), mh->msg);
-		break;
-	}
 	/* Drop length of header, including call reference */
+	mh = (q931_mh *)(h->contents + h->crlen);
 	len -= (h->crlen + 3);
 	codeset = cur_codeset = 0;
 	for (x = 0; x < len; x += r) {
@@ -4076,21 +4128,30 @@ static void init_header(struct pri *ctrl, q931_call *call, unsigned char *buf, q
 
 static int q931_xmit(struct pri *ctrl, int tei, q931_h *h, int len, int cr, int uiframe)
 {
-	/*
-	 * Dump the Q.931 message first.  Q.921 may have to request a TEI or
-	 * bring the connection up before it can actually send the message.
-	 * Therefore, the Q.931 message may actually get sent a few seconds
-	 * later.
-	 */
-	if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
-		q931_dump(ctrl, tei, h, len, 1);
-	}
 #ifdef LIBPRI_COUNTERS
 	ctrl->q931_txcount++;
 #endif
 	if (uiframe) {
 		q921_transmit_uiframe(ctrl, h, len);
+		if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
+			/*
+			 * The transmit operation might dump the Q.921 header, so logging
+			 * the Q.931 message body after the transmit puts the sections of
+			 * the message in the right order in the log,
+			 */
+			q931_dump(ctrl, tei, h, len, 1);
+		}
 	} else {
+		/*
+		 * Indicate passing the Q.931 message to Q.921 first.  Q.921 may
+		 * have to request a TEI or bring the connection up before it can
+		 * actually send the message.  Therefore, the Q.931 message may
+		 * actually get sent a few seconds later.  Q.921 will dump the
+		 * Q.931 message as appropriate at that time.
+		 */
+		if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
+			q931_to_q921_passing_dump(ctrl, tei, h, len);
+		}
 		q921_transmit_iframe(ctrl, tei, h, len, cr);
 	}
 	return 0;
