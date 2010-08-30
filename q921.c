@@ -1668,6 +1668,14 @@ static void q921_mdl_error(struct pri *ctrl, char error)
 		pri_error(ctrl, "TEI=%d MDL-ERROR (K): FRMR in state %d(%s)\n",
 			ctrl->tei, ctrl->q921_state, q921_state2str(ctrl->q921_state));
 		break;
+	case 'Z':
+		if (is_debug_q921_state) {
+			/* Fake MDL-ERROR to kick start PTP L2 link back up. */
+			pri_message(ctrl,
+				"TEI=%d MDL-ERROR (Z): Kick starting L2 link in state %d(%s)\n",
+				ctrl->tei, ctrl->q921_state, q921_state2str(ctrl->q921_state));
+		}
+		break;
 	default:
 		pri_message(ctrl, "TEI=%d MDL-ERROR (%c): in state %d(%s)\n",
 			ctrl->tei, error, ctrl->q921_state, q921_state2str(ctrl->q921_state));
