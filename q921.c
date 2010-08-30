@@ -196,19 +196,49 @@ static void q921_send_tei(struct pri *ctrl, int message, int ri, int ai, int isc
 	free(f);
 }
 
-static void q921_tei_request(void *vpri)
+static void t202_expire(void *vpri)
 {
 	struct pri *ctrl = (struct pri *)vpri;
-	ctrl->n202_counter++;
-	if (ctrl->n202_counter > ctrl->timers[PRI_TIMER_N202]) {
-		pri_error(ctrl, "Unable to receive TEI from network!\n");
-		ctrl->n202_counter = 0;
+
+	/* Start the TEI request timer. */
+	pri_schedule_del(ctrl, ctrl->t202_timer);
+	ctrl->t202_timer =
+		pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T202], t202_expire, ctrl);
+
+	++ctrl->n202_counter;
+	if (!ctrl->t202_timer || ctrl->n202_counter > ctrl->timers[PRI_TIMER_N202]) {
+		if (!ctrl->t202_timer) {
+			pri_error(ctrl, "Could not start T202 timer.");
+		} else {
+			pri_schedule_del(ctrl, ctrl->t202_timer);
+			ctrl->t202_timer = 0;
+		}
+		pri_error(ctrl, "Unable to receive TEI from network in state %d(%s)!\n",
+			ctrl->q921_state, q921_state2str(ctrl->q921_state));
+		switch (ctrl->q921_state) {
+		case Q921_ASSIGN_AWAITING_TEI:
+			break;
+		case Q921_ESTABLISH_AWAITING_TEI:
+			q921_discard_iqueue(ctrl);
+			/* DL-RELEASE indication */
+			q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
+			break;
+		default:
+			break;
+		}
+		q921_setstate(ctrl, Q921_TEI_UNASSIGNED);
 		return;
 	}
+
+	/* Send TEI request */
 	ctrl->ri = random() % 65535;
 	q921_send_tei(PRI_MASTER(ctrl), Q921_TEI_IDENTITY_REQUEST, ctrl->ri, Q921_TEI_GROUP, 1);
-	pri_schedule_del(ctrl, ctrl->t202_timer);
-	ctrl->t202_timer = pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T202], q921_tei_request, ctrl);
+}
+
+static void q921_tei_request(struct pri *ctrl)
+{
+	ctrl->n202_counter = 0;
+	t202_expire(ctrl);
 }
 
 static void q921_send_ua(struct pri *ctrl, int pfbit)
@@ -397,6 +427,14 @@ static int q921_send_queued_iframes(struct pri *ctrl)
 			if (ctrl->debug & PRI_DEBUG_Q921_DUMP)
 				pri_message(ctrl, "-- Finally transmitting %d, since window opened up (%d)\n", f->h.n_s, ctrl->timers[PRI_TIMER_K]);
 			f->transmitted++;
+
+			/*
+			 * Send the frame out on the assigned TEI.
+			 * Done now because the frame may have been queued before we
+			 * had an assigned TEI.
+			 */
+			f->h.h.tei = ctrl->tei;
+
 			f->h.n_s = ctrl->v_s;
 			f->h.n_r = ctrl->v_r;
 			f->h.ft = 0;
@@ -619,9 +657,16 @@ int q921_transmit_iframe(struct pri *vpri, int tei, void *buf, int len, int cr)
 		/* We don't care what the tei is, since we only support one sub and one TEI */
 		ctrl = PRI_MASTER(vpri)->subchannel;
 
-		if (ctrl->q921_state == Q921_TEI_UNASSIGNED) {
-			q921_tei_request(ctrl);
+		switch (ctrl->q921_state) {
+		case Q921_TEI_UNASSIGNED:
 			q921_setstate(ctrl, Q921_ESTABLISH_AWAITING_TEI);
+			q921_tei_request(ctrl);
+			break;
+		case Q921_ASSIGN_AWAITING_TEI:
+			q921_setstate(ctrl, Q921_ESTABLISH_AWAITING_TEI);
+			break;
+		default:
+			break;
 		}
 	} else {
 		/* Should just be PTP modes, which shouldn't have subs */
@@ -636,9 +681,7 @@ int q921_transmit_iframe(struct pri *vpri, int tei, void *buf, int len, int cr)
 		ctrl->l3initiated = 1;
 		q921_setstate(ctrl, Q921_AWAITING_ESTABLISHMENT);
 		/* For all rest, we've done the work to get us up prior to this and fall through */
-	case Q921_TEI_UNASSIGNED:
 	case Q921_ESTABLISH_AWAITING_TEI:
-	case Q921_ASSIGN_AWAITING_TEI:
 	case Q921_TIMER_RECOVERY:
 	case Q921_AWAITING_ESTABLISHMENT:
 	case Q921_MULTI_FRAME_ESTABLISHED:
@@ -698,6 +741,8 @@ int q921_transmit_iframe(struct pri *vpri, int tei, void *buf, int len, int cr)
 			pri_error(ctrl, "!! Out of memory for Q.921 transmit\n");
 			return -1;
 		}
+	case Q921_TEI_UNASSIGNED:
+	case Q921_ASSIGN_AWAITING_TEI:
 	case Q921_AWAITING_RELEASE:
 	default:
 		pri_error(ctrl, "Cannot transmit frames in state %d(%s)\n",
@@ -1049,6 +1094,8 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 			q921_establish_data_link(ctrl);
 			ctrl->l3initiated = 1;
 			q921_setstate(ctrl, Q921_AWAITING_ESTABLISHMENT);
+			ctrl->ev.gen.e = PRI_EVENT_DCHAN_UP;
+			res = &ctrl->ev;
 			break;
 		default:
 			pri_error(ctrl, "Error 3\n");
@@ -1072,10 +1119,17 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 		if (!BRI_TE_PTMP(ctrl))
 			return NULL;
 
+		if (ctrl->subchannel->q921_state < Q921_TEI_ASSIGNED) {
+			/* We do not have a TEI. */
+			return NULL;
+		}
+
+		/* If it's addressed to the group TEI or to our TEI specifically, we respond */
 		if ((tei == Q921_TEI_GROUP) || (tei == ctrl->subchannel->tei)) {
-			q921_setstate(ctrl->subchannel, Q921_TEI_UNASSIGNED);
+			q921_mdl_remove(ctrl->subchannel);
 			q921_start(ctrl->subchannel);
 		}
+		break;
 	}
 	return res;	/* Do we need to return something??? */
 }
@@ -1182,6 +1236,18 @@ static pri_event *q921_disc_rx(struct pri *ctrl, q921_h *h)
 
 static void q921_mdl_remove(struct pri *ctrl)
 {
+	int mdl_free_me;
+
+	if (BRI_NT_PTMP(ctrl)) {
+		if (ctrl == PRI_MASTER(ctrl)) {
+			pri_error(ctrl, "Bad bad bad!  Cannot MDL-REMOVE master\n");
+			return;
+		}
+		mdl_free_me = 1;
+	} else {
+		mdl_free_me = 0;
+	}
+
 	switch (ctrl->q921_state) {
 	case Q921_TEI_ASSIGNED:
 		/* XXX: deviation! Since we don't have a UI queue, we just discard our I-queue */
@@ -1192,7 +1258,6 @@ static void q921_mdl_remove(struct pri *ctrl)
 		q921_discard_iqueue(ctrl);
 		/* DL-RELEASE indication */
 		q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
-
 		stop_t200(ctrl);
 		q921_setstate(ctrl, Q921_TEI_UNASSIGNED);
 		break;
@@ -1200,6 +1265,7 @@ static void q921_mdl_remove(struct pri *ctrl)
 		q921_discard_iqueue(ctrl);
 		/* DL-RELEASE confirm */
 		stop_t200(ctrl);
+		q921_setstate(ctrl, Q921_TEI_UNASSIGNED);
 		break;
 	case Q921_MULTI_FRAME_ESTABLISHED:
 		q921_discard_iqueue(ctrl);
@@ -1215,19 +1281,14 @@ static void q921_mdl_remove(struct pri *ctrl)
 		q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
 		stop_t200(ctrl);
 		q921_setstate(ctrl, Q921_TEI_UNASSIGNED);
-	default:
-		pri_error(ctrl, "Cannot handle MDL remove when PRI is in state %d(%s)\n",
-			ctrl->q921_state, q921_state2str(ctrl->q921_state));
 		break;
+	default:
+		pri_error(ctrl, "MDL-REMOVE when in state %d(%s)\n",
+			ctrl->q921_state, q921_state2str(ctrl->q921_state));
+		return;
 	}
 
-	if (BRI_NT_PTMP(ctrl) && ctrl->q921_state == Q921_TEI_UNASSIGNED) {
-		if (ctrl == PRI_MASTER(ctrl)) {
-			pri_error(ctrl, "Bad bad bad!  Asked to free master\n");
-			return;
-		}
-		ctrl->mdl_free_me = 1;
-	}
+	ctrl->mdl_free_me = mdl_free_me;
 }
 
 static int q921_mdl_handle_network_error(struct pri *ctrl, char error)
@@ -2020,19 +2081,15 @@ static pri_event *__q921_receive_qualified(struct pri *ctrl, q921_h *h, int len)
 				break;
 			} else if (!h->u.m2) {
 				if ((ctrl->sapi == Q921_SAPI_LAYER2_MANAGEMENT) && (ctrl->tei == Q921_TEI_GROUP)) {
-
 					pri_error(ctrl, "I should never be called\n");
-					q921_receive_MDL(ctrl, (q921_u *)h, len);
-
+					ev = q921_receive_MDL(ctrl, (q921_u *)h, len);
 				} else {
 					int res;
 
 					res = q931_receive(ctrl, ctrl->tei, (q931_h *) h->u.data, len - 3);
-					if (res == -1) {
-						ev = NULL;
-					}
-					if (res & Q931_RES_HAVEEVENT)
+					if (res != -1 && (res & Q931_RES_HAVEEVENT)) {
 						ev = &ctrl->ev;
+					}
 				}
 			}
 			break;
