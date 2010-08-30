@@ -382,6 +382,7 @@ static const unsigned char *rose_dec_qsig_PartyName_ARG_Backend(struct pri *ctrl
 		ASN1_CALL(pos, asn1_dec_length(pos, end, &length));
 		ASN1_END_SETUP(seq_end, seq_offset, length, pos, end);
 
+		ASN1_CALL(pos, asn1_dec_tag(pos, seq_end, &tag));
 		ASN1_CALL(pos, rose_dec_qsig_Name(ctrl, "name", tag, pos, seq_end,
 			&party->name));
 
