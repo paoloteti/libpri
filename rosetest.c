@@ -2356,6 +2356,7 @@ int main(int argc, char *argv[])
 {
 	unsigned index;
 	unsigned offset;
+	const char *str;
 	static struct pri dummy_ctrl;
 
 	pri_set_message(rose_pri_message);
@@ -2469,7 +2470,12 @@ int main(int argc, char *argv[])
 	pri_message(&dummy_ctrl, "\n\n"
 		"List of operation codes:\n");
 	for (index = 0; index < ROSE_Num_Operation_Codes; ++index) {
-		pri_message(&dummy_ctrl, "%d: %s\n", index, rose_operation2str(index));
+		str = rose_operation2str(index);
+		if (!strncmp(str, "Invalid code:", 13)) {
+			pri_error(&dummy_ctrl, "%d: %s\n", index, str);
+		} else {
+			pri_message(&dummy_ctrl, "%d: %s\n", index, str);
+		}
 	}
 	pri_message(&dummy_ctrl, "\n\n"
 		"************************************************************\n");
@@ -2479,7 +2485,12 @@ int main(int argc, char *argv[])
 	pri_message(&dummy_ctrl, "\n\n"
 		"List of error codes:\n");
 	for (index = 0; index < ROSE_ERROR_Num_Codes; ++index) {
-		pri_message(&dummy_ctrl, "%d: %s\n", index, rose_error2str(index));
+		str = rose_error2str(index);
+		if (!strncmp(str, "Invalid code:", 13)) {
+			pri_error(&dummy_ctrl, "%d: %s\n", index, str);
+		} else {
+			pri_message(&dummy_ctrl, "%d: %s\n", index, str);
+		}
 	}
 	pri_message(&dummy_ctrl, "\n\n"
 		"************************************************************\n");

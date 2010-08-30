@@ -434,32 +434,32 @@ char *pri_event2str(int id)
 		char *name;
 	} events[] = {
 /* *INDENT-OFF* */
-		{ PRI_EVENT_DCHAN_UP,       "D-Channel Up" },
-		{ PRI_EVENT_DCHAN_DOWN,     "D-channel Down" },
-		{ PRI_EVENT_RESTART,        "Restart channel" },
-		{ PRI_EVENT_CONFIG_ERR,     "Configuration Error" },
-		{ PRI_EVENT_RING,           "Ring" },
-		{ PRI_EVENT_HANGUP,         "Hangup" },
-		{ PRI_EVENT_RINGING,        "Ringing" },
-		{ PRI_EVENT_ANSWER,         "Answer" },
-		{ PRI_EVENT_HANGUP_ACK,     "Hangup ACK" },
-		{ PRI_EVENT_RESTART_ACK,    "Restart ACK" },
-		{ PRI_EVENT_FACILITY,       "Facility" },
-		{ PRI_EVENT_INFO_RECEIVED,  "Info Received" },
-		{ PRI_EVENT_PROCEEDING,     "Proceeding" },
-		{ PRI_EVENT_SETUP_ACK,      "Setup ACK" },
-		{ PRI_EVENT_HANGUP_REQ,     "Hangup Req" },
-		{ PRI_EVENT_NOTIFY,         "Notify" },
-		{ PRI_EVENT_PROGRESS,       "Progress" },
-		{ PRI_EVENT_KEYPAD_DIGIT,   "Keypad Digit" },
-		{ PRI_EVENT_SERVICE,        "Service" },
-		{ PRI_EVENT_SERVICE_ACK,    "Service ACK" },
-		{ PRI_EVENT_HOLD,           "Hold" },
-		{ PRI_EVENT_HOLD_ACK,       "Hold Ack" },
-		{ PRI_EVENT_HOLD_REJ,       "Hold Rej" },
-		{ PRI_EVENT_RETRIEVE,       "Retrieve" },
-		{ PRI_EVENT_RETRIEVE_ACK,   "Retrieve ACK" },
-		{ PRI_EVENT_RETRIEVE_REJ,   "Retrieve Rej" },
+		{ PRI_EVENT_DCHAN_UP,       "PRI_EVENT_DCHAN_UP" },
+		{ PRI_EVENT_DCHAN_DOWN,     "PRI_EVENT_DCHAN_DOWN" },
+		{ PRI_EVENT_RESTART,        "PRI_EVENT_RESTART" },
+		{ PRI_EVENT_CONFIG_ERR,     "PRI_EVENT_CONFIG_ERR" },
+		{ PRI_EVENT_RING,           "PRI_EVENT_RING" },
+		{ PRI_EVENT_HANGUP,         "PRI_EVENT_HANGUP" },
+		{ PRI_EVENT_RINGING,        "PRI_EVENT_RINGING" },
+		{ PRI_EVENT_ANSWER,         "PRI_EVENT_ANSWER" },
+		{ PRI_EVENT_HANGUP_ACK,     "PRI_EVENT_HANGUP_ACK" },
+		{ PRI_EVENT_RESTART_ACK,    "PRI_EVENT_RESTART_ACK" },
+		{ PRI_EVENT_FACILITY,       "PRI_EVENT_FACILITY" },
+		{ PRI_EVENT_INFO_RECEIVED,  "PRI_EVENT_INFO_RECEIVED" },
+		{ PRI_EVENT_PROCEEDING,     "PRI_EVENT_PROCEEDING" },
+		{ PRI_EVENT_SETUP_ACK,      "PRI_EVENT_SETUP_ACK" },
+		{ PRI_EVENT_HANGUP_REQ,     "PRI_EVENT_HANGUP_REQ" },
+		{ PRI_EVENT_NOTIFY,         "PRI_EVENT_NOTIFY" },
+		{ PRI_EVENT_PROGRESS,       "PRI_EVENT_PROGRESS" },
+		{ PRI_EVENT_KEYPAD_DIGIT,   "PRI_EVENT_KEYPAD_DIGIT" },
+		{ PRI_EVENT_SERVICE,        "PRI_EVENT_SERVICE" },
+		{ PRI_EVENT_SERVICE_ACK,    "PRI_EVENT_SERVICE_ACK" },
+		{ PRI_EVENT_HOLD,           "PRI_EVENT_HOLD" },
+		{ PRI_EVENT_HOLD_ACK,       "PRI_EVENT_HOLD_ACK" },
+		{ PRI_EVENT_HOLD_REJ,       "PRI_EVENT_HOLD_REJ" },
+		{ PRI_EVENT_RETRIEVE,       "PRI_EVENT_RETRIEVE" },
+		{ PRI_EVENT_RETRIEVE_ACK,   "PRI_EVENT_RETRIEVE_ACK" },
+		{ PRI_EVENT_RETRIEVE_REJ,   "PRI_EVENT_RETRIEVE_REJ" },
 /* *INDENT-ON* */
 	};
 
@@ -1019,26 +1019,6 @@ void pri_dump_event(struct pri *pri, pri_event *e)
 	if (!pri || !e)
 		return;
 	pri_message(pri, "Event type: %s (%d)\n", pri_event2str(e->gen.e), e->gen.e);
-	switch(e->gen.e) {
-	case PRI_EVENT_DCHAN_UP:
-	case PRI_EVENT_DCHAN_DOWN:
-		break;
-	case PRI_EVENT_CONFIG_ERR:
-		pri_message(pri, "Error: %s", e->err.err);
-		break;
-	case PRI_EVENT_RESTART:
-		pri_message(pri, "Restart on channel %d\n", e->restart.channel);
-	case PRI_EVENT_RING:
-		pri_message(pri, "Calling number: %s (%s, %s)\n", e->ring.callingnum, pri_plan2str(e->ring.callingplan), pri_pres2str(e->ring.callingpres));
-		pri_message(pri, "Called number: %s (%s)\n", e->ring.callednum, pri_plan2str(e->ring.calledplan));
-		pri_message(pri, "Channel: %d (%s) Reference number: %d\n", e->ring.channel, e->ring.flexible ? "Flexible" : "Not Flexible", e->ring.cref);
-		break;
-	case PRI_EVENT_HANGUP:
-		pri_message(pri, "Hangup, reference number: %d, reason: %s\n", e->hangup.cref, pri_cause2str(e->hangup.cause));
-		break;
-	default:
-		pri_message(pri, "Don't know how to dump events of type %d\n", e->gen.e);
-	}
 }
 
 static void pri_sr_init(struct pri_sr *req)
