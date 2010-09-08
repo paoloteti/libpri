@@ -220,20 +220,23 @@ static void pri_default_timers(struct pri *ctrl, int switchtype)
 	}
 }
 
-int pri_set_timer(struct pri *pri, int timer, int value)
+int pri_set_timer(struct pri *ctrl, int timer, int value)
 {
-	if (timer < 0 || timer > PRI_MAX_TIMERS || value < 0)
+	if (!ctrl || timer < 0 || PRI_MAX_TIMERS <= timer || value < 0) {
 		return -1;
-
-	pri->timers[timer] = value;
+	}
+	ctrl = PRI_MASTER(ctrl);
+	ctrl->timers[timer] = value;
 	return 0;
 }
 
-int pri_get_timer(struct pri *pri, int timer)
+int pri_get_timer(struct pri *ctrl, int timer)
 {
-	if (timer < 0 || timer > PRI_MAX_TIMERS)
+	if (!ctrl || timer < 0 || PRI_MAX_TIMERS <= timer) {
 		return -1;
-	return pri->timers[timer];
+	}
+	ctrl = PRI_MASTER(ctrl);
+	return ctrl->timers[timer];
 }
 
 int pri_set_service_message_support(struct pri *pri, int supportflag)
@@ -1419,6 +1422,7 @@ char *pri_dump_info_str(struct pri *ctrl)
 	size_t used;
 #ifdef LIBPRI_COUNTERS
 	struct q921_frame *f;
+	struct pri *link;
 	unsigned q921outstanding;
 #endif
 	unsigned idx;
@@ -1434,6 +1438,8 @@ char *pri_dump_info_str(struct pri *ctrl)
 		return NULL;
 	}
 
+	ctrl = PRI_MASTER(ctrl);
+
 	/* Might be nice to format these a little better */
 	used = 0;
 	used = pri_snprintf(buf, used, buf_size, "Switchtype: %s\n",
@@ -1445,13 +1451,14 @@ char *pri_dump_info_str(struct pri *ctrl)
 	used = pri_snprintf(buf, used, buf_size, "Q931 TX: %d\n", ctrl->q931_txcount);
 	used = pri_snprintf(buf, used, buf_size, "Q921 RX: %d\n", ctrl->q921_rxcount);
 	used = pri_snprintf(buf, used, buf_size, "Q921 TX: %d\n", ctrl->q921_txcount);
-	q921outstanding = 0;
-	f = ctrl->txqueue;
-	while (f) {
-		q921outstanding++;
-		f = f->next;
+	for (link = ctrl; link; link = link->subchannel) {
+		q921outstanding = 0;
+		for (f = link->txqueue; f; f = f->next) {
+			++q921outstanding;
+		}
+		used = pri_snprintf(buf, used, buf_size, "Q921 Outstanding: %u (TEI=%d)\n",
+			q921outstanding, link->tei);
 	}
-	used = pri_snprintf(buf, used, buf_size, "Q921 Outstanding: %u\n", q921outstanding);
 #endif
 #if 0
 	used = pri_snprintf(buf, used, buf_size, "Window Length: %d/%d\n",
