@@ -6416,8 +6416,6 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 	int allow_posthandle;
 
 	memset(last_ie, 0, sizeof(last_ie));
-	if (ctrl->debug & PRI_DEBUG_Q931_DUMP)
-		q931_dump(ctrl, tei, h, len, 0);
 #ifdef LIBPRI_COUNTERS
 	ctrl->q931_rxcount++;
 #endif
