@@ -47,20 +47,20 @@ FSM CC_PTMP_Agent
 		}
 		Stimulus CC_EVENT_TIMEOUT_T_RETENTION {
 			Action Send_EraseCallLinkageID;
-			Action Relese_LinkID;
+			Action Release_LinkID;
 			Action Pass_Up_CC_Cancel;
 			Next_State CC_STATE_IDLE;
 		}
 		Stimulus CC_EVENT_CANCEL {
 			Action Send_EraseCallLinkageID;
-			Action Relese_LinkID;
+			Action Release_LinkID;
 			Next_State CC_STATE_IDLE;
 		}
 	}
 	State CC_STATE_REQUESTED {
 		Epilog {
 			Action Send_EraseCallLinkageID;
-			Action Relese_LinkID;
+			Action Release_LinkID;
 		}
 		Stimulus CC_EVENT_CC_REQUEST_ACCEPT {
 			Next_State CC_STATE_ACTIVATED;
