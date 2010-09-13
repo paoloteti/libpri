@@ -256,3 +256,32 @@ void pri_schedule_del(struct pri *ctrl, int id)
 			ctrl->sched.num_slots);
 	}
 }
+
+/*!
+ * \brief Is the scheduled event this callback.
+ *
+ * \param ctrl D channel controller.
+ * \param id Scheduled event id to check.
+ * 0 is a disabled/unscheduled event id.
+ * 1 - MAX_SCHED is a valid event id.
+ * \param function Callback function to call when timeout.
+ * \param data Value to give callback function when timeout.
+ *
+ * \return TRUE if scheduled event has the callback.
+ */
+int pri_schedule_check(struct pri *ctrl, int id, void (*function)(void *data), void *data)
+{
+	/* Scheduling runs on master channels only */
+	ctrl = PRI_MASTER(ctrl);
+
+	if (0 < id && id <= ctrl->sched.num_slots) {
+		if (ctrl->sched.timer[id - 1].callback == function
+			&& ctrl->sched.timer[id - 1].data == data) {
+			return 1;
+		}
+	} else if (id) {
+		pri_error(ctrl, "Asked to check sched id %d??? num_slots=%d\n", id,
+			ctrl->sched.num_slots);
+	}
+	return 0;
+}

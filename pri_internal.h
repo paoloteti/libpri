@@ -96,6 +96,7 @@ struct pri {
 	int sapi;
 	int tei;
 	int protodisc;
+	unsigned int nfas:1;/* TRUE if this D channel is involved with an NFAS group */
 	unsigned int bri:1;
 	unsigned int acceptinbanddisconnect:1;	/* Should we allow inband progress after DISCONNECT? */
 	unsigned int sendfacility:1;
@@ -886,6 +887,7 @@ extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *da
 extern pri_event *pri_schedule_run(struct pri *pri);
 
 extern void pri_schedule_del(struct pri *pri, int ev);
+int pri_schedule_check(struct pri *ctrl, int id, void (*function)(void *data), void *data);
 
 extern pri_event *pri_mkerror(struct pri *pri, char *errstr);
 
