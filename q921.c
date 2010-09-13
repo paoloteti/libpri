@@ -215,7 +215,7 @@ static void t202_expire(void *vpri)
 		case Q921_ESTABLISH_AWAITING_TEI:
 			q921_discard_iqueue(ctrl);
 			/* DL-RELEASE indication */
-			q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
+			q931_dl_event(ctrl, Q931_DL_EVENT_DL_RELEASE_IND);
 			break;
 		default:
 			break;
@@ -671,7 +671,7 @@ static void t200_expire(void *vpri)
 			q921_mdl_error(ctrl, 'G');
 			q921_setstate(ctrl, Q921_TEI_ASSIGNED);
 			/* DL-RELEASE indication */
-			q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
+			q931_dl_event(ctrl, Q931_DL_EVENT_DL_RELEASE_IND);
 		}
 		break;
 	case Q921_AWAITING_RELEASE:
@@ -682,6 +682,7 @@ static void t200_expire(void *vpri)
 		} else {
 			q921_mdl_error(ctrl, 'H');
 			/* DL-RELEASE confirm */
+			q931_dl_event(ctrl, Q931_DL_EVENT_DL_RELEASE_CONFIRM);
 			q921_setstate(ctrl, Q921_TEI_ASSIGNED);
 		}
 		break;
@@ -1280,7 +1281,7 @@ static void q921_clear_exception_conditions(struct pri *ctrl)
 static pri_event * q921_sabme_rx(struct pri *ctrl, q921_h *h)
 {
 	pri_event *res = NULL;
-	int delay_q931_dl_indication;
+	enum Q931_DL_EVENT delay_q931_dl_event;
 
 	switch (ctrl->q921_state) {
 	case Q921_TIMER_RECOVERY:
@@ -1293,17 +1294,17 @@ static pri_event * q921_sabme_rx(struct pri *ctrl, q921_h *h)
 		if (ctrl->v_s != ctrl->v_a) {
 			q921_discard_iqueue(ctrl);
 			/* DL-ESTABLISH indication */
-			delay_q931_dl_indication = 1;
+			delay_q931_dl_event = Q931_DL_EVENT_DL_ESTABLISH_IND;
 		} else {
-			delay_q931_dl_indication = 0;
+			delay_q931_dl_event = Q931_DL_EVENT_NONE;
 		}
 		stop_t200(ctrl);
 		start_t203(ctrl);
 		ctrl->v_s = ctrl->v_a = ctrl->v_r = 0;
 		q921_setstate(ctrl, Q921_MULTI_FRAME_ESTABLISHED);
-		if (delay_q931_dl_indication) {
+		if (delay_q931_dl_event != Q931_DL_EVENT_NONE) {
 			/* Delayed because Q.931 could send STATUS messages. */
-			q931_dl_indication(ctrl, PRI_EVENT_DCHAN_UP);
+			q931_dl_event(ctrl, delay_q931_dl_event);
 		}
 		break;
 	case Q921_TEI_ASSIGNED:
@@ -1311,17 +1312,16 @@ static pri_event * q921_sabme_rx(struct pri *ctrl, q921_h *h)
 		q921_clear_exception_conditions(ctrl);
 		ctrl->v_s = ctrl->v_a = ctrl->v_r = 0;
 		/* DL-ESTABLISH indication */
-		//delay_q931_dl_indication = 1;
+		delay_q931_dl_event = Q931_DL_EVENT_DL_ESTABLISH_IND;
 		if (PTP_MODE(ctrl)) {
 			ctrl->ev.gen.e = PRI_EVENT_DCHAN_UP;
 			res = &ctrl->ev;
 		}
 		start_t203(ctrl);
 		q921_setstate(ctrl, Q921_MULTI_FRAME_ESTABLISHED);
-		//if (delay_q931_dl_indication)
-		{
+		if (delay_q931_dl_event != Q931_DL_EVENT_NONE) {
 			/* Delayed because Q.931 could send STATUS messages. */
-			q931_dl_indication(ctrl, PRI_EVENT_DCHAN_UP);
+			q931_dl_event(ctrl, delay_q931_dl_event);
 		}
 		break;
 	case Q921_AWAITING_ESTABLISHMENT:
@@ -1360,7 +1360,7 @@ static pri_event *q921_disc_rx(struct pri *ctrl, q921_h *h)
 		q921_discard_iqueue(ctrl);
 		q921_send_ua(ctrl, h->u.p_f);
 		/* DL-RELEASE indication */
-		q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
+		q931_dl_event(ctrl, Q931_DL_EVENT_DL_RELEASE_IND);
 		stop_t200(ctrl);
 		if (ctrl->q921_state == Q921_MULTI_FRAME_ESTABLISHED)
 			stop_t203(ctrl);
@@ -1402,20 +1402,21 @@ static void q921_mdl_remove(struct pri *ctrl)
 	case Q921_AWAITING_ESTABLISHMENT:
 		q921_discard_iqueue(ctrl);
 		/* DL-RELEASE indication */
-		q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
+		q931_dl_event(ctrl, Q931_DL_EVENT_DL_RELEASE_IND);
 		stop_t200(ctrl);
 		q921_setstate(ctrl, Q921_TEI_UNASSIGNED);
 		break;
 	case Q921_AWAITING_RELEASE:
 		q921_discard_iqueue(ctrl);
 		/* DL-RELEASE confirm */
+		q931_dl_event(ctrl, Q931_DL_EVENT_DL_RELEASE_CONFIRM);
 		stop_t200(ctrl);
 		q921_setstate(ctrl, Q921_TEI_UNASSIGNED);
 		break;
 	case Q921_MULTI_FRAME_ESTABLISHED:
 		q921_discard_iqueue(ctrl);
 		/* DL-RELEASE indication */
-		q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
+		q931_dl_event(ctrl, Q931_DL_EVENT_DL_RELEASE_IND);
 		stop_t200(ctrl);
 		stop_t203(ctrl);
 		q921_setstate(ctrl, Q921_TEI_UNASSIGNED);
@@ -1423,7 +1424,7 @@ static void q921_mdl_remove(struct pri *ctrl)
 	case Q921_TIMER_RECOVERY:
 		q921_discard_iqueue(ctrl);
 		/* DL-RELEASE indication */
-		q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
+		q931_dl_event(ctrl, Q931_DL_EVENT_DL_RELEASE_IND);
 		stop_t200(ctrl);
 		q921_setstate(ctrl, Q921_TEI_UNASSIGNED);
 		break;
@@ -1433,7 +1434,7 @@ static void q921_mdl_remove(struct pri *ctrl)
 		return;
 	}
 
-	q931_dl_tei_removal(ctrl);
+	q931_dl_event(ctrl, Q931_DL_EVENT_TEI_REMOVAL);
 
 	/*
 	 * Negate the TEI value so debug messages will display a
@@ -1711,7 +1712,7 @@ static void q921_mdl_error(struct pri *ctrl, char error)
 static pri_event *q921_ua_rx(struct pri *ctrl, q921_h *h)
 {
 	pri_event *res = NULL;
-	int delay_q931_dl_indication;
+	enum Q931_DL_EVENT delay_q931_dl_event;
 
 	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
 		pri_message(ctrl, "TEI=%d Got UA\n", ctrl->tei);
@@ -1733,16 +1734,17 @@ static pri_event *q921_ua_rx(struct pri *ctrl, q921_h *h)
 			break;
 		}
 
-		delay_q931_dl_indication = 0;
+		delay_q931_dl_event = Q931_DL_EVENT_NONE;
 		if (!ctrl->l3initiated) {
 			if (ctrl->v_s != ctrl->v_a) {
 				q921_discard_iqueue(ctrl);
 				/* DL-ESTABLISH indication */
-				delay_q931_dl_indication = 1;
+				delay_q931_dl_event = Q931_DL_EVENT_DL_ESTABLISH_IND;
 			}
 		} else {
 			ctrl->l3initiated = 0;
 			/* DL-ESTABLISH confirm */
+			delay_q931_dl_event = Q931_DL_EVENT_DL_ESTABLISH_CONFIRM;
 		}
 
 		if (PTP_MODE(ctrl)) {
@@ -1756,9 +1758,9 @@ static pri_event *q921_ua_rx(struct pri *ctrl, q921_h *h)
 		ctrl->v_r = ctrl->v_s = ctrl->v_a = 0;
 
 		q921_setstate(ctrl, Q921_MULTI_FRAME_ESTABLISHED);
-		if (delay_q931_dl_indication) {
+		if (delay_q931_dl_event != Q931_DL_EVENT_NONE) {
 			/* Delayed because Q.931 could send STATUS messages. */
-			q931_dl_indication(ctrl, PRI_EVENT_DCHAN_UP);
+			q931_dl_event(ctrl, delay_q931_dl_event);
 		}
 		break;
 	case Q921_AWAITING_RELEASE:
@@ -1766,6 +1768,7 @@ static pri_event *q921_ua_rx(struct pri *ctrl, q921_h *h)
 			q921_mdl_error(ctrl, 'D');
 		} else {
 			/* DL-RELEASE confirm */
+			q931_dl_event(ctrl, Q931_DL_EVENT_DL_RELEASE_CONFIRM);
 			stop_t200(ctrl);
 			q921_setstate(ctrl, Q921_TEI_ASSIGNED);
 		}
@@ -2181,7 +2184,7 @@ static pri_event *q921_dm_rx(struct pri *ctrl, q921_h *h)
 
 		q921_discard_iqueue(ctrl);
 		/* DL-RELEASE indication */
-		q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
+		q931_dl_event(ctrl, Q931_DL_EVENT_DL_RELEASE_IND);
 		stop_t200(ctrl);
 		q921_setstate(ctrl, Q921_TEI_ASSIGNED);
 		q921_restart_ptp_link_if_needed(ctrl);
@@ -2190,6 +2193,7 @@ static pri_event *q921_dm_rx(struct pri *ctrl, q921_h *h)
 		if (!h->u.p_f)
 			break;
 		/* DL-RELEASE confirm */
+		q931_dl_event(ctrl, Q931_DL_EVENT_DL_RELEASE_CONFIRM);
 		stop_t200(ctrl);
 		q921_setstate(ctrl, Q921_TEI_ASSIGNED);
 		break;

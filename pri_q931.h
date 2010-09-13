@@ -502,8 +502,15 @@ void q931_dump(struct pri *ctrl, int tei, q931_h *h, int len, int txrx);
 
 void q931_destroycall(struct pri *pri, q931_call *c);
 
-void q931_dl_tei_removal(struct pri *link);
-void q931_dl_indication(struct pri *link, int event);
+enum Q931_DL_EVENT {
+	Q931_DL_EVENT_NONE,
+	Q931_DL_EVENT_DL_ESTABLISH_IND,
+	Q931_DL_EVENT_DL_ESTABLISH_CONFIRM,
+	Q931_DL_EVENT_DL_RELEASE_IND,
+	Q931_DL_EVENT_DL_RELEASE_CONFIRM,
+	Q931_DL_EVENT_TEI_REMOVAL,
+};
+void q931_dl_event(struct pri *link, enum Q931_DL_EVENT event);
 
 int q931_send_hold(struct pri *ctrl, struct q931_call *call);
 int q931_send_hold_ack(struct pri *ctrl, struct q931_call *call);
