@@ -93,11 +93,11 @@ DYNAMIC_OBJS= \
 	rose_qsig_mwi.lo \
 	rose_qsig_name.lo \
 	version.lo
-CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g -fPIC $(ALERTING) $(LIBPRI_COUNTERS) $(LIBPRI_OPT)
+CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g -fPIC $(ALERTING) $(LIBPRI_COUNTERS) $(LIBPRI_OPT) $(COVERAGE_CFLAGS)
 INSTALL_PREFIX=$(DESTDIR)
 INSTALL_BASE=/usr
 libdir?=$(INSTALL_BASE)/lib
-SOFLAGS:=-Wl,-h$(DYNAMIC_LIBRARY)
+SOFLAGS=-Wl,-h$(DYNAMIC_LIBRARY) $(COVERAGE_LDFLAGS)
 LDCONFIG = /sbin/ldconfig
 ifneq (,$(findstring X$(OSARCH)X, XLinuxX XGNU/kFreeBSDX XGNUX))
 LDCONFIG_FLAGS=-n
@@ -126,7 +126,13 @@ ifeq ($(PROC),sparc64)
 PROC=ultrasparc
 LIBPRI_OPT = -mtune=$(PROC) -O3 -pipe -fomit-frame-pointer -mcpu=v8
 else
-LIBPRI_OPT = -O2
+  ifneq ($(CODE_COVERAGE),)
+    LIBPRI_OPT=
+    COVERAGE_CFLAGS=-ftest-coverage -fprofile-arcs
+    COVERAGE_LDFLAGS=-ftest-coverage -fprofile-arcs
+  else
+    LIBPRI_OPT=-O2
+  endif
 endif
 
 ifeq ($(CPUARCH),i686)
