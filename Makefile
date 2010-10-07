@@ -97,8 +97,16 @@ CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g -fPIC $(ALERTIN
 INSTALL_PREFIX=$(DESTDIR)
 INSTALL_BASE=/usr
 libdir?=$(INSTALL_BASE)/lib
-SOFLAGS=-Wl,-h$(DYNAMIC_LIBRARY) $(COVERAGE_LDFLAGS)
-LDCONFIG = /sbin/ldconfig
+ifneq ($(findstring Darwin,$(OSARCH)),)
+  SOFLAGS=-dynamic -bundle -Xlinker -macosx_version_min -Xlinker 10.4 -Xlinker -undefined -Xlinker dynamic_lookup -force_flat_namespace
+  ifeq ($(shell /usr/bin/sw_vers -productVersion | cut -c1-4),10.6)
+    SOFLAGS+=/usr/lib/bundle1.o
+  endif
+  LDCONFIG=/usr/bin/true
+else
+  SOFLAGS=-shared -Wl,-h$(DYNAMIC_LIBRARY) $(COVERAGE_LDFLAGS)
+  LDCONFIG = /sbin/ldconfig
+endif
 ifneq (,$(findstring X$(OSARCH)X, XLinuxX XGNU/kFreeBSDX XGNUX))
 LDCONFIG_FLAGS=-n
 else
@@ -211,7 +219,7 @@ $(STATIC_LIBRARY): $(STATIC_OBJS)
 	ranlib $(STATIC_LIBRARY)
 
 $(DYNAMIC_LIBRARY): $(DYNAMIC_OBJS)
-	$(CC) -shared $(SOFLAGS) -o $@ $(DYNAMIC_OBJS)
+	$(CC) $(SOFLAGS) -o $@ $(DYNAMIC_OBJS)
 	$(LDCONFIG) $(LDCONFIG_FLAGS) .
 	ln -sf libpri.so.$(SONAME) libpri.so
 
