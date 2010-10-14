@@ -6202,7 +6202,9 @@ static int prepare_to_handle_maintenance_message(struct pri *ctrl, q931_mh *mh, 
 			c->changestatus = -1;
 			break;
 		default:
-			pri_error(ctrl, "!! Don't know how to pre-handle maintenance message type '%d'\n", mh->msg);
+			pri_error(ctrl,
+				"!! Don't know how to pre-handle maintenance message type '0x%X'\n",
+				mh->msg);
 			return -1;
 	}
 	return 0;
@@ -6356,13 +6358,13 @@ static int prepare_to_handle_q931_message(struct pri *ctrl, q931_mh *mh, q931_ca
 	case Q931_SUSPEND:
 	case Q931_SUSPEND_ACKNOWLEDGE:
 	case Q931_SUSPEND_REJECT:
-		pri_error(ctrl, "!! Not yet handling pre-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		pri_error(ctrl, "!! Not yet handling pre-handle message type %s (0x%X)\n",
+			msg2str(mh->msg), mh->msg);
 		/* Fall through */
 	default:
-		pri_error(ctrl, "!! Don't know how to pre-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		pri_error(ctrl, "!! Don't know how to pre-handle message type %s (0x%X)\n",
+			msg2str(mh->msg), mh->msg);
 		q931_status(ctrl,c, PRI_CAUSE_MESSAGE_TYPE_NONEXIST);
-		if (c->newcall) 
-			pri_destroycall(ctrl, c);
 		return -1;
 	}
 	return 0;
@@ -6567,7 +6569,18 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 		/* Unknown protocol discriminator but we will treat it as Q.931 anyway. */
 	case GR303_PROTOCOL_DISCRIMINATOR:
 	case Q931_PROTOCOL_DISCRIMINATOR:
-		prepare_to_handle_q931_message(ctrl, mh, c);
+		if (prepare_to_handle_q931_message(ctrl, mh, c)) {
+			/* Discard message.  We don't know how to handle it. */
+			if (!c->master_call->outboundbroadcast && c->newcall) {
+				/*
+				 * Destroy new non-subcalls immediately.  Let the normal
+				 * disconnect/destruction of subcalls happen when there is a
+				 * winner.
+				 */
+				pri_destroycall(ctrl, c);
+			}
+			return 0;
+		}
 		break;
 	}
 	q931_clr_subcommands(ctrl);
@@ -6756,7 +6769,8 @@ static int post_handle_maintenance_message(struct pri *ctrl, int protodisc, stru
 		return Q931_RES_HAVEEVENT;
 	}
 
-	pri_error(ctrl, "!! Don't know how to post-handle maintenance message type %d\n", mh->msg);
+	pri_error(ctrl, "!! Don't know how to post-handle maintenance message type 0x%X\n",
+		mh->msg);
 	return -1;
 }
 
@@ -8332,13 +8346,21 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 	case Q931_SUSPEND:
 	case Q931_SUSPEND_ACKNOWLEDGE:
 	case Q931_SUSPEND_REJECT:
-		pri_error(ctrl, "!! Not yet handling post-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		pri_error(ctrl, "!! Not yet handling post-handle message type %s (0x%X)\n",
+			msg2str(mh->msg), mh->msg);
 		/* Fall through */
 	default:
-		pri_error(ctrl, "!! Don't know how to post-handle message type %s (%d)\n", msg2str(mh->msg), mh->msg);
+		pri_error(ctrl, "!! Don't know how to post-handle message type %s (0x%X)\n",
+			msg2str(mh->msg), mh->msg);
 		q931_status(ctrl,c, PRI_CAUSE_MESSAGE_TYPE_NONEXIST);
-		if (c->newcall) 
+		if (!c->master_call->outboundbroadcast && c->newcall) {
+			/*
+			 * Destroy new non-subcalls immediately.  Let the normal
+			 * disconnect/destruction of subcalls happen when there is a
+			 * winner.
+			 */
 			pri_destroycall(ctrl, c);
+		}
 		return -1;
 	}
 	return 0;
