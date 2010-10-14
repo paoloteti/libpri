@@ -3632,7 +3632,7 @@ int pri_rerouting_rsp(struct pri *ctrl, q931_call *call, int invoke_id, enum PRI
 {
 	enum rose_error_code rose_err;
 
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 
@@ -3673,7 +3673,7 @@ int pri_rerouting_rsp(struct pri *ctrl, q931_call *call, int invoke_id, enum PRI
 
 int pri_transfer_rsp(struct pri *ctrl, q931_call *call, int invoke_id, int is_successful)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 
@@ -3804,7 +3804,7 @@ static int rose_mcid_req_encode(struct pri *ctrl, q931_call *call)
 
 int pri_mcid_req_send(struct pri *ctrl, q931_call *call)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 	if (call->cc.originated) {

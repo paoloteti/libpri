@@ -1610,7 +1610,7 @@ static int aoc_e_encode(struct pri *ctrl, q931_call *call, const struct pri_subc
 
 int pri_aoc_de_request_response_send(struct pri *ctrl, q931_call *call, int response, int invoke_id)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 
@@ -1629,7 +1629,7 @@ int pri_aoc_de_request_response_send(struct pri *ctrl, q931_call *call, int resp
 
 int pri_aoc_s_request_response_send(struct pri *ctrl, q931_call *call, int invoke_id, const struct pri_subcmd_aoc_s *aoc_s)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 
@@ -1692,7 +1692,7 @@ int aoc_charging_request_send(struct pri *ctrl, q931_call *call, enum PRI_AOC_RE
 
 int pri_aoc_s_send(struct pri *ctrl, q931_call *call, const struct pri_subcmd_aoc_s *aoc_s)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 
@@ -1711,7 +1711,7 @@ int pri_aoc_s_send(struct pri *ctrl, q931_call *call, const struct pri_subcmd_ao
 
 int pri_aoc_d_send(struct pri *ctrl, q931_call *call, const struct pri_subcmd_aoc_d *aoc_d)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 
@@ -1729,7 +1729,7 @@ int pri_aoc_d_send(struct pri *ctrl, q931_call *call, const struct pri_subcmd_ao
 
 int pri_aoc_e_send(struct pri *ctrl, q931_call *call, const struct pri_subcmd_aoc_e *aoc_e)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 

@@ -6803,7 +6803,7 @@ long pri_cc_available(struct pri *ctrl, q931_call *call)
 	struct pri_cc_record *cc_record;
 	long cc_id;
 
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 	if (call->cc.record) {
@@ -7811,7 +7811,7 @@ int pri_cc_call(struct pri *ctrl, long cc_id, q931_call *call, struct pri_sr *re
 {
 	struct pri_cc_record *cc_record;
 
-	if (!ctrl || !call || !req) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call) || !req) {
 		return -1;
 	}
 	cc_record = pri_cc_find_by_id(ctrl, cc_id);
