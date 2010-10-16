@@ -2090,7 +2090,7 @@ static pri_event *q921_iframe_rx(struct pri *ctrl, q921_h *h, int len)
 			 * Q.921 is dumping its frames they will be in the correct order.
 			 */
 			if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
-				q931_dump(ctrl, ctrl->tei, (q931_h *) h->i.data, len - 4, 0);
+				q931_dump(ctrl, h->h.tei, (q931_h *) h->i.data, len - 4, 0);
 			}
 			delay_q931_receive = 1;
 
@@ -2377,7 +2377,7 @@ static pri_event *__q921_receive_qualified(struct pri *ctrl, q921_h *h, int len)
 		case 0x00:
 			/* UI-frame */
 			if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
-				q931_dump(ctrl, ctrl->tei, (q931_h *) h->u.data, len - 3, 0);
+				q931_dump(ctrl, h->h.tei, (q931_h *) h->u.data, len - 3, 0);
 			}
 			res = q931_receive(ctrl, ctrl->tei, (q931_h *) h->u.data, len - 3);
 			if (res != -1 && (res & Q931_RES_HAVEEVENT)) {
