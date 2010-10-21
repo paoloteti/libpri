@@ -798,41 +798,33 @@ static struct pri *pri_find_tei(struct pri *ctrl, int sapi, int tei)
 }
 
 /* This is the equivalent of a DL-DATA request, as well as the I-frame queued up outcome */
-int q921_transmit_iframe(struct pri *link, int tei, void *buf, int len, int cr)
+int q921_transmit_iframe(struct pri *link, void *buf, int len, int cr)
 {
 	q921_frame *f, *prev=NULL;
 	struct pri *ctrl;
 
 	ctrl = PRI_MASTER(link);
 
-	if (BRI_NT_PTMP(ctrl)) {
-		if (tei == Q921_TEI_GROUP) {
-			pri_error(ctrl, "Huh?! For NT-PTMP, we shouldn't be sending I-frames out the group TEI\n");
+	if (PTMP_MODE(ctrl)) {
+		if (link->tei == Q921_TEI_GROUP) {
+			pri_error(ctrl, "Huh?! For PTMP, we shouldn't be sending I-frames out the group TEI\n");
 			return 0;
 		}
-
-		link = pri_find_tei(ctrl, Q921_SAPI_CALL_CTRL, tei);
-		if (!link) {
-			pri_error(ctrl, "Huh?! Unable to locate PRI associated with TEI %d.  Did we have to ditch it due to error conditions?\n", tei);
-			return 0;
-		}
-	} else if (BRI_TE_PTMP(ctrl)) {
-		/* We don't care what the tei is, since we only support one sub and one TEI */
-		link = ctrl->subchannel;
-
-		switch (link->q921_state) {
-		case Q921_TEI_UNASSIGNED:
-			q921_setstate(link, Q921_ESTABLISH_AWAITING_TEI);
-			q921_tei_request(link);
-			break;
-		case Q921_ASSIGN_AWAITING_TEI:
-			q921_setstate(link, Q921_ESTABLISH_AWAITING_TEI);
-			break;
-		default:
-			break;
+		if (BRI_TE_PTMP(ctrl)) {
+			switch (link->q921_state) {
+			case Q921_TEI_UNASSIGNED:
+				q921_setstate(link, Q921_ESTABLISH_AWAITING_TEI);
+				q921_tei_request(link);
+				break;
+			case Q921_ASSIGN_AWAITING_TEI:
+				q921_setstate(link, Q921_ESTABLISH_AWAITING_TEI);
+				break;
+			default:
+				break;
+			}
 		}
 	} else {
-		/* Should just be PTP modes, which shouldn't have subs */
+		/* PTP modes, which shouldn't have subs */
 	}
 
 	/* Figure B.7/Q.921 Page 70 */
@@ -2269,9 +2261,9 @@ static pri_event *q921_iframe_rx(struct pri *link, q921_h *h, int len)
 		}
 		if (delay_q931_receive) {
 			/* Q.921 has finished processing the frame so we can give it to Q.931 now. */
-			res = q931_receive(link, link->tei, (q931_h *) h->i.data, len - 4);
+			res = q931_receive(link, (q931_h *) h->i.data, len - 4);
 			if (res != -1 && (res & Q931_RES_HAVEEVENT)) {
-				eres = &link->ev;
+				eres = &ctrl->ev;
 			}
 		}
 		break;
@@ -2519,9 +2511,9 @@ static pri_event *__q921_receive_qualified(struct pri *link, q921_h *h, int len)
 			if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
 				q931_dump(ctrl, h->h.tei, (q931_h *) h->u.data, len - 3, 0);
 			}
-			res = q931_receive(link, link->tei, (q931_h *) h->u.data, len - 3);
+			res = q931_receive(link, (q931_h *) h->u.data, len - 3);
 			if (res != -1 && (res & Q931_RES_HAVEEVENT)) {
-				ev = &link->ev;
+				ev = &ctrl->ev;
 			}
 			break;
 		case 0x08:

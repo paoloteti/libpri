@@ -448,9 +448,10 @@ struct decoded_bc {
 
 /* q931_call datastructure */
 struct q931_call {
-	struct pri *pri;	/* PRI */
+	struct pri *pri;	/* D channel controller (master) */
+	struct pri *link;	/* Q.921 link associated with this call. */
+	struct q931_call *next;
 	int cr;				/* Call Reference */
-	q931_call *next;
 	/* Slotmap specified (bitmap of channels 31/24-1) (Channel Identifier IE) (-1 means not specified) */
 	int slotmap;
 	/* An explicit channel (Channel Identifier IE) (-1 means not specified) */
@@ -914,7 +915,7 @@ void libpri_copy_string(char *dst, const char *src, size_t size);
 struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri);
 void __pri_free_tei(struct pri *p);
 
-void q931_init_call_record(struct pri *ctrl, struct q931_call *call, int cr);
+void q931_init_call_record(struct pri *link, struct q931_call *call, int cr);
 
 void pri_sr_init(struct pri_sr *req);
 

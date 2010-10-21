@@ -195,7 +195,7 @@ void q921_start(struct pri *link);
 
 extern pri_event *q921_receive(struct pri *pri, q921_h *h, int len);
 
-extern int q921_transmit_iframe(struct pri *pri, int tei, void *buf, int len, int cr);
+int q921_transmit_iframe(struct pri *link, void *buf, int len, int cr);
 
 int q921_transmit_uiframe(struct pri *link, void *buf, int len);
 

@@ -450,13 +450,11 @@ enum Q931_RANKED_CALL_STATE {
 
 extern int maintenance_service(struct pri *pri, int span, int channel, int changestatus);
 
-extern int maintenance_service_ack(struct pri *pri, q931_call *call);
-
 
 /* Q.SIG specific */
 #define QSIG_IE_TRANSIT_COUNT		0x31
 
-extern int q931_receive(struct pri *pri, int tei, q931_h *h, int len);
+int q931_receive(struct pri *link, q931_h *h, int len);
 
 extern int q931_alerting(struct pri *pri, q931_call *call, int channel, int info);
 
@@ -491,8 +489,7 @@ extern int q931_call_getcrv(struct pri *pri, q931_call *call, int *callmode);
 
 extern int q931_call_setcrv(struct pri *pri, q931_call *call, int crv, int callmode);
 
-struct q931_call *q931_find_call(struct pri *ctrl, int cr);
-struct q931_call *q931_new_call(struct pri *pri);
+struct q931_call *q931_new_call(struct pri *ctrl);
 
 extern int q931_setup(struct pri *pri, q931_call *c, struct pri_sr *req);
 

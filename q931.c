@@ -3778,7 +3778,7 @@ static inline void q931_dumpie(struct pri *ctrl, int codeset, q931_ie *ie, char 
 /*!
  * \brief Initialize the call record.
  *
- * \param ctrl D channel controller.
+ * \param link Q.921 link associated with the call.
  * \param call Q.931 call leg.
  * \param cr Call Reference identifier.
  *
@@ -3786,8 +3786,10 @@ static inline void q931_dumpie(struct pri *ctrl, int codeset, q931_ie *ie, char 
  *
  * \return Nothing
  */
-void q931_init_call_record(struct pri *ctrl, struct q931_call *call, int cr)
+void q931_init_call_record(struct pri *link, struct q931_call *call, int cr)
 {
+	struct pri *ctrl;
+
 	call->cr = cr;
 	call->slotmap = -1;
 	call->channelno = -1;
@@ -3822,15 +3824,17 @@ void q931_init_call_record(struct pri *ctrl, struct q931_call *call, int cr)
 	q931_party_number_init(&call->ani);
 	q931_party_redirecting_init(&call->redirecting);
 
-	/* PRI is set to whoever called us */
-	if (BRI_TE_PTMP(ctrl)) {
-		/*
-		 * Point to the master to avoid stale pointer problems if
-		 * the TEI is removed later.
-		 */
-		call->pri = PRI_MASTER(ctrl);
+	/* The call is now attached to whoever called us */
+	ctrl = PRI_MASTER(link);
+	call->pri = ctrl;
+	if (cr == Q931_DUMMY_CALL_REFERENCE) {
+		/* Dummy calls are always for the given link. */
+		call->link = link;
+	} else if (BRI_TE_PTMP(ctrl)) {
+		/* Always uses the specific TEI link. */
+		call->link = ctrl->subchannel;
 	} else {
-		call->pri = ctrl;
+		call->link = link;
 	}
 }
 
@@ -3838,17 +3842,20 @@ void q931_init_call_record(struct pri *ctrl, struct q931_call *call, int cr)
  * \internal
  * \brief Create a new call record.
  *
- * \param ctrl D channel controller.
+ * \param link Q.921 link associated with the call.
  * \param cr Call Reference identifier.
  *
  * \retval record on success.
  * \retval NULL on error.
  */
-static struct q931_call *q931_create_call_record(struct pri *ctrl, int cr)
+static struct q931_call *q931_create_call_record(struct pri *link, int cr)
 {
 	struct q931_call *call;
 	struct q931_call *prev;
-	struct pri *master;
+	struct pri *ctrl;
+
+	/* Find the master - He has the call pool */
+	ctrl = PRI_MASTER(link);
 
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
 		pri_message(ctrl, "-- Making new call for cref %d\n", cr);
@@ -3860,62 +3867,60 @@ static struct q931_call *q931_create_call_record(struct pri *ctrl, int cr)
 	}
 
 	/* Initialize call structure. */
-	q931_init_call_record(ctrl, call, cr);
-
-	/* Find the master - He has the call pool */
-	master = PRI_MASTER(ctrl);
+	q931_init_call_record(link, call, cr);
 
 	/* Append to the list end */
-	if (*master->callpool) {
+	if (*ctrl->callpool) {
 		/* Find the list end. */
-		for (prev = *master->callpool; prev->next; prev = prev->next) {
+		for (prev = *ctrl->callpool; prev->next; prev = prev->next) {
 		}
 		prev->next = call;
 	} else {
 		/* List was empty. */
-		*master->callpool = call;
+		*ctrl->callpool = call;
 	}
 
 	return call;
 }
 
 /*!
+ * \internal
  * \brief Find a call in the active call pool.
  *
- * \param ctrl D channel controller.
+ * \param link Q.921 link associated with the call.
  * \param cr Call Reference identifier.
  *
  * \retval call if found.
  * \retval NULL if not found.
  */
-struct q931_call *q931_find_call(struct pri *ctrl, int cr)
+static struct q931_call *q931_find_call(struct pri *link, int cr)
 {
 	struct q931_call *cur;
-	struct pri *master;
+	struct pri *ctrl;
 
 	if (cr == Q931_DUMMY_CALL_REFERENCE) {
-		return ctrl->dummy_call;
+		return link->dummy_call;
 	}
 
 	/* Find the master - He has the call pool */
-	master = PRI_MASTER(ctrl);
+	ctrl = PRI_MASTER(link);
 
 	if (BRI_NT_PTMP(ctrl) && !(cr & Q931_CALL_REFERENCE_FLAG)) {
-		if (ctrl->tei == Q921_TEI_GROUP) {
-			/* Broadcast TEI.  This is bad.  We are using the wrong ctrl structure. */
+		if (link->tei == Q921_TEI_GROUP) {
+			/* Broadcast TEI.  This is bad.  We are using the wrong link structure. */
 			pri_error(ctrl, "Looking for cref %d when using broadcast TEI.\n", cr);
 			return NULL;
 		}
 
 		/* We are looking for a call reference value that the other side allocated. */
-		for (cur = *master->callpool; cur; cur = cur->next) {
-			if (cur->cr == cr && cur->pri == ctrl) {
-				/* Found existing call.  The call reference and TEI matched. */
+		for (cur = *ctrl->callpool; cur; cur = cur->next) {
+			if (cur->cr == cr && cur->link == link) {
+				/* Found existing call.  The call reference and link matched. */
 				break;
 			}
 		}
 	} else {
-		for (cur = *master->callpool; cur; cur = cur->next) {
+		for (cur = *ctrl->callpool; cur; cur = cur->next) {
 			if (cur->cr == cr) {
 				/* Found existing call. */
 				switch (ctrl->switchtype) {
@@ -3926,8 +3931,9 @@ struct q931_call *q931_find_call(struct pri *ctrl, int cr)
 					break;
 				default:
 					if (!ctrl->bri) {
-						/* PRI is set to whoever called us */
+						/* The call is now attached to whoever called us */
 						cur->pri = ctrl;
+						cur->link = link;
 					}
 					break;
 				}
@@ -3938,51 +3944,72 @@ struct q931_call *q931_find_call(struct pri *ctrl, int cr)
 	return cur;
 }
 
-static struct q931_call *q931_getcall(struct pri *ctrl, int cr)
+static struct q931_call *q931_getcall(struct pri *link, int cr)
 {
 	struct q931_call *cur;
+	struct pri *ctrl;
 
-	cur = q931_find_call(ctrl, cr);
+	cur = q931_find_call(link, cr);
 	if (cur) {
 		return cur;
 	}
+	if (cr == Q931_DUMMY_CALL_REFERENCE) {
+		/* Do not create new dummy call records. */
+		return NULL;
+	}
+	ctrl = PRI_MASTER(link);
+	if (link->tei == Q921_TEI_GROUP
+		&& BRI_NT_PTMP(ctrl)) {
+		/* Do not create NT PTMP broadcast call records here. */
+		pri_error(ctrl,
+			"NT PTMP cannot create call record for cref %d on the broadcast TEI.\n", cr);
+		return NULL;
+	}
 
 	/* No call record exists, make a new one */
-	return q931_create_call_record(ctrl, cr);
+	return q931_create_call_record(link, cr);
 }
 
+/*!
+ * \brief Create a new call record for an outgoing call.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \retval call on success.
+ * \retval NULL on error.
+ */
 struct q931_call *q931_new_call(struct pri *ctrl)
 {
 	struct q931_call *cur;
-	struct pri *master;
+	struct pri *link;
 	int first_cref;
 	int cref;
 
 	/* Find the master - He has the call pool */
-	master = PRI_MASTER(ctrl);
+	ctrl = PRI_MASTER(ctrl);
 
 	/* Find a new call reference value. */
-	first_cref = master->cref;
+	first_cref = ctrl->cref;
 	do {
-		cref = Q931_CALL_REFERENCE_FLAG | master->cref;
+		cref = Q931_CALL_REFERENCE_FLAG | ctrl->cref;
 
 		/* Next call reference. */
-		++master->cref;
-		if (!master->bri) {
-			if (master->cref > 32767) {
-				master->cref = 1;
+		++ctrl->cref;
+		if (!ctrl->bri) {
+			if (ctrl->cref > 32767) {
+				ctrl->cref = 1;
 			}
 		} else {
-			if (master->cref > 127) {
-				master->cref = 1;
+			if (ctrl->cref > 127) {
+				ctrl->cref = 1;
 			}
 		}
 
 		/* Is the call reference value in use? */
-		for (cur = *master->callpool; cur; cur = cur->next) {
+		for (cur = *ctrl->callpool; cur; cur = cur->next) {
 			if (cur->cr == cref) {
 				/* Yes it is in use. */
-				if (first_cref == master->cref) {
+				if (first_cref == ctrl->cref) {
 					/* All call reference values are in use! */
 					return NULL;
 				}
@@ -3991,7 +4018,8 @@ struct q931_call *q931_new_call(struct pri *ctrl)
 		}
 	} while (cur);
 
-	return q931_create_call_record(ctrl, cref);
+	link = ctrl;
+	return q931_create_call_record(link, cref);
 }
 
 static void stop_t303(struct q931_call *call);
@@ -4475,20 +4503,27 @@ static void init_header(struct pri *ctrl, q931_call *call, unsigned char *buf, q
 	*mhb = mh;
 }
 
-static int q931_xmit(struct pri *ctrl, int tei, q931_h *h, int len, int cr, int uiframe)
+static void q931_xmit(struct pri *link, q931_h *h, int len, int cr, int uiframe)
 {
+	struct pri *ctrl;
+
+	ctrl = PRI_MASTER(link);
 #ifdef LIBPRI_COUNTERS
 	ctrl->q931_txcount++;
 #endif
 	if (uiframe) {
-		q921_transmit_uiframe(ctrl, h, len);
+		if (link->tei != Q921_TEI_GROUP) {
+			pri_error(ctrl, "Huh?! Attempting to send UI-frame on TEI %d\n", link->tei);
+			return;
+		}
+		q921_transmit_uiframe(link, h, len);
 		if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
 			/*
 			 * The transmit operation might dump the Q.921 header, so logging
 			 * the Q.931 message body after the transmit puts the sections of
 			 * the message in the right order in the log,
 			 */
-			q931_dump(ctrl, tei, h, len, 1);
+			q931_dump(ctrl, link->tei, h, len, 1);
 		}
 	} else {
 		/*
@@ -4499,11 +4534,10 @@ static int q931_xmit(struct pri *ctrl, int tei, q931_h *h, int len, int cr, int 
 		 * Q.931 message as appropriate at that time.
 		 */
 		if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
-			q931_to_q921_passing_dump(ctrl, tei, h, len);
+			q931_to_q921_passing_dump(ctrl, link->tei, h, len);
 		}
-		q921_transmit_iframe(ctrl, tei, h, len, cr);
+		q921_transmit_iframe(link, h, len, cr);
 	}
-	return 0;
 }
 
 /*!
@@ -4532,12 +4566,18 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 	int x;
 	int codeset;
 	int uiframe;
-	int tei;
 
 	if (call->outboundbroadcast && call->master_call == call && msgtype != Q931_SETUP) {
 		pri_error(ctrl,
 			"Attempting to use master call record to send %s on BRI PTMP NT %p\n",
 			msg2str(msgtype), ctrl);
+		return -1;
+	}
+
+	if (!call->link) {
+		pri_error(ctrl,
+			"Call w/ cref:%d is not associated with a link.  TEI removed due to error conditions?\n",
+			call->cr);
 		return -1;
 	}
 
@@ -4561,7 +4601,6 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 	/* Invert the logic */
 	len = sizeof(buf) - len;
 
-	tei = call->pri->tei;
 	uiframe = 0;
 	if (BRI_NT_PTMP(ctrl)) {
 		/* NT PTMP is the only mode that can broadcast Q.931 messages. */
@@ -4578,7 +4617,7 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 			uiframe = 1;
 			break;
 		case Q931_FACILITY:
-			if (tei == Q921_TEI_GROUP) {
+			if (call->link->tei == Q921_TEI_GROUP) {
 				/* Broadcast TEI. */
 				if (q931_is_dummy_call(call)) {
 					/*
@@ -4600,24 +4639,18 @@ static int send_message(struct pri *ctrl, q931_call *call, int msgtype, int ies[
 		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
 			/* This message is only interesting for NT PTMP mode. */
 			pri_message(ctrl,
-				"Sending message for call %p on call->pri: %p with TEI/SAPI %d/%d\n",
-				call, call->pri, call->pri->tei, call->pri->sapi);
+				"Sending message for call %p on call->link: %p with TEI/SAPI %d/%d\n",
+				call, call->link, call->link->tei, call->link->sapi);
 		}
-	} else if (call->pri->subchannel && BRI_TE_PTMP(ctrl)) {
-		/*
-		 * Get the best available TEI value for the debug dump display.
-		 * We may not actually have a TEI assigned at the moment.
-		 */
-		tei = call->pri->subchannel->tei;
 	}
-	q931_xmit(call->pri, tei, h, len, 1, uiframe);
+	q931_xmit(call->link, h, len, 1, uiframe);
 	call->acked = 1;
 	return 0;
 }
 
 static int maintenance_service_ies[] = { Q931_IE_CHANGE_STATUS, Q931_CHANNEL_IDENT, -1 };
 
-int maintenance_service_ack(struct pri *ctrl, q931_call *c)
+static int maintenance_service_ack(struct pri *ctrl, q931_call *c)
 {
 	int pd = MAINTENANCE_PROTOCOL_DISCRIMINATOR_1;
 	int mt = ATT_SERVICE_ACKNOWLEDGE;
@@ -4629,6 +4662,9 @@ int maintenance_service_ack(struct pri *ctrl, q931_call *c)
 	return send_message(ctrl, c, (pd << 8) | mt, maintenance_service_ies);
 }
 
+/*!
+ * \note Maintenance service messages only supported in PRI mode.
+ */
 int maintenance_service(struct pri *ctrl, int span, int channel, int changestatus)
 {
 	struct q931_call *c;
@@ -5131,6 +5167,32 @@ int q931_release(struct pri *ctrl, q931_call *c, int cause)
 
 static int restart_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
 
+/*!
+ * \brief Send the RESTART message to the peer.
+ *
+ * \param ctrl D channel controller.
+ * \param channel Encoded channel id to use.
+ *
+ * \note
+ * Sending RESTART in NT PTMP mode is not supported at the
+ * present time.
+ *
+ * \note
+ * NT PTMP should broadcast the RESTART if there is a TEI
+ * allocated.  Otherwise it should immediately ACK the RESTART
+ * itself to avoid the T316 timeout delay (2 minutes) since
+ * there might not be anything connected.  The broadcast could
+ * be handled in a similar manner to the broadcast SETUP.
+ *
+ * \todo Need to implement T316 to protect against missing
+ * RESTART_ACKNOWLEDGE and STATUS messages.
+ *
+ * \todo NT PTMP mode should implement some protection from
+ * receiving a RESTART on channels in use by another TEI.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
 int q931_restart(struct pri *ctrl, int channel)
 {
 	struct q931_call *c;
@@ -5952,9 +6014,6 @@ static void pri_fake_clearing(void *data)
 
 static void pri_create_fake_clearing(struct q931_call *c, struct pri *master)
 {
-	/* Point to the master so the timeout event can come out. */
-	c->pri = master;
-
 	pri_schedule_del(master, c->retranstimer);
 	c->retranstimer = pri_schedule_event(master, 0, pri_fake_clearing, c);
 }
@@ -6446,16 +6505,19 @@ static void q931_set_subcall_winner(struct q931_call *subcall)
 	}
 }
 
-static struct q931_call *q931_get_subcall(struct pri *ctrl, struct q931_call *master_call)
+static struct q931_call *q931_get_subcall(struct pri *link, struct q931_call *master_call)
 {
 	int i;
 	struct q931_call *cur;
+	struct pri *ctrl;
 	int firstfree = -1;
+
+	ctrl = PRI_MASTER(link);
 
 	/* First try to locate our subcall */
 	for (i = 0; i < ARRAY_LEN(master_call->subcalls); ++i) {
 		if (master_call->subcalls[i]) {
-			if (master_call->subcalls[i]->pri == ctrl) {
+			if (master_call->subcalls[i]->link == link) {
 				return master_call->subcalls[i];
 			}
 		} else if (firstfree == -1) {
@@ -6475,7 +6537,8 @@ static struct q931_call *q931_get_subcall(struct pri *ctrl, struct q931_call *ma
 		return NULL;
 	}
 	*cur = *master_call;
-	cur->pri = ctrl;
+	//cur->pri = ctrl;/* We get this assignment for free. */
+	cur->link = link;
 	cur->next = NULL;
 	cur->apdus = NULL;
 	cur->bridged_call = NULL;
@@ -6495,16 +6558,17 @@ static struct q931_call *q931_get_subcall(struct pri *ctrl, struct q931_call *ma
 
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
 		pri_message(ctrl, "Adding subcall %p for TEI %d to call %p at position %d\n",
-			cur, ctrl->tei, master_call, firstfree);
+			cur, link->tei, master_call, firstfree);
 	}
 	/* Should only get here if the TEI is not found */
 	return cur;
 }
 
-int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
+int q931_receive(struct pri *link, q931_h *h, int len)
 {
 	q931_mh *mh;
 	struct q931_call *c;
+	struct pri *ctrl;
 	q931_ie *ie;
 	unsigned int x;
 	int y;
@@ -6518,6 +6582,7 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 	int allow_event;
 	int allow_posthandle;
 
+	ctrl = PRI_MASTER(link);
 	memset(last_ie, 0, sizeof(last_ie));
 #ifdef LIBPRI_COUNTERS
 	ctrl->q931_rxcount++;
@@ -6537,7 +6602,7 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 			   KLUDGE this by changing byte 4 from a 0xf (SERVICE)
 			   to a 0x7 (SERVICE ACKNOWLEDGE) */
 			h->raw[h->crlen + 2] -= 0x8;
-			q931_xmit(ctrl, ctrl->tei, h, len, 1, 0);
+			q931_xmit(link, h, len, 1, 0);
 			return 0;
 		}
 		break;
@@ -6552,13 +6617,13 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 	}
 
 	cref = q931_cr(h);
-	c = q931_getcall(ctrl, cref);
+	c = q931_getcall(link, cref);
 	if (!c) {
 		pri_error(ctrl, "Unable to locate call %d\n", cref);
 		return -1;
 	}
-	if (c->master_call->outboundbroadcast && ctrl != PRI_MASTER(ctrl)) {
-		c = q931_get_subcall(ctrl, c->master_call);
+	if (c->master_call->outboundbroadcast && link != ctrl) {
+		c = q931_get_subcall(link, c->master_call);
 		if (!c) {
 			pri_error(ctrl, "Unable to locate subcall for %d\n", cref);
 			return -1;
@@ -6567,10 +6632,8 @@ int q931_receive(struct pri *ctrl, int tei, q931_h *h, int len)
 
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
 		pri_message(ctrl,
-			"Received message for call %p on %p TEI/SAPI %d/%d, call->pri is %p TEI/SAPI %d/%d\n",
-			c,
-			ctrl, ctrl->tei, ctrl->sapi,
-			c->pri, c->pri->tei, c->pri->sapi);
+			"Received message for call %p on link %p TEI/SAPI %d/%d\n",
+			c, link, link->tei, link->sapi);
 	}
 
 	/* Preliminary handling */
@@ -8456,10 +8519,6 @@ static void pri_dl_down_timeout(void *data)
 	struct q931_call *c = data;
 	struct pri *ctrl = c->pri;
 
-	/* Point to the master so the timeout event can come out. */
-	ctrl = PRI_MASTER(ctrl);
-	c->pri = ctrl;
-
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
 		pri_message(ctrl, "T309 timed out waiting for data link re-establishment\n");
 
@@ -8474,10 +8533,6 @@ static void pri_dl_down_cancelcall(void *data)
 {
 	struct q931_call *c = data;
 	struct pri *ctrl = c->pri;
-
-	/* Point to the master so the timeout event can come out. */
-	ctrl = PRI_MASTER(ctrl);
-	c->pri = ctrl;
 
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
 		pri_message(ctrl, "Cancel call after data link failure\n");
@@ -8551,11 +8606,6 @@ void q931_dl_event(struct pri *link, enum Q931_DL_EVENT event)
 			q931_dl_event2str(event), event);
 	}
 
-	if (BRI_TE_PTMP(ctrl)) {
-		/* The link is always the master */
-		link = ctrl;
-	}
-
 	switch (event) {
 	case Q931_DL_EVENT_TEI_REMOVAL:
 		if (!BRI_NT_PTMP(ctrl)) {
@@ -8569,15 +8619,11 @@ void q931_dl_event(struct pri *link, enum Q931_DL_EVENT event)
 		 * removed TEI.
 		 */
 		for (cur = *ctrl->callpool; cur; cur = cur->next) {
-			if (!(cur->cr & ~Q931_CALL_REFERENCE_FLAG)) {
-				/* Don't do anything on the global call reference call record. */
-				continue;
-			}
 			if (cur->outboundbroadcast) {
 				/* Does this master call have a subcall on the link that went down? */
 				call = NULL;
 				for (idx = 0; idx < ARRAY_LEN(cur->subcalls); ++idx) {
-					if (cur->subcalls[idx] && cur->subcalls[idx]->pri == link) {
+					if (cur->subcalls[idx] && cur->subcalls[idx]->link == link) {
 						/* This subcall is on the link that went down. */
 						call = cur->subcalls[idx];
 						break;
@@ -8587,11 +8633,21 @@ void q931_dl_event(struct pri *link, enum Q931_DL_EVENT event)
 					/* No subcall is on the link that went down. */
 					continue;
 				}
-			} else if (cur->pri != link) {
+			} else if (cur->link != link) {
 				/* This call is not on the link that went down. */
 				continue;
 			} else {
 				call = cur;
+			}
+
+			if (!(cur->cr & ~Q931_CALL_REFERENCE_FLAG)) {
+				/* Simply destroy the global call reference call record. */
+				if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+					pri_message(ctrl, "TEI=%d Destroying global call record\n",
+						link->tei);
+				}
+				q931_destroycall(ctrl, call);
+				continue;
 			}
 
 			/*
@@ -8605,7 +8661,7 @@ void q931_dl_event(struct pri *link, enum Q931_DL_EVENT event)
 					call->cr, call->channelno, call->ourcallstate,
 					q931_call_state_str(call->ourcallstate));
 			}
-			call->pri = ctrl;/* Point to a safer place until the call is destroyed. */
+			call->link = NULL;
 			pri_schedule_del(ctrl, call->retranstimer);
 			call->retranstimer = pri_schedule_event(ctrl, 0, pri_dl_down_cancelcall,
 				call);
@@ -8622,7 +8678,7 @@ void q931_dl_event(struct pri *link, enum Q931_DL_EVENT event)
 				/* Does this master call have a subcall on the link that went down? */
 				call = NULL;
 				for (idx = 0; idx < ARRAY_LEN(cur->subcalls); ++idx) {
-					if (cur->subcalls[idx] && cur->subcalls[idx]->pri == link) {
+					if (cur->subcalls[idx] && cur->subcalls[idx]->link == link) {
 						/* This subcall is on the link that went down. */
 						call = cur->subcalls[idx];
 						break;
@@ -8632,7 +8688,7 @@ void q931_dl_event(struct pri *link, enum Q931_DL_EVENT event)
 					/* No subcall is on the link that went down. */
 					continue;
 				}
-			} else if (cur->pri != link) {
+			} else if (cur->link != link) {
 				/* This call is not on the link that went down. */
 				continue;
 			} else {
@@ -8704,7 +8760,7 @@ void q931_dl_event(struct pri *link, enum Q931_DL_EVENT event)
 				/* Does this master call have a subcall on the link that came up? */
 				call = NULL;
 				for (idx = 0; idx < ARRAY_LEN(cur->subcalls); ++idx) {
-					if (cur->subcalls[idx] && cur->subcalls[idx]->pri == link) {
+					if (cur->subcalls[idx] && cur->subcalls[idx]->link == link) {
 						/* This subcall is on the link that came up. */
 						call = cur->subcalls[idx];
 						break;
@@ -8714,7 +8770,7 @@ void q931_dl_event(struct pri *link, enum Q931_DL_EVENT event)
 					/* No subcall is on the link that came up. */
 					continue;
 				}
-			} else if (cur->pri != link) {
+			} else if (cur->link != link) {
 				/* This call is not on the link that came up. */
 				continue;
 			} else {

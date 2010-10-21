@@ -2556,8 +2556,9 @@ static int etsi_ect_link_id_rsp(enum APDU_CALLBACK_REASON reason, struct pri *ct
 
 	switch (reason) {
 	case APDU_CALLBACK_REASON_MSG_RESULT:
-		call_2 = q931_find_call(ctrl, apdu->response.user.value);
-		if (!call_2) {
+		call_2 = apdu->response.user.ptr;
+		if (!q931_is_call_valid(ctrl, call_2)) {
+			/* Call is no longer present. */
 			break;
 		}
 
@@ -2636,7 +2637,7 @@ int etsi_initiate_transfer(struct pri *ctrl, q931_call *call_1, q931_call *call_
 	response.invoke_id = ctrl->last_invoke;
 	response.timeout_time = ctrl->timers[PRI_TIMER_T_RESPONSE];
 	response.callback = etsi_ect_link_id_rsp;
-	response.user.value = call_2->cr;
+	response.user.ptr = call_2;
 
 	/* Remember that if we queue a facility IE for a facility message we
 	 * have to explicitly send the facility message ourselves */

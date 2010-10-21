@@ -293,6 +293,7 @@ void __pri_free_tei(struct pri * p)
 		call = p->dummy_call;
 		if (call) {
 			pri_schedule_del(call->pri, call->retranstimer);
+			call->retranstimer = 0;
 			pri_call_apdu_queue_cleanup(call);
 		}
 		free(p->msg_line);
@@ -303,6 +304,7 @@ void __pri_free_tei(struct pri * p)
 
 struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri)
 {
+	int create_dummy_call;
 	struct d_ctrl_dummy *dummy_ctrl;
 	struct pri *p;
 
@@ -311,19 +313,32 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 	case PRI_SWITCH_GR303_TMC:
 	case PRI_SWITCH_GR303_TMC_SWITCHING:
 	case PRI_SWITCH_GR303_EOC_PATH:
-		p = calloc(1, sizeof(*p));
-		if (!p) {
-			return NULL;
-		}
-		dummy_ctrl = NULL;
+		create_dummy_call = 0;
 		break;
 	default:
+		if (bri && node == PRI_CPE && tei == Q921_TEI_GROUP) {
+			/*
+			 * BRI TE PTMP will not use its own group dummy call record.  It
+			 * will use the specific TEI dummy call instead.
+			 */
+			create_dummy_call = 0;
+		} else {
+			create_dummy_call = 1;
+		}
+		break;
+	}
+	if (create_dummy_call) {
 		dummy_ctrl = calloc(1, sizeof(*dummy_ctrl));
 		if (!dummy_ctrl) {
 			return NULL;
 		}
 		p = &dummy_ctrl->ctrl;
-		break;
+	} else {
+		p = calloc(1, sizeof(*p));
+		if (!p) {
+			return NULL;
+		}
+		dummy_ctrl = NULL;
 	}
 	if (!master) {
 		/* This is the master record. */
@@ -402,12 +417,20 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 		break;
 	}
 
-	if (p->tei == Q921_TEI_GROUP && p->sapi == Q921_SAPI_LAYER2_MANAGEMENT && p->localtype == PRI_CPE) {
+	if (p->tei == Q921_TEI_GROUP && p->sapi == Q921_SAPI_LAYER2_MANAGEMENT
+		&& p->localtype == PRI_CPE) {
 		p->subchannel = __pri_new_tei(-1, p->localtype, p->switchtype, p, NULL, NULL, NULL, Q921_TEI_PRI, 1);
 		if (!p->subchannel) {
 			free(p);
 			return NULL;
 		}
+		/*
+		 * Make the group link use the just created specific TEI link
+		 * dummy call instead.  It makes no sense for TE PTMP interfaces
+		 * to broadcast messages on the dummy call or to broadcast any
+		 * messages for that matter.
+		 */
+		p->dummy_call = p->subchannel->dummy_call;
 	} else
 		q921_start(p);
 	
