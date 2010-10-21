@@ -1646,11 +1646,43 @@ int pri_set_crv(struct pri *pri, q931_call *call, int crv, int callmode)
 
 void pri_enslave(struct pri *master, struct pri *slave)
 {
-	if (master && slave) {
-		slave->callpool = &master->localpool;
-		slave->nfas = 1;
-		master->nfas = 1;
+	if (!master || !slave) {
+		return;
 	}
+
+	if (slave->master) {
+		struct pri *swp;
+
+		/* The slave already has a master */
+		if (master->master || master->slave) {
+			/* The new master has a master or it already has slaves. */
+			return;
+		}
+
+		/* Swap master and slave. */
+		swp = master;
+		master = slave;
+		slave = master;
+	}
+
+	/*
+	 * To have some support for dynamic interfaces, the master NFAS
+	 * D channel control structure will always exist even if it is
+	 * abandoned/deleted by the upper layer.  The master/slave
+	 * pointers ensure that the correct master will be used.
+	 */
+
+	master = PRI_NFAS_MASTER(master);
+	master->nfas = 1;
+	slave->nfas = 1;
+	slave->callpool = &master->localpool;
+
+	/* Link the slave to the master on the end of the master's list. */
+	slave->master = master;
+	slave->slave = NULL;
+	for (; master->slave; master = master->slave) {
+	}
+	master->slave = slave;
 }
 
 struct pri_sr *pri_sr_new(void)

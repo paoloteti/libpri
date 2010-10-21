@@ -76,6 +76,10 @@ struct pri {
 	void *userdata;
 	/*! Accumulated pri_message() line. (Valid in master record only) */
 	struct pri_msg_line *msg_line;
+	/*! NFAS master/primary channel if appropriate */
+	struct pri *master;
+	/*! Next NFAS slaved D channel if appropriate */
+	struct pri *slave;
 	struct {
 		/*! Dynamically allocated array of timers that can grow as needed. */
 		struct pri_sched *timer;
@@ -950,6 +954,21 @@ void pri_cc_qsig_determine_available(struct pri *ctrl, q931_call *call);
 int pri_cc_event(struct pri *ctrl, q931_call *call, struct pri_cc_record *cc_record, enum CC_EVENTS event);
 int q931_cc_timeout(struct pri *ctrl, struct pri_cc_record *cc_record, enum CC_EVENTS event);
 void q931_cc_indirect(struct pri *ctrl, struct pri_cc_record *cc_record, void (*func)(struct pri *ctrl, q931_call *call, struct pri_cc_record *cc_record));
+
+/*!
+ * \brief Get the NFAS master PRI control structure.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \return NFAS master PRI control structure.
+ */
+static inline struct pri *PRI_NFAS_MASTER(struct pri *ctrl)
+{
+	while (ctrl->master) {
+		ctrl = ctrl->master;
+	}
+	return ctrl;
+}
 
 /*!
  * \brief Determine if layer 2 is in BRI NT PTMP mode.
