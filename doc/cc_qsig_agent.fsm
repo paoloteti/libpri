@@ -41,6 +41,10 @@ FSM CC_QSIG_Agent
 			Action Send_Call_Proceeding;
 			Next_State CC_STATE_REQUESTED;
 		}
+		Stimulus CC_EVENT_INTERNAL_CLEARING {
+			Action Stop_T_RETENTION;
+			Action Start_T_RETENTION;
+		}
 		Stimulus CC_EVENT_TIMEOUT_T_RETENTION {
 			Action Pass_Up_CC_Cancel;
 			Next_State CC_STATE_IDLE;

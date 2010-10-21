@@ -664,6 +664,8 @@ enum CC_EVENTS {
 	CC_EVENT_LINK_CANCEL,
 	/*! Tear down CC request from upper layer. */
 	CC_EVENT_CANCEL,
+	/*! Abnormal clearing of original call.  (T309 processing/T309 timeout/TEI removal) */
+	CC_EVENT_INTERNAL_CLEARING,
 	/*! Received message indicating tear down of CC signaling link completed. */
 	CC_EVENT_SIGNALING_GONE,
 	/*! Delayed hangup request for the signaling link to allow subcmd events to be passed up. */

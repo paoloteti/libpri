@@ -25,7 +25,13 @@ FSM CC_PTMP_Agent
 			Action Send_CC_Available(Q931_DISCONNECT);
 			Next_State CC_STATE_AVAILABLE;
 		}
+		Stimulus CC_EVENT_INTERNAL_CLEARING {
+			Action Release_LinkID;
+			Action Pass_Up_CC_Cancel;
+			Next_State CC_STATE_IDLE;
+		}
 		Stimulus CC_EVENT_CANCEL {
+			Action Release_LinkID;
 			Next_State CC_STATE_IDLE;
 		}
 	}
@@ -44,6 +50,10 @@ FSM CC_PTMP_Agent
 		Stimulus CC_EVENT_CC_REQUEST {
 			Action Pass_Up_CC_Request;
 			Next_State CC_STATE_REQUESTED;
+		}
+		Stimulus CC_EVENT_INTERNAL_CLEARING {
+			Action Stop_T_RETENTION;
+			Action Start_T_RETENTION;
 		}
 		Stimulus CC_EVENT_TIMEOUT_T_RETENTION {
 			Action Send_EraseCallLinkageID;

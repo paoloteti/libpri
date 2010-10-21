@@ -8472,22 +8472,31 @@ static int pri_internal_clear(void *data)
 		pri_message(ctrl, "clearing, alive %d, hangupack %d\n", c->alive, c->sendhangupack);
 	}
 
-	if (c->cc.record && c->cc.record->signaling == c) {
-		pri_cc_event(ctrl, c, c->cc.record, CC_EVENT_SIGNALING_GONE);
+	if (c->cc.record) {
+		if (c->cc.record->signaling == c) {
+			pri_cc_event(ctrl, c, c->cc.record, CC_EVENT_SIGNALING_GONE);
+		} else if (c->cc.record->original_call == c) {
+			pri_cc_event(ctrl, c, c->cc.record, CC_EVENT_INTERNAL_CLEARING);
+		}
 	}
 
 	/* Free resources */
 	if (c->alive) {
+		c->alive = 0;
 		ctrl->ev.e = PRI_EVENT_HANGUP;
 		res = Q931_RES_HAVEEVENT;
-		c->alive = 0;
 	} else if (c->sendhangupack) {
-		res = Q931_RES_HAVEEVENT;
+		pri_hangup(ctrl, c, c->cause);
 		ctrl->ev.e = PRI_EVENT_HANGUP_ACK;
-		pri_hangup(ctrl, c, c->cause);
+		res = Q931_RES_HAVEEVENT;
 	} else {
-		res = 0;
 		pri_hangup(ctrl, c, c->cause);
+		if (ctrl->subcmds.counter_subcmd) {
+			q931_fill_facility_event(ctrl, ctrl->link.dummy_call);
+			res = Q931_RES_HAVEEVENT;
+		} else {
+			res = 0;
+		}
 	}
 
 	return res;

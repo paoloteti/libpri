@@ -2613,6 +2613,9 @@ static const char *pri_cc_fsm_event_str(enum CC_EVENTS event)
 	case CC_EVENT_CANCEL:
 		str = "CC_EVENT_CANCEL";
 		break;
+	case CC_EVENT_INTERNAL_CLEARING:
+		str = "CC_EVENT_INTERNAL_CLEARING";
+		break;
 	case CC_EVENT_SIGNALING_GONE:
 		str = "CC_EVENT_SIGNALING_GONE";
 		break;
@@ -4351,7 +4354,14 @@ static void pri_cc_fsm_ptmp_agent_pend_avail(struct pri *ctrl, q931_call *call, 
 		pri_cc_act_send_cc_available(ctrl, cc_record, call, Q931_DISCONNECT);
 		cc_record->state = CC_STATE_AVAILABLE;
 		break;
+	case CC_EVENT_INTERNAL_CLEARING:
+		pri_cc_act_release_link_id(ctrl, cc_record);
+		pri_cc_act_pass_up_cc_cancel(ctrl, cc_record);
+		pri_cc_act_set_self_destruct(ctrl, cc_record);
+		cc_record->state = CC_STATE_IDLE;
+		break;
 	case CC_EVENT_CANCEL:
+		pri_cc_act_release_link_id(ctrl, cc_record);
 		pri_cc_act_set_self_destruct(ctrl, cc_record);
 		cc_record->state = CC_STATE_IDLE;
 		break;
@@ -4383,6 +4393,10 @@ static void pri_cc_fsm_ptmp_agent_avail(struct pri *ctrl, q931_call *call, struc
 		pri_cc_act_pass_up_cc_request(ctrl, cc_record);
 		pri_cc_act_stop_t_retention(ctrl, cc_record);
 		cc_record->state = CC_STATE_REQUESTED;
+		break;
+	case CC_EVENT_INTERNAL_CLEARING:
+		pri_cc_act_stop_t_retention(ctrl, cc_record);
+		pri_cc_act_start_t_retention(ctrl, cc_record);
 		break;
 	case CC_EVENT_TIMEOUT_T_RETENTION:
 		pri_cc_act_send_erase_call_linkage_id(ctrl, cc_record);
@@ -5275,6 +5289,11 @@ static void pri_cc_fsm_ptp_agent_pend_avail(struct pri *ctrl, q931_call *call, s
 		pri_cc_act_send_cc_available(ctrl, cc_record, call, Q931_DISCONNECT);
 		cc_record->state = CC_STATE_AVAILABLE;
 		break;
+	case CC_EVENT_INTERNAL_CLEARING:
+		pri_cc_act_pass_up_cc_cancel(ctrl, cc_record);
+		pri_cc_act_set_self_destruct(ctrl, cc_record);
+		cc_record->state = CC_STATE_IDLE;
+		break;
 	case CC_EVENT_CANCEL:
 		pri_cc_act_set_self_destruct(ctrl, cc_record);
 		cc_record->state = CC_STATE_IDLE;
@@ -5314,6 +5333,10 @@ static void pri_cc_fsm_ptp_agent_avail(struct pri *ctrl, q931_call *call, struct
 		pri_cc_act_pass_up_cc_request(ctrl, cc_record);
 		pri_cc_act_stop_t_retention(ctrl, cc_record);
 		cc_record->state = CC_STATE_REQUESTED;
+		break;
+	case CC_EVENT_INTERNAL_CLEARING:
+		pri_cc_act_stop_t_retention(ctrl, cc_record);
+		pri_cc_act_start_t_retention(ctrl, cc_record);
 		break;
 	case CC_EVENT_TIMEOUT_T_RETENTION:
 		pri_cc_act_pass_up_cc_cancel(ctrl, cc_record);
@@ -5913,6 +5936,10 @@ static void pri_cc_fsm_qsig_agent_avail(struct pri *ctrl, q931_call *call, struc
 		pri_cc_act_send_call_proceeding(ctrl, cc_record);
 		pri_cc_act_stop_t_retention(ctrl, cc_record);
 		cc_record->state = CC_STATE_REQUESTED;
+		break;
+	case CC_EVENT_INTERNAL_CLEARING:
+		pri_cc_act_stop_t_retention(ctrl, cc_record);
+		pri_cc_act_start_t_retention(ctrl, cc_record);
 		break;
 	case CC_EVENT_TIMEOUT_T_RETENTION:
 		pri_cc_act_pass_up_cc_cancel(ctrl, cc_record);
