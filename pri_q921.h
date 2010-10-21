@@ -189,7 +189,7 @@ static inline int Q921_ADD(int a, int b)
 extern void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx);
 
 /* Bring up the D-channel */
-extern void q921_start(struct pri *pri);
+void q921_start(struct pri *link);
 
 //extern void q921_reset(struct pri *pri, int reset_iqueue);
 
@@ -197,7 +197,7 @@ extern pri_event *q921_receive(struct pri *pri, q921_h *h, int len);
 
 extern int q921_transmit_iframe(struct pri *pri, int tei, void *buf, int len, int cr);
 
-extern int q921_transmit_uiframe(struct pri *pri, void *buf, int len);
+int q921_transmit_uiframe(struct pri *link, void *buf, int len);
 
 extern pri_event *q921_dchannel_up(struct pri *pri);
 
