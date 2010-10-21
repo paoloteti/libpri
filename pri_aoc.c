@@ -212,7 +212,7 @@ void aoc_etsi_aoc_request(struct pri *ctrl, q931_call *call, const struct rose_m
 	struct pri_subcommand *subcmd;
 	int request;
 
-	if (!PRI_MASTER(ctrl)->aoc_support) {
+	if (!ctrl->aoc_support) {
 		send_facility_error(ctrl, call, invoke->invoke_id, ROSE_ERROR_Gen_NotSubscribed);
 		return;
 	}
@@ -439,7 +439,7 @@ void aoc_etsi_aoc_s_currency(struct pri *ctrl, const struct rose_msg_invoke *inv
 {
 	struct pri_subcommand *subcmd;
 
-	if (!PRI_MASTER(ctrl)->aoc_support) {
+	if (!ctrl->aoc_support) {
 		return;
 	}
 	subcmd = q931_alloc_subcommand(ctrl);
@@ -470,7 +470,7 @@ void aoc_etsi_aoc_s_special_arrangement(struct pri *ctrl, const struct rose_msg_
 {
 	struct pri_subcommand *subcmd;
 
-	if (!PRI_MASTER(ctrl)->aoc_support) {
+	if (!ctrl->aoc_support) {
 		return;
 	}
 	subcmd = q931_alloc_subcommand(ctrl);
@@ -535,7 +535,7 @@ void aoc_etsi_aoc_d_currency(struct pri *ctrl, const struct rose_msg_invoke *inv
 {
 	struct pri_subcommand *subcmd;
 
-	if (!PRI_MASTER(ctrl)->aoc_support) {
+	if (!ctrl->aoc_support) {
 		return;
 	}
 	subcmd = q931_alloc_subcommand(ctrl);
@@ -577,7 +577,7 @@ void aoc_etsi_aoc_d_charging_unit(struct pri *ctrl, const struct rose_msg_invoke
 {
 	struct pri_subcommand *subcmd;
 
-	if (!PRI_MASTER(ctrl)->aoc_support) {
+	if (!ctrl->aoc_support) {
 		return;
 	}
 	subcmd = q931_alloc_subcommand(ctrl);
@@ -760,7 +760,7 @@ void aoc_etsi_aoc_e_currency(struct pri *ctrl, q931_call *call, const struct ros
 {
 	struct pri_subcommand *subcmd;
 
-	if (!PRI_MASTER(ctrl)->aoc_support) {
+	if (!ctrl->aoc_support) {
 		return;
 	}
 	subcmd = q931_alloc_subcommand(ctrl);
@@ -828,7 +828,7 @@ void aoc_etsi_aoc_e_charging_unit(struct pri *ctrl, q931_call *call, const struc
 		}
 	}
 
-	if (!PRI_MASTER(ctrl)->aoc_support) {
+	if (!ctrl->aoc_support) {
 		return;
 	}
 	subcmd = q931_alloc_subcommand(ctrl);
@@ -869,7 +869,6 @@ void aoc_etsi_aoc_e_charging_unit(struct pri *ctrl, q931_call *call, const struc
 void pri_aoc_events_enable(struct pri *ctrl, int enable)
 {
 	if (ctrl) {
-		ctrl = PRI_MASTER(ctrl);
 		ctrl->aoc_support = enable ? 1 : 0;
 	}
 }

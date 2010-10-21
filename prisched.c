@@ -112,9 +112,6 @@ int pri_schedule_event(struct pri *ctrl, int ms, void (*function)(void *data), v
 	unsigned x;
 	struct timeval tv;
 
-	/* Scheduling runs on master channels only */
-	ctrl = PRI_MASTER(ctrl);
-
 	max_used = ctrl->sched.max_used;
 	for (x = 0; x < max_used; ++x) {
 		if (!ctrl->sched.timer[x].callback) {
@@ -156,9 +153,6 @@ struct timeval *pri_schedule_next(struct pri *ctrl)
 	struct timeval *closest = NULL;
 	unsigned x;
 
-	/* Scheduling runs on master channels only */
-	ctrl = PRI_MASTER(ctrl);
-
 	/* Scan the scheduled timer slots backwards so we can update the max_used value. */
 	for (x = ctrl->sched.max_used; x--;) {
 		if (ctrl->sched.timer[x].callback) {
@@ -195,9 +189,6 @@ static pri_event *__pri_schedule_run(struct pri *ctrl, struct timeval *tv)
 	unsigned max_used;
 	void (*callback)(void *);
 	void *data;
-
-	/* Scheduling runs on master channels only */
-	ctrl = PRI_MASTER(ctrl);
 
 	max_used = ctrl->sched.max_used;
 	for (x = 0; x < max_used; ++x) {
@@ -246,9 +237,6 @@ pri_event *pri_schedule_run(struct pri *ctrl)
  */
 void pri_schedule_del(struct pri *ctrl, int id)
 {
-	/* Scheduling runs on master channels only */
-	ctrl = PRI_MASTER(ctrl);
-
 	if (0 < id && id <= ctrl->sched.num_slots) {
 		ctrl->sched.timer[id - 1].callback = NULL;
 	} else if (id) {
@@ -271,9 +259,6 @@ void pri_schedule_del(struct pri *ctrl, int id)
  */
 int pri_schedule_check(struct pri *ctrl, int id, void (*function)(void *data), void *data)
 {
-	/* Scheduling runs on master channels only */
-	ctrl = PRI_MASTER(ctrl);
-
 	if (0 < id && id <= ctrl->sched.num_slots) {
 		if (ctrl->sched.timer[id - 1].callback == function
 			&& ctrl->sched.timer[id - 1].data == data) {

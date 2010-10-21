@@ -180,6 +180,66 @@ typedef enum q921_state {
 	Q921_TIMER_RECOVERY = 8,
 } q921_state;
 
+/*! \brief Q.921 link controller structure */
+struct q921_link {
+	/*! Next Q.921 link in the chain. */
+	struct q921_link *next;
+	/*! D channel controller associated with this link. */
+	struct pri *ctrl;
+
+	/*!
+	 * \brief Q.931 Dummy call reference call associated with this TEI.
+	 *
+	 * \note If present then this call is allocated with the D
+	 * channel control structure or the link control structure
+	 * unless this is the TE PTMP broadcast TEI or a GR303 link.
+	 */
+	struct q931_call *dummy_call;
+
+	/*! Q.921 Re-transmission queue */
+	struct q921_frame *tx_queue;
+
+	/*! Q.921 State */
+	enum q921_state state;
+
+	/*! Service Access Profile Identifier (SAPI) of this link */
+	int sapi;
+	/*! Terminal Endpoint Identifier (TEI) of this link */
+	int tei;
+	/*! TEI assignment random indicator. */
+	int ri;
+
+	/*! V(A) - Next I-frame sequence number needing ack */
+	int v_a;
+	/*! V(S) - Next I-frame sequence number to send */
+	int v_s;
+	/*! V(R) - Next I-frame sequence number expected to receive */
+	int v_r;
+
+	/* Various timers */
+
+	/*! T-200 retransmission timer */
+	int t200_timer;
+	/*! Retry Count (T200) */
+	int RC;
+	int t202_timer;
+	int n202_counter;
+	/*! Max idle time */
+	int t203_timer;
+
+	/* MDL variables */
+	int mdl_timer;
+	int mdl_error;
+	enum q921_state mdl_error_state;
+	unsigned int mdl_free_me:1;
+
+	unsigned int peer_rx_busy:1;
+	unsigned int own_rx_busy:1;
+	unsigned int acknowledge_pending:1;
+	unsigned int reject_exception:1;
+	unsigned int l3_initiated:1;
+};
+
 static inline int Q921_ADD(int a, int b)
 {
 	return (a + b) % 128;
@@ -189,15 +249,15 @@ static inline int Q921_ADD(int a, int b)
 extern void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx);
 
 /* Bring up the D-channel */
-void q921_start(struct pri *link);
+void q921_start(struct q921_link *link);
 
 //extern void q921_reset(struct pri *pri, int reset_iqueue);
 
 extern pri_event *q921_receive(struct pri *pri, q921_h *h, int len);
 
-int q921_transmit_iframe(struct pri *link, void *buf, int len, int cr);
+int q921_transmit_iframe(struct q921_link *link, void *buf, int len, int cr);
 
-int q921_transmit_uiframe(struct pri *link, void *buf, int len);
+int q921_transmit_uiframe(struct q921_link *link, void *buf, int len);
 
 extern pri_event *q921_dchannel_up(struct pri *pri);
 

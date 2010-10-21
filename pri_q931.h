@@ -454,7 +454,7 @@ extern int maintenance_service(struct pri *pri, int span, int channel, int chang
 /* Q.SIG specific */
 #define QSIG_IE_TRANSIT_COUNT		0x31
 
-int q931_receive(struct pri *link, q931_h *h, int len);
+int q931_receive(struct q921_link *link, q931_h *h, int len);
 
 extern int q931_alerting(struct pri *pri, q931_call *call, int channel, int info);
 
@@ -507,7 +507,7 @@ enum Q931_DL_EVENT {
 	Q931_DL_EVENT_DL_RELEASE_CONFIRM,
 	Q931_DL_EVENT_TEI_REMOVAL,
 };
-void q931_dl_event(struct pri *link, enum Q931_DL_EVENT event);
+void q931_dl_event(struct q921_link *link, enum Q931_DL_EVENT event);
 
 int q931_send_hold(struct pri *ctrl, struct q931_call *call);
 int q931_send_hold_ack(struct pri *ctrl, struct q931_call *call);

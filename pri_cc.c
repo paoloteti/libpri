@@ -61,7 +61,6 @@ struct pri_cc_record *pri_cc_find_by_reference(struct pri *ctrl, unsigned refere
 {
 	struct pri_cc_record *cc_record;
 
-	ctrl = PRI_MASTER(ctrl);
 	for (cc_record = ctrl->cc.pool; cc_record; cc_record = cc_record->next) {
 		if (cc_record->ccbs_reference_id == reference_id) {
 			/* Found the record */
@@ -85,7 +84,6 @@ struct pri_cc_record *pri_cc_find_by_linkage(struct pri *ctrl, unsigned linkage_
 {
 	struct pri_cc_record *cc_record;
 
-	ctrl = PRI_MASTER(ctrl);
 	for (cc_record = ctrl->cc.pool; cc_record; cc_record = cc_record->next) {
 		if (cc_record->call_linkage_id == linkage_id) {
 			/* Found the record */
@@ -110,7 +108,6 @@ static struct pri_cc_record *pri_cc_find_by_id(struct pri *ctrl, long cc_id)
 {
 	struct pri_cc_record *cc_record;
 
-	ctrl = PRI_MASTER(ctrl);
 	for (cc_record = ctrl->cc.pool; cc_record; cc_record = cc_record->next) {
 		if (cc_record->record_id == cc_id) {
 			/* Found the record */
@@ -234,7 +231,6 @@ struct pri_cc_record *pri_cc_find_by_addressing(struct pri *ctrl, const struct q
 	struct q931_party_address addr_a;
 	struct q931_party_address addr_b;
 
-	ctrl = PRI_MASTER(ctrl);
 	addr_a = *party_a;
 	addr_b = *party_b;
 	for (cc_record = ctrl->cc.pool; cc_record; cc_record = cc_record->next) {
@@ -266,7 +262,6 @@ static int pri_cc_new_reference_id(struct pri *ctrl)
 	long reference_id;
 	long first_id;
 
-	ctrl = PRI_MASTER(ctrl);
 	ctrl->cc.last_reference_id = (ctrl->cc.last_reference_id + 1) & 0x7F;
 	reference_id = ctrl->cc.last_reference_id;
 	first_id = reference_id;
@@ -298,7 +293,6 @@ static int pri_cc_new_linkage_id(struct pri *ctrl)
 	long linkage_id;
 	long first_id;
 
-	ctrl = PRI_MASTER(ctrl);
 	ctrl->cc.last_linkage_id = (ctrl->cc.last_linkage_id + 1) & 0x7F;
 	linkage_id = ctrl->cc.last_linkage_id;
 	first_id = linkage_id;
@@ -330,7 +324,6 @@ static long pri_cc_new_id(struct pri *ctrl)
 	long record_id;
 	long first_id;
 
-	ctrl = PRI_MASTER(ctrl);
 	record_id = ++ctrl->cc.last_record_id;
 	first_id = record_id;
 	while (pri_cc_find_by_id(ctrl, record_id)) {
@@ -386,7 +379,6 @@ static void pri_cc_delete_record(struct pri *ctrl, struct pri_cc_record *doomed)
 	}
 	pri_cc_disassociate_signaling_link(doomed);
 
-	ctrl = PRI_MASTER(ctrl);
 	for (prev = &ctrl->cc.pool, current = ctrl->cc.pool; current;
 		prev = &current->next, current = current->next) {
 		if (current == doomed) {
@@ -413,7 +405,6 @@ struct pri_cc_record *pri_cc_new_record(struct pri *ctrl, q931_call *call)
 	struct pri_cc_record *cc_record;
 	long record_id;
 
-	ctrl = PRI_MASTER(ctrl);
 	record_id = pri_cc_new_id(ctrl);
 	if (record_id < 0) {
 		return NULL;
@@ -424,7 +415,7 @@ struct pri_cc_record *pri_cc_new_record(struct pri *ctrl, q931_call *call)
 	}
 
 	/* Initialize the new record */
-	cc_record->master = ctrl;
+	cc_record->ctrl = ctrl;
 	cc_record->record_id = record_id;
 	cc_record->call_linkage_id = CC_PTMP_INVALID_ID;/* So it will never be found this way */
 	cc_record->ccbs_reference_id = CC_PTMP_INVALID_ID;/* So it will never be found this way */
@@ -975,7 +966,7 @@ static unsigned char *enc_qsig_cc_request(struct pri *ctrl,
 
 	//msg.args.qsig.CcbsRequest.can_retain_service = 0;
 
-	switch (PRI_MASTER(ctrl)->cc.option.signaling_retention_req) {
+	switch (ctrl->cc.option.signaling_retention_req) {
 	case 0:/* Want release signaling link. */
 		cc_record->option.retain_signaling_link = 0;
 
@@ -1954,7 +1945,6 @@ static unsigned char *enc_etsi_ptmp_cc_interrogate_rsp_general(struct pri *ctrl,
 	struct q931_party_number party_a_number;
 	const struct pri_cc_record *cc_record;
 	unsigned char *new_pos;
-	struct pri *master;
 	unsigned idx;
 
 	pos = facility_encode_header(ctrl, pos, end, NULL);
@@ -1966,8 +1956,7 @@ static unsigned char *enc_etsi_ptmp_cc_interrogate_rsp_general(struct pri *ctrl,
 	msg.invoke_id = invoke->invoke_id;
 	msg.operation = invoke->operation;
 
-	master = PRI_MASTER(ctrl);
-	msg.args.etsi.CCBSInterrogate.recall_mode = master->cc.option.recall_mode;
+	msg.args.etsi.CCBSInterrogate.recall_mode = ctrl->cc.option.recall_mode;
 
 	/* Convert the given party A number. */
 	q931_party_number_init(&party_a_number);
@@ -1979,7 +1968,7 @@ static unsigned char *enc_etsi_ptmp_cc_interrogate_rsp_general(struct pri *ctrl,
 
 	/* Build the CallDetails list. */
 	idx = 0;
-	for (cc_record = master->cc.pool; cc_record; cc_record = cc_record->next) {
+	for (cc_record = ctrl->cc.pool; cc_record; cc_record = cc_record->next) {
 		if (cc_record->ccbs_reference_id == CC_PTMP_INVALID_ID
 			|| (!cc_record->is_ccnr) != (invoke->operation == ROSE_ETSI_CCBSInterrogate)) {
 			/*
@@ -2087,7 +2076,7 @@ int pri_cc_interrogate_rsp(struct pri *ctrl, q931_call *call, const struct rose_
 {
 	int encode_result;
 
-	if (!PRI_MASTER(ctrl)->cc_support) {
+	if (!ctrl->cc_support) {
 		/* Call completion is disabled. */
 		return send_facility_error(ctrl, call, invoke->invoke_id,
 			ROSE_ERROR_Gen_NotSubscribed);
@@ -2134,7 +2123,7 @@ void pri_cc_ptmp_request(struct pri *ctrl, q931_call *call, const struct rose_ms
 {
 	struct pri_cc_record *cc_record;
 
-	if (!PRI_MASTER(ctrl)->cc_support) {
+	if (!ctrl->cc_support) {
 		/* Call completion is disabled. */
 		send_facility_error(ctrl, call, invoke->invoke_id,
 			ROSE_ERROR_Gen_NotSubscribed);
@@ -2191,7 +2180,7 @@ void pri_cc_ptp_request(struct pri *ctrl, q931_call *call, int msgtype, const st
 		/* Ignore CC request message since it did not come in on the correct message. */
 		return;
 	}
-	if (!PRI_MASTER(ctrl)->cc_support) {
+	if (!ctrl->cc_support) {
 		/* Call completion is disabled. */
 		rose_error_msg_encode(ctrl, call, Q931_ANY_MESSAGE, invoke->invoke_id,
 			ROSE_ERROR_Gen_NotSubscribed);
@@ -2270,7 +2259,6 @@ void pri_cc_ptp_request(struct pri *ctrl, q931_call *call, int msgtype, const st
  */
 void pri_cc_qsig_request(struct pri *ctrl, q931_call *call, int msgtype, const struct rose_msg_invoke *invoke)
 {
-	struct pri *master;
 	struct pri_cc_record *cc_record;
 	struct q931_party_address party_a;
 	struct q931_party_address party_b;
@@ -2279,8 +2267,7 @@ void pri_cc_qsig_request(struct pri *ctrl, q931_call *call, int msgtype, const s
 		/* Ignore CC request message since it did not come in on the correct message. */
 		return;
 	}
-	master = PRI_MASTER(ctrl);
-	if (!master->cc_support) {
+	if (!ctrl->cc_support) {
 		/* Call completion is disabled. */
 		rose_error_msg_encode(ctrl, call, Q931_ANY_MESSAGE, invoke->invoke_id,
 			ROSE_ERROR_QSIG_LongTermRejection);
@@ -2302,7 +2289,7 @@ void pri_cc_qsig_request(struct pri *ctrl, q931_call *call, int msgtype, const s
 	rose_copy_subaddress_to_q931(ctrl, &party_b.subaddress,
 		&invoke->args.qsig.CcbsRequest.subaddr_b);
 
-	cc_record = pri_cc_find_by_addressing(master, &party_a, &party_b,
+	cc_record = pri_cc_find_by_addressing(ctrl, &party_a, &party_b,
 		invoke->args.qsig.CcbsRequest.q931ie.length,
 		invoke->args.qsig.CcbsRequest.q931ie.contents);
 	if (!cc_record || cc_record->state != CC_STATE_AVAILABLE) {
@@ -2321,7 +2308,7 @@ void pri_cc_qsig_request(struct pri *ctrl, q931_call *call, int msgtype, const s
 	} else {
 		/* The originator does not care.  Do how we are configured. */
 		cc_record->option.retain_signaling_link =
-			master->cc.option.signaling_retention_rsp;
+			ctrl->cc.option.signaling_retention_rsp;
 	}
 	if (!cc_record->party_a.number.valid || cc_record->party_a.number.str[0] == '\0') {
 		/*
@@ -2805,7 +2792,7 @@ static void pri_cc_timeout_t_retention(void *data)
 	struct pri_cc_record *cc_record = data;
 
 	cc_record->t_retention = 0;
-	q931_cc_timeout(cc_record->master, cc_record, CC_EVENT_TIMEOUT_T_RETENTION);
+	q931_cc_timeout(cc_record->ctrl, cc_record, CC_EVENT_TIMEOUT_T_RETENTION);
 }
 
 /*!
@@ -2857,7 +2844,7 @@ static void pri_cc_timeout_extended_t_ccbs1(void *data)
 	struct pri_cc_record *cc_record = data;
 
 	cc_record->fsm.ptmp.extended_t_ccbs1 = 0;
-	q931_cc_timeout(cc_record->master, cc_record, CC_EVENT_TIMEOUT_EXTENDED_T_CCBS1);
+	q931_cc_timeout(cc_record->ctrl, cc_record, CC_EVENT_TIMEOUT_EXTENDED_T_CCBS1);
 }
 
 /*!
@@ -2911,7 +2898,7 @@ static void pri_cc_timeout_t_supervision(void *data)
 	struct pri_cc_record *cc_record = data;
 
 	cc_record->t_supervision = 0;
-	q931_cc_timeout(cc_record->master, cc_record, CC_EVENT_TIMEOUT_T_SUPERVISION);
+	q931_cc_timeout(cc_record->ctrl, cc_record, CC_EVENT_TIMEOUT_T_SUPERVISION);
 }
 
 /*!
@@ -2991,7 +2978,7 @@ static void pri_cc_timeout_t_recall(void *data)
 	struct pri_cc_record *cc_record = data;
 
 	cc_record->t_recall = 0;
-	q931_cc_timeout(cc_record->master, cc_record, CC_EVENT_TIMEOUT_T_RECALL);
+	q931_cc_timeout(cc_record->ctrl, cc_record, CC_EVENT_TIMEOUT_T_RECALL);
 }
 
 /*!
@@ -3755,7 +3742,7 @@ static void pri_cc_indirect_status_rsp_a(void *data)
 	struct pri_cc_record *cc_record = data;
 
 	cc_record->t_indirect = 0;
-	q931_cc_indirect(cc_record->master, cc_record, pri_cc_fill_status_rsp_a);
+	q931_cc_indirect(cc_record->ctrl, cc_record, pri_cc_fill_status_rsp_a);
 }
 
 /*!
@@ -3904,7 +3891,7 @@ static void pri_cc_indirect_status_a(void *data)
 	struct pri_cc_record *cc_record = data;
 
 	cc_record->t_indirect = 0;
-	q931_cc_indirect(cc_record->master, cc_record, pri_cc_fill_status_a);
+	q931_cc_indirect(cc_record->ctrl, cc_record, pri_cc_fill_status_a);
 }
 
 /*!
@@ -4261,7 +4248,7 @@ static void pri_cc_post_hangup_signaling(void *data)
 	struct pri_cc_record *cc_record = data;
 
 	cc_record->t_indirect = 0;
-	q931_cc_timeout(cc_record->master, cc_record, CC_EVENT_HANGUP_SIGNALING);
+	q931_cc_timeout(cc_record->ctrl, cc_record, CC_EVENT_HANGUP_SIGNALING);
 }
 
 /*!
@@ -6850,7 +6837,7 @@ long pri_cc_available(struct pri *ctrl, q931_call *call)
 				break;
 			}
 			cc_record->call_linkage_id = linkage_id;
-			cc_record->signaling = PRI_MASTER(ctrl)->dummy_call;
+			cc_record->signaling = ctrl->link.dummy_call;
 		} else {
 			cc_record = pri_cc_new_record(ctrl, call);
 			if (!cc_record) {
@@ -6894,7 +6881,7 @@ void pri_cc_qsig_determine_available(struct pri *ctrl, q931_call *call)
 		return;
 	}
 
-	if (!PRI_MASTER(ctrl)->cc_support) {
+	if (!ctrl->cc_support) {
 		/*
 		 * Blocking the cc-available event effectively
 		 * disables call completion for outgoing calls.

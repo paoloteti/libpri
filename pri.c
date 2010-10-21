@@ -225,7 +225,6 @@ int pri_set_timer(struct pri *ctrl, int timer, int value)
 	if (!ctrl || timer < 0 || PRI_MAX_TIMERS <= timer || value < 0) {
 		return -1;
 	}
-	ctrl = PRI_MASTER(ctrl);
 	ctrl->timers[timer] = value;
 	return 0;
 }
@@ -235,7 +234,6 @@ int pri_get_timer(struct pri *ctrl, int timer)
 	if (!ctrl || timer < 0 || PRI_MAX_TIMERS <= timer) {
 		return -1;
 	}
-	ctrl = PRI_MASTER(ctrl);
 	return ctrl->timers[timer];
 }
 
@@ -285,34 +283,150 @@ static int __pri_write(struct pri *pri, void *buf, int buflen)
 	return res;
 }
 
-void __pri_free_tei(struct pri * p)
+/*!
+ * \brief Destroy the given link.
+ *
+ * \param link Q.921 link to destroy.
+ *
+ * \return Nothing
+ */
+void pri_link_destroy(struct q921_link *link)
 {
-	if (p) {
+	if (link) {
 		struct q931_call *call;
 
-		call = p->dummy_call;
+		call = link->dummy_call;
 		if (call) {
 			pri_schedule_del(call->pri, call->retranstimer);
 			call->retranstimer = 0;
 			pri_call_apdu_queue_cleanup(call);
 		}
-		free(p->msg_line);
-		free(p->sched.timer);
-		free(p);
+		free(link);
 	}
 }
 
-struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri)
+/*!
+ * \internal
+ * \brief Initialize the layer 2 link structure.
+ *
+ * \param ctrl D channel controller.
+ * \param link Q.921 link to initialize.
+ * \param sapi SAPI new link is to use.
+ * \param tei TEI new link is to use.
+ *
+ * \note It is assumed that the link has already been memset to zero.
+ *
+ * \return Nothing
+ */
+static void pri_link_init(struct pri *ctrl, struct q921_link *link, int sapi, int tei)
+{
+	link->ctrl = ctrl;
+	link->sapi = sapi;
+	link->tei = tei;
+}
+
+/*!
+ * \brief Create a new layer 2 link.
+ *
+ * \param ctrl D channel controller.
+ * \param sapi SAPI new link is to use.
+ * \param tei TEI new link is to use.
+ *
+ * \retval link on success.
+ * \retval NULL on error.
+ */
+struct q921_link *pri_link_new(struct pri *ctrl, int sapi, int tei)
+{
+	struct link_dummy *dummy_link;
+	struct q921_link *link;
+
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_GR303_EOC:
+	case PRI_SWITCH_GR303_TMC:
+		link = calloc(1, sizeof(*link));
+		if (!link) {
+			return NULL;
+		}
+		dummy_link = NULL;
+		break;
+	default:
+		dummy_link = calloc(1, sizeof(*dummy_link));
+		if (!dummy_link) {
+			return NULL;
+		}
+		link = &dummy_link->link;
+		break;
+	}
+
+	pri_link_init(ctrl, link, sapi, tei);
+	if (dummy_link) {
+		/* Initialize the dummy call reference call record. */
+		link->dummy_call = &dummy_link->dummy_call;
+		q931_init_call_record(link, link->dummy_call, Q931_DUMMY_CALL_REFERENCE);
+	}
+
+	q921_start(link);
+
+	return link;
+}
+
+/*!
+ * \internal
+ * \brief Destroy the given D channel controller.
+ *
+ * \param ctrl D channel control to destroy.
+ *
+ * \return Nothing
+ */
+static void pri_ctrl_destroy(struct pri *ctrl)
+{
+	if (ctrl) {
+		struct q931_call *call;
+
+		if (ctrl->link.tei == Q921_TEI_GROUP
+			&& ctrl->link.sapi == Q921_SAPI_LAYER2_MANAGEMENT
+			&& ctrl->localtype == PRI_CPE) {
+			/* This dummy call was borrowed from the specific TEI link. */
+			call = NULL;
+		} else {
+			call = ctrl->link.dummy_call;
+		}
+		if (call) {
+			pri_schedule_del(call->pri, call->retranstimer);
+			call->retranstimer = 0;
+			pri_call_apdu_queue_cleanup(call);
+		}
+		free(ctrl->msg_line);
+		free(ctrl->sched.timer);
+		free(ctrl);
+	}
+}
+
+/*!
+ * \internal
+ * \brief Create a new D channel control structure.
+ *
+ * \param fd D channel file descriptor if no callback functions supplied.
+ * \param node Switch NET/CPE type
+ * \param switchtype ISDN switch type
+ * \param rd D channel read callback function
+ * \param wr D channel write callback function
+ * \param userdata Callback function parameter
+ * \param tei TEI new link is to use.
+ * \param bri TRUE if interface is BRI
+ *
+ * \retval ctrl on success.
+ * \retval NULL on error.
+ */
+static struct pri *pri_ctrl_new(int fd, int node, int switchtype, pri_io_cb rd, pri_io_cb wr, void *userdata, int tei, int bri)
 {
 	int create_dummy_call;
 	struct d_ctrl_dummy *dummy_ctrl;
-	struct pri *p;
+	struct pri *ctrl;
 
 	switch (switchtype) {
 	case PRI_SWITCH_GR303_EOC:
 	case PRI_SWITCH_GR303_TMC:
-	case PRI_SWITCH_GR303_TMC_SWITCHING:
-	case PRI_SWITCH_GR303_EOC_PATH:
 		create_dummy_call = 0;
 		break;
 	default:
@@ -332,96 +446,75 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 		if (!dummy_ctrl) {
 			return NULL;
 		}
-		p = &dummy_ctrl->ctrl;
+		ctrl = &dummy_ctrl->ctrl;
 	} else {
-		p = calloc(1, sizeof(*p));
-		if (!p) {
+		ctrl = calloc(1, sizeof(*ctrl));
+		if (!ctrl) {
 			return NULL;
 		}
 		dummy_ctrl = NULL;
 	}
-	if (!master) {
-		/* This is the master record. */
-		p->msg_line = calloc(1, sizeof(*p->msg_line));
-		if (!p->msg_line) {
-			free(p);
-			return NULL;
-		}
+	ctrl->msg_line = calloc(1, sizeof(*ctrl->msg_line));
+	if (!ctrl->msg_line) {
+		free(ctrl);
+		return NULL;
 	}
 
-	p->bri = bri;
-	p->fd = fd;
-	p->read_func = rd;
-	p->write_func = wr;
-	p->userdata = userdata;
-	p->localtype = node;
-	p->switchtype = switchtype;
-	p->cref = 1;
-	p->sapi = (tei == Q921_TEI_GROUP) ? Q921_SAPI_LAYER2_MANAGEMENT : Q921_SAPI_CALL_CTRL;
-	p->tei = tei;
-	p->nsf = PRI_NSF_NONE;
-	p->protodisc = Q931_PROTOCOL_DISCRIMINATOR;
-	p->master = master;
-	p->callpool = &p->localpool;
-	pri_default_timers(p, switchtype);
-	if (master) {
-		pri_set_debug(p, master->debug);
-		pri_set_inbanddisconnect(p, master->acceptinbanddisconnect);
-		if (master->sendfacility)
-			pri_facility_enable(p);
-	}
+	ctrl->bri = bri;
+	ctrl->fd = fd;
+	ctrl->read_func = rd;
+	ctrl->write_func = wr;
+	ctrl->userdata = userdata;
+	ctrl->localtype = node;
+	ctrl->switchtype = switchtype;
+	ctrl->cref = 1;
+	ctrl->nsf = PRI_NSF_NONE;
+	ctrl->callpool = &ctrl->localpool;
+	pri_default_timers(ctrl, switchtype);
 #ifdef LIBPRI_COUNTERS
-	p->q921_rxcount = 0;
-	p->q921_txcount = 0;
-	p->q931_rxcount = 0;
-	p->q931_txcount = 0;
+	ctrl->q921_rxcount = 0;
+	ctrl->q921_txcount = 0;
+	ctrl->q931_rxcount = 0;
+	ctrl->q931_txcount = 0;
 #endif
-	if (dummy_ctrl) {
-		/* Initialize the dummy call reference call record. */
-		dummy_ctrl->ctrl.dummy_call = &dummy_ctrl->dummy_call;
-		q931_init_call_record(&dummy_ctrl->ctrl, dummy_ctrl->ctrl.dummy_call,
-			Q931_DUMMY_CALL_REFERENCE);
-	}
 	switch (switchtype) {
 	case PRI_SWITCH_GR303_EOC:
-		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
-		p->sapi = Q921_SAPI_GR303_EOC;
-		p->tei = Q921_TEI_GR303_EOC_OPS;
-		p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_EOC_PATH, p, NULL, NULL, NULL, Q921_TEI_GR303_EOC_PATH, 0);
-		if (!p->subchannel) {
-			free(p);
+		ctrl->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
+		pri_link_init(ctrl, &ctrl->link, Q921_SAPI_GR303_EOC, Q921_TEI_GR303_EOC_OPS);
+		ctrl->link.next = pri_link_new(ctrl, Q921_SAPI_GR303_EOC, Q921_TEI_GR303_EOC_PATH);
+		if (!ctrl->link.next) {
+			pri_ctrl_destroy(ctrl);
 			return NULL;
 		}
 		break;
 	case PRI_SWITCH_GR303_TMC:
-		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
-		p->sapi = Q921_SAPI_GR303_TMC_CALLPROC;
-		p->tei = Q921_TEI_GR303_TMC_CALLPROC;
-		p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_TMC_SWITCHING, p, NULL, NULL, NULL, Q921_TEI_GR303_TMC_SWITCHING, 0);
-		if (!p->subchannel) {
-			free(p);
+		ctrl->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
+		pri_link_init(ctrl, &ctrl->link, Q921_SAPI_GR303_TMC_CALLPROC, Q921_TEI_GR303_TMC_CALLPROC);
+		ctrl->link.next = pri_link_new(ctrl, Q921_SAPI_GR303_TMC_SWITCHING, Q921_TEI_GR303_TMC_SWITCHING);
+		if (!ctrl->link.next) {
+			pri_ctrl_destroy(ctrl);
 			return NULL;
 		}
 		break;
-	case PRI_SWITCH_GR303_TMC_SWITCHING:
-		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
-		p->sapi = Q921_SAPI_GR303_TMC_SWITCHING;
-		p->tei = Q921_TEI_GR303_TMC_SWITCHING;
-		break;
-	case PRI_SWITCH_GR303_EOC_PATH:
-		p->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
-		p->sapi = Q921_SAPI_GR303_EOC;
-		p->tei = Q921_TEI_GR303_EOC_PATH;
-		break;
 	default:
+		ctrl->protodisc = Q931_PROTOCOL_DISCRIMINATOR;
+		pri_link_init(ctrl, &ctrl->link,
+			(tei == Q921_TEI_GROUP) ? Q921_SAPI_LAYER2_MANAGEMENT : Q921_SAPI_CALL_CTRL,
+			tei);
 		break;
 	}
+	if (dummy_ctrl) {
+		/* Initialize the dummy call reference call record. */
+		ctrl->link.dummy_call = &dummy_ctrl->dummy_call;
+		q931_init_call_record(&ctrl->link, ctrl->link.dummy_call,
+			Q931_DUMMY_CALL_REFERENCE);
+	}
 
-	if (p->tei == Q921_TEI_GROUP && p->sapi == Q921_SAPI_LAYER2_MANAGEMENT
-		&& p->localtype == PRI_CPE) {
-		p->subchannel = __pri_new_tei(-1, p->localtype, p->switchtype, p, NULL, NULL, NULL, Q921_TEI_PRI, 1);
-		if (!p->subchannel) {
-			free(p);
+	if (ctrl->link.tei == Q921_TEI_GROUP && ctrl->link.sapi == Q921_SAPI_LAYER2_MANAGEMENT
+		&& ctrl->localtype == PRI_CPE) {
+		ctrl->link.next = pri_link_new(ctrl, Q921_SAPI_CALL_CTRL, Q921_TEI_PRI);
+		if (!ctrl->link.next) {
+			pri_ctrl_destroy(ctrl);
 			return NULL;
 		}
 		/*
@@ -430,11 +523,12 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 		 * to broadcast messages on the dummy call or to broadcast any
 		 * messages for that matter.
 		 */
-		p->dummy_call = p->subchannel->dummy_call;
-	} else
-		q921_start(p);
-	
-	return p;
+		ctrl->link.dummy_call = ctrl->link.next->dummy_call;
+	} else {
+		q921_start(&ctrl->link);
+	}
+
+	return ctrl;
 }
 
 void pri_call_set_useruser(q931_call *c, const char *userchars)
@@ -470,15 +564,15 @@ int pri_restart(struct pri *pri)
 
 struct pri *pri_new(int fd, int nodetype, int switchtype)
 {
-	return __pri_new_tei(fd, nodetype, switchtype, NULL, __pri_read, __pri_write, NULL, Q921_TEI_PRI, 0);
+	return pri_ctrl_new(fd, nodetype, switchtype, __pri_read, __pri_write, NULL, Q921_TEI_PRI, 0);
 }
 
 struct pri *pri_new_bri(int fd, int ptpmode, int nodetype, int switchtype)
 {
 	if (ptpmode)
-		return __pri_new_tei(fd, nodetype, switchtype, NULL, __pri_read, __pri_write, NULL, Q921_TEI_PRI, 1);
+		return pri_ctrl_new(fd, nodetype, switchtype, __pri_read, __pri_write, NULL, Q921_TEI_PRI, 1);
 	else
-		return __pri_new_tei(fd, nodetype, switchtype, NULL, __pri_read, __pri_write, NULL, Q921_TEI_GROUP, 1);
+		return pri_ctrl_new(fd, nodetype, switchtype, __pri_read, __pri_write, NULL, Q921_TEI_GROUP, 1);
 }
 
 struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata)
@@ -487,7 +581,7 @@ struct pri *pri_new_cb(int fd, int nodetype, int switchtype, pri_io_cb io_read, 
 		io_read = __pri_read;
 	if (!io_write)
 		io_write = __pri_write;
-	return __pri_new_tei(fd, nodetype, switchtype, NULL, io_read, io_write, userdata, Q921_TEI_PRI, 0);
+	return pri_ctrl_new(fd, nodetype, switchtype, io_read, io_write, userdata, Q921_TEI_PRI, 0);
 }
 
 struct pri *pri_new_bri_cb(int fd, int ptpmode, int nodetype, int switchtype, pri_io_cb io_read, pri_io_cb io_write, void *userdata)
@@ -499,9 +593,9 @@ struct pri *pri_new_bri_cb(int fd, int ptpmode, int nodetype, int switchtype, pr
 		io_write = __pri_write;
 	}
 	if (ptpmode) {
-		return __pri_new_tei(fd, nodetype, switchtype, NULL, io_read, io_write, userdata, Q921_TEI_PRI, 1);
+		return pri_ctrl_new(fd, nodetype, switchtype, io_read, io_write, userdata, Q921_TEI_PRI, 1);
 	} else {
-		return __pri_new_tei(fd, nodetype, switchtype, NULL, io_read, io_write, userdata, Q921_TEI_GROUP, 1);
+		return pri_ctrl_new(fd, nodetype, switchtype, io_read, io_write, userdata, Q921_TEI_GROUP, 1);
 	}
 }
 
@@ -647,16 +741,12 @@ void pri_set_debug(struct pri *pri, int debug)
 	if (!pri)
 		return;
 	pri->debug = debug;
-	if (pri->subchannel)
-		pri_set_debug(pri->subchannel, debug);
 }
 
 int pri_get_debug(struct pri *pri)
 {
 	if (!pri)
 		return -1;
-	if (pri->subchannel)
-		return pri_get_debug(pri->subchannel);
 	return pri->debug;
 }
 
@@ -665,9 +755,6 @@ void pri_facility_enable(struct pri *pri)
 	if (!pri)
 		return;
 	pri->sendfacility = 1;
-	if (pri->subchannel)
-		pri_facility_enable(pri->subchannel);
-	return;
 }
 
 int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info)
@@ -763,7 +850,6 @@ int pri_connect_ack(struct pri *ctrl, q931_call *call, int channel)
 void pri_connect_ack_enable(struct pri *ctrl, int enable)
 {
 	if (ctrl) {
-		ctrl = PRI_MASTER(ctrl);
 		ctrl->manual_connect_ack = enable ? 1 : 0;
 	}
 }
@@ -1162,7 +1248,6 @@ int pri_channel_bridge(q931_call *call1, q931_call *call2)
 void pri_hangup_fix_enable(struct pri *ctrl, int enable)
 {
 	if (ctrl) {
-		ctrl = PRI_MASTER(ctrl);
 		ctrl->hangup_fix_enabled = enable ? 1 : 0;
 	}
 }
@@ -1348,9 +1433,6 @@ void pri_message(struct pri *ctrl, const char *fmt, ...)
 	int added_length;
 	va_list ap;
 
-	if (ctrl) {
-		ctrl = PRI_MASTER(ctrl);
-	}
 	if (!ctrl || !ctrl->msg_line) {
 		/* Just have to do it the old way. */
 		va_start(ap, fmt);
@@ -1412,7 +1494,7 @@ void pri_error(struct pri *pri, const char *fmt, ...)
 	vsnprintf(tmp, sizeof(tmp), fmt, ap);
 	va_end(ap);
 	if (__pri_error)
-		__pri_error(pri ? PRI_MASTER(pri) : NULL, tmp);
+		__pri_error(pri, tmp);
 	else
 		fputs(tmp, stderr);
 }
@@ -1478,7 +1560,7 @@ char *pri_dump_info_str(struct pri *ctrl)
 	size_t used;
 #ifdef LIBPRI_COUNTERS
 	struct q921_frame *f;
-	struct pri *link;
+	struct q921_link *link;
 	unsigned q921outstanding;
 #endif
 	unsigned idx;
@@ -1494,8 +1576,6 @@ char *pri_dump_info_str(struct pri *ctrl)
 		return NULL;
 	}
 
-	ctrl = PRI_MASTER(ctrl);
-
 	/* Might be nice to format these a little better */
 	used = 0;
 	used = pri_snprintf(buf, used, buf_size, "Switchtype: %s\n",
@@ -1507,9 +1587,9 @@ char *pri_dump_info_str(struct pri *ctrl)
 	used = pri_snprintf(buf, used, buf_size, "Q931 TX: %d\n", ctrl->q931_txcount);
 	used = pri_snprintf(buf, used, buf_size, "Q921 RX: %d\n", ctrl->q921_rxcount);
 	used = pri_snprintf(buf, used, buf_size, "Q921 TX: %d\n", ctrl->q921_txcount);
-	for (link = ctrl; link; link = link->subchannel) {
+	for (link = &ctrl->link; link; link = link->next) {
 		q921outstanding = 0;
-		for (f = link->txqueue; f; f = f->next) {
+		for (f = link->tx_queue; f; f = f->next) {
 			++q921outstanding;
 		}
 		used = pri_snprintf(buf, used, buf_size, "Q921 Outstanding: %u (TEI=%d)\n",
@@ -1702,7 +1782,6 @@ void pri_sr_set_keypad_digits(struct pri_sr *sr, const char *keypad_digits)
 void pri_transfer_enable(struct pri *ctrl, int enable)
 {
 	if (ctrl) {
-		ctrl = PRI_MASTER(ctrl);
 		ctrl->transfer_support = enable ? 1 : 0;
 	}
 }
@@ -1710,7 +1789,6 @@ void pri_transfer_enable(struct pri *ctrl, int enable)
 void pri_hold_enable(struct pri *ctrl, int enable)
 {
 	if (ctrl) {
-		ctrl = PRI_MASTER(ctrl);
 		ctrl->hold_support = enable ? 1 : 0;
 	}
 }
@@ -1775,7 +1853,6 @@ int pri_callrerouting_facility(struct pri *pri, q931_call *call, const char *des
 void pri_reroute_enable(struct pri *ctrl, int enable)
 {
 	if (ctrl) {
-		ctrl = PRI_MASTER(ctrl);
 		ctrl->deflection_support = enable ? 1 : 0;
 	}
 }
@@ -1827,7 +1904,6 @@ int pri_reroute_call(struct pri *ctrl, q931_call *call, const struct pri_party_i
 void pri_cc_enable(struct pri *ctrl, int enable)
 {
 	if (ctrl) {
-		ctrl = PRI_MASTER(ctrl);
 		ctrl->cc_support = enable ? 1 : 0;
 	}
 }
@@ -1835,7 +1911,6 @@ void pri_cc_enable(struct pri *ctrl, int enable)
 void pri_cc_recall_mode(struct pri *ctrl, int mode)
 {
 	if (ctrl) {
-		ctrl = PRI_MASTER(ctrl);
 		ctrl->cc.option.recall_mode = mode ? 1 : 0;
 	}
 }
@@ -1843,7 +1918,6 @@ void pri_cc_recall_mode(struct pri *ctrl, int mode)
 void pri_cc_retain_signaling_req(struct pri *ctrl, int signaling_retention)
 {
 	if (ctrl && 0 <= signaling_retention && signaling_retention < 3) {
-		ctrl = PRI_MASTER(ctrl);
 		ctrl->cc.option.signaling_retention_req = signaling_retention;
 	}
 }
@@ -1851,7 +1925,6 @@ void pri_cc_retain_signaling_req(struct pri *ctrl, int signaling_retention)
 void pri_cc_retain_signaling_rsp(struct pri *ctrl, int signaling_retention)
 {
 	if (ctrl) {
-		ctrl = PRI_MASTER(ctrl);
 		ctrl->cc.option.signaling_retention_rsp = signaling_retention ? 1 : 0;
 	}
 }

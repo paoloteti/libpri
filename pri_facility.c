@@ -1859,7 +1859,7 @@ int pri_mwi_indicate(struct pri *ctrl, const struct pri_party_id *mailbox,
 		if (!BRI_NT_PTMP(ctrl)) {
 			return -1;
 		}
-		call = PRI_MASTER(ctrl)->dummy_call;
+		call = ctrl->link.dummy_call;
 		if (!call) {
 			return -1;
 		}
@@ -3825,7 +3825,6 @@ int pri_mcid_req_send(struct pri *ctrl, q931_call *call)
 void pri_mcid_enable(struct pri *ctrl, int enable)
 {
 	if (ctrl) {
-		ctrl = PRI_MASTER(ctrl);
 		ctrl->mcid_support = enable ? 1 : 0;
 	}
 }
@@ -3882,7 +3881,7 @@ void rose_handle_reject(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		 * Look for the original invocation message on the
 		 * broadcast dummy call reference call first.
 		 */
-		orig_call = PRI_MASTER(ctrl)->dummy_call;
+		orig_call = ctrl->link.dummy_call;
 		if (orig_call) {
 			apdu = pri_call_apdu_find(orig_call, reject->invoke_id);
 		}
@@ -3966,7 +3965,7 @@ void rose_handle_error(struct pri *ctrl, q931_call *call, int msgtype, q931_ie *
 		 * Look for the original invocation message on the
 		 * broadcast dummy call reference call first.
 		 */
-		orig_call = PRI_MASTER(ctrl)->dummy_call;
+		orig_call = ctrl->link.dummy_call;
 		if (orig_call) {
 			apdu = pri_call_apdu_find(orig_call, error->invoke_id);
 		}
@@ -4042,7 +4041,7 @@ void rose_handle_result(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		 * Look for the original invocation message on the
 		 * broadcast dummy call reference call first.
 		 */
-		orig_call = PRI_MASTER(ctrl)->dummy_call;
+		orig_call = ctrl->link.dummy_call;
 		if (orig_call) {
 			apdu = pri_call_apdu_find(orig_call, result->invoke_id);
 		}
@@ -4099,7 +4098,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		break;
 #endif	/* Not handled yet */
 	case ROSE_ETSI_CallDeflection:
-		if (!PRI_MASTER(ctrl)->deflection_support) {
+		if (!ctrl->deflection_support) {
 			send_facility_error(ctrl, call, invoke->invoke_id,
 				ROSE_ERROR_Gen_NotSubscribed);
 			break;
@@ -4167,7 +4166,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 			&deflection);
 		break;
 	case ROSE_ETSI_CallRerouting:
-		if (!PRI_MASTER(ctrl)->deflection_support) {
+		if (!ctrl->deflection_support) {
 			send_facility_error(ctrl, call, invoke->invoke_id,
 				ROSE_ERROR_Gen_NotSubscribed);
 			break;
@@ -4365,7 +4364,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		break;
 #endif	/* Not handled yet */
 	case ROSE_ETSI_EctExecute:
-		if (!PRI_MASTER(ctrl)->transfer_support) {
+		if (!ctrl->transfer_support) {
 			send_facility_error(ctrl, call, invoke->invoke_id,
 				ROSE_ERROR_Gen_NotSubscribed);
 			break;
@@ -4390,7 +4389,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		break;
 #endif	/* Not handled yet */
 	case ROSE_ETSI_EctLinkIdRequest:
-		if (!PRI_MASTER(ctrl)->transfer_support) {
+		if (!ctrl->transfer_support) {
 			send_facility_error(ctrl, call, invoke->invoke_id,
 				ROSE_ERROR_Gen_ResourceUnavailable);
 			break;
@@ -4430,7 +4429,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		break;
 #endif	/* defined(STATUS_REQUEST_PLACE_HOLDER) */
 	case ROSE_ETSI_CallInfoRetain:
-		if (!PRI_MASTER(ctrl)->cc_support) {
+		if (!ctrl->cc_support) {
 			/*
 			 * Blocking the cc-available event effectively
 			 * disables call completion for outgoing calls.
@@ -4445,7 +4444,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		if (!cc_record) {
 			break;
 		}
-		cc_record->signaling = PRI_MASTER(ctrl)->dummy_call;
+		cc_record->signaling = ctrl->link.dummy_call;
 		/*
 		 * Since we received this facility, we will not be allocating any
 		 * reference and linkage id's.
@@ -4645,7 +4644,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		pri_cc_event(ctrl, call, cc_record, CC_EVENT_REMOTE_USER_FREE);
 		break;
 	case ROSE_ETSI_CCBS_T_Available:
-		if (!PRI_MASTER(ctrl)->cc_support) {
+		if (!ctrl->cc_support) {
 			/*
 			 * Blocking the cc-available event effectively
 			 * disables call completion for outgoing calls.
@@ -4669,7 +4668,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 			/* Don't even dignify this with a response. */
 			break;
 		}
-		if (!PRI_MASTER(ctrl)->mcid_support) {
+		if (!ctrl->mcid_support) {
 			send_facility_error(ctrl, call, invoke->invoke_id,
 				ROSE_ERROR_Gen_NotSubscribed);
 			break;
@@ -4877,7 +4876,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		break;
 #endif	/* Not handled yet */
 	case ROSE_QSIG_CallRerouting:
-		if (!PRI_MASTER(ctrl)->deflection_support) {
+		if (!ctrl->deflection_support) {
 			send_facility_error(ctrl, call, invoke->invoke_id,
 				ROSE_ERROR_Gen_NotSubscribed);
 			break;
