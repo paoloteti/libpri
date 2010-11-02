@@ -2638,7 +2638,8 @@ static pri_event *__q921_receive(struct pri *ctrl, q921_h *h, int len)
 			ev = q921_handle_unmatched_frame(ctrl, h, len);
 		}
 	} else if (PTP_MODE(ctrl)
-			&& h->h.sapi == ctrl->link.sapi && h->h.tei == ctrl->link.tei) {
+		&& h->h.sapi == ctrl->link.sapi
+		&& (h->h.tei == ctrl->link.tei || h->h.tei == Q921_TEI_GROUP)) {
 		ev = __q921_receive_qualified(&ctrl->link, h, len);
 	} else {
 		ev = NULL;
