@@ -61,6 +61,36 @@ static void q921_restart_ptp_link_if_needed(struct q921_link *link);
 
 /*!
  * \internal
+ * \brief Convert Q.921 TEI management message type to a string.
+ *
+ * \param message Q.921 TEI management message type to convert.
+ *
+ * \return TEI management message type name string
+ */
+static const char *q921_tei_mgmt2str(enum q921_tei_identity message)
+{
+	switch (message) {
+	case Q921_TEI_IDENTITY_REQUEST:
+		return "TEI Identity Request";
+	case Q921_TEI_IDENTITY_ASSIGNED:
+		return "TEI Identity Assigned";
+	case Q921_TEI_IDENTITY_CHECK_REQUEST:
+		return "TEI Identity Check Request";
+	case Q921_TEI_IDENTITY_REMOVE:
+		return "TEI Identity Remove";
+	case Q921_TEI_IDENTITY_DENIED:
+		return "TEI Identity Denied";
+	case Q921_TEI_IDENTITY_CHECK_RESPONSE:
+		return "TEI Identity Check Response";
+	case Q921_TEI_IDENTITY_VERIFY:
+		return "TEI Identity Verify";
+	}
+
+	return "Unknown";
+}
+
+/*!
+ * \internal
  * \brief Convert Q.921 state to a string.
  *
  * \param state Q.921 state to convert.
@@ -168,7 +198,7 @@ static int q921_transmit(struct pri *ctrl, q921_h *h, int len)
 	return 0;
 }
 
-static void q921_send_tei(struct pri *ctrl, int message, int ri, int ai, int iscommand)
+static void q921_send_tei(struct pri *ctrl, enum q921_tei_identity message, int ri, int ai, int iscommand)
 {
 	q921_u *f;
 	struct q921_link *link;
@@ -187,7 +217,9 @@ static void q921_send_tei(struct pri *ctrl, int message, int ri, int ai, int isc
 	f->data[3] = message;
 	f->data[4] = (ai << 1) | 1;
 	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
-		pri_message(ctrl, "Sending TEI management message %d, TEI=%d\n", message, ai);
+		pri_message(ctrl,
+			"Sending TEI management message %d(%s), TEI=%d\n",
+			message, q921_tei_mgmt2str(message), ai);
 	}
 	q921_transmit(ctrl, (q921_h *)f, 8);
 	free(f);
@@ -972,7 +1004,7 @@ static void q921_dump_pri_by_h(struct pri *ctrl, char direction_tag, q921_h *h);
 void q921_dump(struct pri *ctrl, q921_h *h, int len, int showraw, int txrx)
 {
 	int x;
-	char *type;
+	const char *type;
 	char direction_tag;
 	
 	direction_tag = txrx ? '>' : '<';
@@ -1111,33 +1143,8 @@ void q921_dump(struct pri *ctrl, q921_h *h, int len, int showraw, int txrx)
 		ri = (h->u.data[1] << 8) | h->u.data[2];
 		tei = (h->u.data[4] >> 1);
 		/* TEI assignment related */
-		switch (h->u.data[3]) {
-		case Q921_TEI_IDENTITY_REQUEST:
-			type = "TEI Identity Request";
-			break;
-		case Q921_TEI_IDENTITY_ASSIGNED:
-			type = "TEI Identity Assigned";
-			break;
-		case Q921_TEI_IDENTITY_CHECK_REQUEST:
-			type = "TEI Identity Check Request";
-			break;
-		case Q921_TEI_IDENTITY_REMOVE:
-			type = "TEI Identity Remove";
-			break;
-		case Q921_TEI_IDENTITY_DENIED:
-			type = "TEI Identity Denied";
-			break;
-		case Q921_TEI_IDENTITY_CHECK_RESPONSE:
-			type = "TEI Identity Check Response";
-			break;
-		case Q921_TEI_IDENTITY_VERIFY:
-			type = "TEI Identity Verify";
-			break;
-		default:
-			type = "Unknown";
-			break;
-		}
-		pri_message(ctrl, "%c MDL Message: %s (%d)\n", direction_tag, type, h->u.data[3]);
+		type = q921_tei_mgmt2str(h->u.data[3]);
+		pri_message(ctrl, "%c MDL Message: %d(%s)\n", direction_tag, h->u.data[3], type);
 		pri_message(ctrl, "%c RI: %d\n", direction_tag, ri);
 		pri_message(ctrl, "%c Ai: %d E:%d\n", direction_tag, (h->u.data[4] >> 1) & 0x7f, h->u.data[4] & 1);
 	}
@@ -1218,7 +1225,8 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 		}
 
 		if (tei != Q921_TEI_GROUP) {
-			pri_error(ctrl, "Received TEI identity request with invalid TEI %d\n", tei);
+			pri_error(ctrl, "Received %s with invalid TEI %d\n",
+				q921_tei_mgmt2str(Q921_TEI_IDENTITY_REQUEST), tei);
 			q921_send_tei(ctrl, Q921_TEI_IDENTITY_DENIED, ri, tei, 1);
 			return NULL;
 		}
