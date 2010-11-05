@@ -1243,6 +1243,7 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 					}
 					/* XXX : TODO later sometime: Implement the TEI check procedure to reclaim some dead TEIs. */
 					pri_error(ctrl, "Reached maximum TEI quota, cannot assign new TEI\n");
+					q921_send_tei(ctrl, Q921_TEI_IDENTITY_DENIED, ri, Q921_TEI_GROUP, 1);
 					return NULL;
 				}
 			}
@@ -1268,18 +1269,35 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 		link = ctrl->link.next;
 		
 		switch (link->state) {
+		case Q921_TEI_UNASSIGNED:
+			/* We do not have a TEI and we are not asking for one. */
+			return NULL;
 		case Q921_ASSIGN_AWAITING_TEI:
 		case Q921_ESTABLISH_AWAITING_TEI:
+			/* We do not have a TEI and we want one. */
 			break;
 		default:
-			pri_message(ctrl, "Ignoring unrequested TEI assign message\n");
+			/* We already have a TEI. */
+			if (tei == link->tei) {
+				/*
+				 * The TEI assignment conflicts with ours.  Our TEI is the
+				 * duplicate so we should remove it.  Q.921 Section 5.3.4.2
+				 * condition c.
+				 */
+				pri_error(ctrl, "TEI=%d Conflicting TEI assignment.  Removing our TEI.\n",
+					tei);
+				q921_mdl_remove(link);
+				q921_start(link);
+			}
 			return NULL;
 		}
 
 		if (ri != link->ri) {
-			pri_message(ctrl,
-				"TEI assignment received for another Ri %02x (ours is %02x)\n",
-				ri, link->ri);
+			if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
+				pri_message(ctrl,
+					"TEI assignment received for another Ri %02x (ours is %02x)\n",
+					ri, link->ri);
+			}
 			return NULL;
 		}
 
