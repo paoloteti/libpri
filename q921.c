@@ -1652,7 +1652,7 @@ static void q921_restart_ptp_link_if_needed(struct q921_link *link)
 	}
 }
 
-static void q921_mdl_handle_error(struct q921_link *link, char error, int errored_state)
+static void q921_mdl_handle_error(struct q921_link *link, char error)
 {
 	struct pri *ctrl;
 
@@ -1673,7 +1673,7 @@ static void q921_mdl_handle_error_callback(void *vlink)
 {
 	struct q921_link *link = vlink;
 
-	q921_mdl_handle_error(link, link->mdl_error, link->mdl_error_state);
+	q921_mdl_handle_error(link, link->mdl_error);
 
 	link->mdl_error = 0;
 	link->mdl_timer = 0;
@@ -1813,7 +1813,6 @@ static void q921_mdl_error(struct q921_link *link, char error)
 		return;
 	}
 	link->mdl_error = error;
-	link->mdl_error_state = link->state;
 	link->mdl_timer = pri_schedule_event(ctrl, 0, q921_mdl_handle_error_callback, link);
 }
 

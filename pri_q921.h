@@ -230,7 +230,6 @@ struct q921_link {
 	/* MDL variables */
 	int mdl_timer;
 	int mdl_error;
-	enum q921_state mdl_error_state;
 	unsigned int mdl_free_me:1;
 
 	unsigned int peer_rx_busy:1;
