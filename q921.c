@@ -241,6 +241,16 @@ static void q921_tei_request(struct q921_link *link)
 	t202_expire(link);
 }
 
+static void q921_tei_remove(struct pri *ctrl, int tei)
+{
+	/*
+	 * Q.921 Section 5.3.2 says we should send the remove message
+	 * twice, in case of message loss.
+	 */
+	q921_send_tei(ctrl, Q921_TEI_IDENTITY_REMOVE, 0, tei, 1);
+	q921_send_tei(ctrl, Q921_TEI_IDENTITY_REMOVE, 0, tei, 1);
+}
+
 static void q921_send_dm(struct q921_link *link, int fbit)
 {
 	q921_h h;
@@ -2588,9 +2598,7 @@ static pri_event *q921_handle_unmatched_frame(struct pri *ctrl, q921_h *h, int l
 			pri_message(ctrl, "Sending TEI release, in order to re-establish TEI state\n");
 		}
 	
-		/* Q.921 says we should send the remove message twice, in case of link corruption */
-		q921_send_tei(ctrl, Q921_TEI_IDENTITY_REMOVE, 0, h->h.tei, 1);
-		q921_send_tei(ctrl, Q921_TEI_IDENTITY_REMOVE, 0, h->h.tei, 1);
+		q921_tei_remove(ctrl, h->h.tei);
 	}
 
 	return NULL;
@@ -2694,6 +2702,15 @@ void q921_start(struct q921_link *link)
 		} else {
 			q921_setstate(link, Q921_TEI_UNASSIGNED);
 			pri_schedule_event(ctrl, 0, nt_ptmp_dchannel_up, ctrl);
+			if (!ctrl->link.next) {
+				/*
+				 * We do not have any TEI's so make sure there are no devices
+				 * that think they have a TEI.  A device may think it has a TEI
+				 * if the upper layer program is restarted or the system
+				 * reboots.
+				 */
+				q921_tei_remove(ctrl, Q921_TEI_GROUP);
+			}
 		}
 	} else {
 		/* PTP mode, no need for TEI management junk */
