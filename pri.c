@@ -63,6 +63,7 @@ static const struct pri_timer_table pri_timer[] = {
 	{ "N202",           PRI_TIMER_N202,             PRI_ALL_SWITCHES },
 	{ "K",              PRI_TIMER_K,                PRI_ALL_SWITCHES },
 	{ "T200",           PRI_TIMER_T200,             PRI_ALL_SWITCHES },
+	{ "T201",           PRI_TIMER_T201,             PRI_ALL_SWITCHES },
 	{ "T202",           PRI_TIMER_T202,             PRI_ALL_SWITCHES },
 	{ "T203",           PRI_TIMER_T203,             PRI_ALL_SWITCHES },
 	{ "T300",           PRI_TIMER_T300,             PRI_ALL_SWITCHES },
@@ -165,21 +166,25 @@ static void pri_default_timers(struct pri *ctrl, int switchtype)
 	ctrl->timers[PRI_TIMER_N200] = 3;			/* Max numer of Q.921 retransmissions */
 	ctrl->timers[PRI_TIMER_N202] = 3;			/* Max numer of transmissions of the TEI identity request message */
 
-	if (ctrl->bri == 1)
-		ctrl->timers[PRI_TIMER_K] = 1;				/* Max number of outstanding I-frames */
-	else
-		ctrl->timers[PRI_TIMER_K] = 7;				/* Max number of outstanding I-frames */
+	if (ctrl->bri) {
+		ctrl->timers[PRI_TIMER_K] = 1;			/* Max number of outstanding I-frames */
+	} else {
+		ctrl->timers[PRI_TIMER_K] = 7;			/* Max number of outstanding I-frames */
+	}
 
 	ctrl->timers[PRI_TIMER_T200] = 1000;		/* Time between SABME's */
+	ctrl->timers[PRI_TIMER_T201] = ctrl->timers[PRI_TIMER_T200];/* Time between TEI Identity Checks (Default same as T200) */
 	ctrl->timers[PRI_TIMER_T202] = 10 * 1000;	/* Min time between transmission of TEI Identity request messages */
 	ctrl->timers[PRI_TIMER_T203] = 10 * 1000;	/* Max time without exchanging packets */
+
+	ctrl->timers[PRI_TIMER_T303] = 4 * 1000;	/* Length between SETUP retransmissions and timeout */
 	ctrl->timers[PRI_TIMER_T305] = 30 * 1000;	/* Wait for DISCONNECT acknowledge */
 	ctrl->timers[PRI_TIMER_T308] = 4 * 1000;	/* Wait for RELEASE acknowledge */
+	ctrl->timers[PRI_TIMER_T309] = 6 * 1000;	/* Time to wait before clearing calls in case of D-channel transient event.  Q.931 specifies 6-90 seconds */
 	ctrl->timers[PRI_TIMER_T313] = 4 * 1000;	/* Wait for CONNECT acknowledge, CPE side only */
+
 	ctrl->timers[PRI_TIMER_TM20] = 2500;		/* Max time awaiting XID response - Q.921 Appendix IV */
 	ctrl->timers[PRI_TIMER_NM20] = 3;			/* Number of XID retransmits - Q.921 Appendix IV */
-	ctrl->timers[PRI_TIMER_T303] = 4 * 1000;			/* Length between SETUP retransmissions and timeout */
-	ctrl->timers[PRI_TIMER_T309] = 6000;		/* Time to wait before clearing calls in case of D-channel transient event.  Q.931 specifies 6-90 seconds */
 
 	ctrl->timers[PRI_TIMER_T_HOLD] = 4 * 1000;	/* Wait for HOLD request response. */
 	ctrl->timers[PRI_TIMER_T_RETRIEVE] = 4 * 1000;/* Wait for RETRIEVE request response. */

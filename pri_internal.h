@@ -115,6 +115,10 @@ struct pri {
 
 	/*! Layer 2 link control for D channel. */
 	struct q921_link link;
+	/*! T201 TEI Identity Check timer. */
+	int t201_timer;
+	/*! Number of times T201 has expired. */
+	int t201_expirycnt;
 	
 	int cref;			/* Next call reference value */
 
