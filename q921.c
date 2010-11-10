@@ -1777,9 +1777,8 @@ static void q921_mdl_destroy(struct q921_link *link)
 	}
 }
 
-static int q921_mdl_handle_network_error(struct q921_link *link, char error)
+static void q921_mdl_handle_network_error(struct q921_link *link, char error)
 {
-	int handled = 0;
 	struct pri *ctrl;
 
 	switch (error) {
@@ -1788,7 +1787,6 @@ static int q921_mdl_handle_network_error(struct q921_link *link, char error)
 	case 'G':
 	case 'H':
 		q921_mdl_remove(link);
-		handled = 1;
 		break;
 	case 'A':
 	case 'B':
@@ -1803,13 +1801,10 @@ static int q921_mdl_handle_network_error(struct q921_link *link, char error)
 		pri_error(ctrl, "Network MDL can't handle error of type %c\n", error);
 		break;
 	}
-
-	return handled;
 }
 
-static int q921_mdl_handle_cpe_error(struct q921_link *link, char error)
+static void q921_mdl_handle_cpe_error(struct q921_link *link, char error)
 {
-	int handled = 0;
 	struct pri *ctrl;
 
 	switch (error) {
@@ -1818,7 +1813,6 @@ static int q921_mdl_handle_cpe_error(struct q921_link *link, char error)
 	case 'G':
 	case 'H':
 		q921_mdl_remove(link);
-		handled = 1;
 		break;
 	case 'A':
 	case 'B':
@@ -1833,13 +1827,10 @@ static int q921_mdl_handle_cpe_error(struct q921_link *link, char error)
 		pri_error(ctrl, "CPE MDL can't handle error of type %c\n", error);
 		break;
 	}
-
-	return handled;
 }
 
-static int q921_mdl_handle_ptp_error(struct q921_link *link, char error)
+static void q921_mdl_handle_ptp_error(struct q921_link *link, char error)
 {
-	int handled = 0;
 	struct pri *ctrl;
 
 	ctrl = link->ctrl;
@@ -1860,8 +1851,6 @@ static int q921_mdl_handle_ptp_error(struct q921_link *link, char error)
 
 		ctrl->schedev = 1;
 		ctrl->ev.gen.e = PRI_EVENT_DCHAN_DOWN;
-
-		handled = 1;
 		break;
 	case 'A':
 	case 'B':
@@ -1878,8 +1867,6 @@ static int q921_mdl_handle_ptp_error(struct q921_link *link, char error)
 		pri_error(ctrl, "PTP MDL can't handle error of type %c\n", error);
 		break;
 	}
-
-	return handled;
 }
 
 static void q921_restart_ptp_link_if_needed(struct q921_link *link)
@@ -2031,6 +2018,10 @@ static void q921_mdl_error(struct q921_link *link, char error)
 	}
 	link->mdl_error = error;
 	link->mdl_timer = pri_schedule_event(ctrl, 0, q921_mdl_handle_error_callback, link);
+	if (!link->mdl_timer) {
+		/* Timer allocation failed */
+		link->mdl_error = 0;
+	}
 }
 
 static pri_event *q921_ua_rx(struct q921_link *link, q921_h *h)
