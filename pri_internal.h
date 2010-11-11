@@ -119,6 +119,8 @@ struct pri {
 	int t201_timer;
 	/*! Number of times T201 has expired. */
 	int t201_expirycnt;
+	/*! PTP layer 2 restart delay timer */
+	int restart_timer;
 	
 	int cref;			/* Next call reference value */
 

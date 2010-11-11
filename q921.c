@@ -58,7 +58,6 @@ static void q921_establish_data_link(struct q921_link *link);
 static void q921_mdl_error(struct q921_link *link, char error);
 static void q921_mdl_remove(struct q921_link *link);
 static void q921_mdl_destroy(struct q921_link *link);
-static void q921_restart_ptp_link_if_needed(struct q921_link *link);
 
 /*!
  * \internal
@@ -549,6 +548,72 @@ static void stop_t200(struct q921_link *link)
 	}
 }
 
+static void restart_timer_expire(void *vctrl)
+{
+	struct pri *ctrl = vctrl;
+	struct q921_link *link;
+
+	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
+		pri_message(ctrl, "Kick starting layer 2\n");
+	}
+
+	ctrl->restart_timer = 0;
+	link = &ctrl->link;
+
+	switch (link->state) {
+	case Q921_TEI_ASSIGNED:
+		/* Try to bring layer 2 up. */
+		q921_discard_iqueue(link);
+		q921_establish_data_link(link);
+		link->l3_initiated = 1;
+		q921_setstate(link, Q921_AWAITING_ESTABLISHMENT);
+		break;
+	default:
+		/* Looks like someone forgot to stop the restart timer. */
+		pri_error(ctrl, "Layer 2 restart delay timer expired in state %d(%s)\n",
+			link->state, q921_state2str(link->state));
+		break;
+	}
+}
+
+static void restart_timer_stop(struct pri *ctrl)
+{
+	pri_schedule_del(ctrl, ctrl->restart_timer);
+	ctrl->restart_timer = 0;
+}
+
+static void restart_timer_start(struct pri *ctrl)
+{
+	if (ctrl->debug & PRI_DEBUG_Q921_DUMP) {
+		pri_message(ctrl, "-- Starting layer 2 restart delay timer\n");
+	}
+	pri_schedule_del(ctrl, ctrl->restart_timer);
+	ctrl->restart_timer =
+		pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T200], restart_timer_expire, ctrl);
+}
+
+static pri_event *q921_ptp_delay_restart(struct pri *ctrl)
+{
+	pri_event *ev;
+
+	if (PTP_MODE(ctrl)) {
+		/*
+		 * This is where we act a bit like L3 instead of L2, since we've
+		 * got an L3 that depends on us keeping L2 automatically alive
+		 * and happy for PTP links.
+		 */
+		restart_timer_start(ctrl);
+
+		/* Notify the upper layer that layer 2 is down. */
+		ctrl->schedev = 1;
+		ctrl->ev.gen.e = PRI_EVENT_DCHAN_DOWN;
+		ev = &ctrl->ev;
+	} else {
+		ev = NULL;
+	}
+	return ev;
+}
+
 /* This is the equivalent of the I-Frame queued up path in Figure B.7 in MULTI_FRAME_ESTABLISHED */
 static int q921_send_queued_iframes(struct q921_link *link)
 {
@@ -765,6 +830,7 @@ static void t200_expire(void *vlink)
 			q921_setstate(link, Q921_TEI_ASSIGNED);
 			/* DL-RELEASE indication */
 			q931_dl_event(link, Q931_DL_EVENT_DL_RELEASE_IND);
+			q921_ptp_delay_restart(ctrl);
 		}
 		break;
 	case Q921_AWAITING_RELEASE:
@@ -777,6 +843,7 @@ static void t200_expire(void *vlink)
 			/* DL-RELEASE confirm */
 			q931_dl_event(link, Q931_DL_EVENT_DL_RELEASE_CONFIRM);
 			q921_setstate(link, Q921_TEI_ASSIGNED);
+			q921_ptp_delay_restart(ctrl);
 		}
 		break;
 	default:
@@ -876,6 +943,7 @@ int q921_transmit_iframe(struct q921_link *link, void *buf, int len, int cr)
 	switch (link->state) {
 	case Q921_TEI_ASSIGNED:
 		/* If we aren't in a state compatiable with DL-DATA requests, start getting us there here */
+		restart_timer_stop(ctrl);
 		q921_establish_data_link(link);
 		link->l3_initiated = 1;
 		q921_setstate(link, Q921_AWAITING_ESTABLISHMENT);
@@ -1598,6 +1666,7 @@ static pri_event *q921_sabme_rx(struct q921_link *link, q921_h *h)
 		}
 		break;
 	case Q921_TEI_ASSIGNED:
+		restart_timer_stop(ctrl);
 		q921_send_ua(link, h->u.p_f);
 		q921_clear_exception_conditions(link);
 		link->v_s = link->v_a = link->v_r = 0;
@@ -1658,7 +1727,7 @@ static pri_event *q921_disc_rx(struct q921_link *link, q921_h *h)
 		if (link->state == Q921_MULTI_FRAME_ESTABLISHED)
 			stop_t203(link);
 		q921_setstate(link, Q921_TEI_ASSIGNED);
-		q921_restart_ptp_link_if_needed(link);
+		res = q921_ptp_delay_restart(ctrl);
 		break;
 	default:
 		pri_error(ctrl, "Don't know what to do with DISC in state %d(%s)\n",
@@ -1691,6 +1760,7 @@ static void q921_mdl_remove(struct q921_link *link)
 
 	switch (link->state) {
 	case Q921_TEI_ASSIGNED:
+		restart_timer_stop(ctrl);
 		/* XXX: deviation! Since we don't have a UI queue, we just discard our I-queue */
 		q921_discard_iqueue(link);
 		q921_setstate(link, Q921_TEI_UNASSIGNED);
@@ -1835,29 +1905,14 @@ static void q921_mdl_handle_ptp_error(struct q921_link *link, char error)
 
 	ctrl = link->ctrl;
 
-	/* This is where we act a bit like L3 instead of L2, since we've got an L3 that depends on us
-	 * keeping L2 automatically alive and happy for point to point links */
 	switch (error) {
-	case 'Z':
-		/* This is a special MDL error that actually isn't a spec error, but just so we
-		 * have an asynchronous context from the state machine to kick a PTP link back
-		 * up after being requested to drop politely (using DISC or DM) */
-	case 'G':
-		/* We pick it back up and put it back together for this case */
-		q921_discard_iqueue(link);
-		q921_establish_data_link(link);
-		q921_setstate(link, Q921_AWAITING_ESTABLISHMENT);
-		link->l3_initiated = 1;
-
-		ctrl->schedev = 1;
-		ctrl->ev.gen.e = PRI_EVENT_DCHAN_DOWN;
-		break;
 	case 'A':
 	case 'B':
 	case 'C':
 	case 'D':
 	case 'E':
 	case 'F':
+	case 'G':
 	case 'H':
 	case 'I':
 	case 'J':
@@ -1866,16 +1921,6 @@ static void q921_mdl_handle_ptp_error(struct q921_link *link, char error)
 	default:
 		pri_error(ctrl, "PTP MDL can't handle error of type %c\n", error);
 		break;
-	}
-}
-
-static void q921_restart_ptp_link_if_needed(struct q921_link *link)
-{
-	struct pri *ctrl;
-
-	ctrl = link->ctrl;
-	if (PTP_MODE(ctrl)) {
-		q921_mdl_error(&ctrl->link, 'Z');
 	}
 }
 
@@ -1995,14 +2040,6 @@ static void q921_mdl_error(struct q921_link *link, char error)
 		pri_error(ctrl, "TEI=%d MDL-ERROR (K): FRMR in state %d(%s)\n",
 			link->tei, link->state, q921_state2str(link->state));
 		break;
-	case 'Z':
-		if (is_debug_q921_state) {
-			/* Fake MDL-ERROR to kick start PTP L2 link back up. */
-			pri_message(ctrl,
-				"TEI=%d MDL-ERROR (Z): Kick starting L2 link in state %d(%s)\n",
-				link->tei, link->state, q921_state2str(link->state));
-		}
-		break;
 	default:
 		pri_message(ctrl, "TEI=%d MDL-ERROR (%c): in state %d(%s)\n",
 			link->tei, error, link->state, q921_state2str(link->state));
@@ -2089,6 +2126,7 @@ static pri_event *q921_ua_rx(struct q921_link *link, q921_h *h)
 			q931_dl_event(link, Q931_DL_EVENT_DL_RELEASE_CONFIRM);
 			stop_t200(link);
 			q921_setstate(link, Q921_TEI_ASSIGNED);
+			res = q921_ptp_delay_restart(ctrl);
 		}
 		break;
 	default:
@@ -2520,6 +2558,7 @@ static pri_event *q921_dm_rx(struct q921_link *link, q921_h *h)
 		if (h->u.p_f)
 			break;
 		/* else */
+		restart_timer_stop(ctrl);
 		q921_establish_data_link(link);
 		link->l3_initiated = 1;
 		q921_setstate(link, Q921_AWAITING_ESTABLISHMENT);
@@ -2533,7 +2572,7 @@ static pri_event *q921_dm_rx(struct q921_link *link, q921_h *h)
 		q931_dl_event(link, Q931_DL_EVENT_DL_RELEASE_IND);
 		stop_t200(link);
 		q921_setstate(link, Q921_TEI_ASSIGNED);
-		q921_restart_ptp_link_if_needed(link);
+		res = q921_ptp_delay_restart(ctrl);
 		break;
 	case Q921_AWAITING_RELEASE:
 		if (!h->u.p_f)
@@ -2542,6 +2581,7 @@ static pri_event *q921_dm_rx(struct q921_link *link, q921_h *h)
 		q931_dl_event(link, Q931_DL_EVENT_DL_RELEASE_CONFIRM);
 		stop_t200(link);
 		q921_setstate(link, Q921_TEI_ASSIGNED);
+		res = q921_ptp_delay_restart(ctrl);
 		break;
 	case Q921_MULTI_FRAME_ESTABLISHED:
 		if (h->u.p_f) {
