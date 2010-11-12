@@ -246,6 +246,8 @@ struct q921_link {
 	int n202_counter;
 	/*! Max idle time */
 	int t203_timer;
+	/*! PTP restart delay timer */
+	int restart_timer;
 
 	/* MDL variables */
 	int mdl_timer;
