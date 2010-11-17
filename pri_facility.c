@@ -3180,7 +3180,7 @@ int pri_rerouting_rsp(struct pri *ctrl, q931_call *call, int invoke_id, enum PRI
 {
 	enum rose_error_code rose_err;
 
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 

@@ -365,8 +365,15 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 
 void pri_call_set_useruser(q931_call *c, const char *userchars)
 {
-	if (userchars)
-		libpri_copy_string(c->useruserinfo, userchars, sizeof(c->useruserinfo));
+	/*
+	 * There is a slight risk here if c is actually stale.  However,
+	 * if it is stale then it is better to catch it here than to
+	 * write with it.
+	 */
+	if (!userchars || !pri_is_call_valid(NULL, c)) {
+		return;
+	}
+	libpri_copy_string(c->useruserinfo, userchars, sizeof(c->useruserinfo));
 }
 
 void pri_sr_set_useruser(struct pri_sr *sr, const char *userchars)
@@ -575,74 +582,83 @@ void pri_facility_enable(struct pri *pri)
 
 int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info)
 {
-	if (!pri || !call)
+	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
+	}
 	return q931_alerting(pri, call, channel, info);
 }
 
 int pri_proceeding(struct pri *pri, q931_call *call, int channel, int info)
 {
-	if (!pri || !call)
+	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
+	}
 	return q931_call_proceeding(pri, call, channel, info);
 }
 
 int pri_progress_with_cause(struct pri *pri, q931_call *call, int channel, int info, int cause)
 {
-	if (!pri || !call)
+	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
+	}
 
 	return q931_call_progress_with_cause(pri, call, channel, info, cause);
 }
 
 int pri_progress(struct pri *pri, q931_call *call, int channel, int info)
 {
-	if (!pri || !call)
+	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
+	}
 
 	return q931_call_progress(pri, call, channel, info);
 }
 
 int pri_information(struct pri *pri, q931_call *call, char digit)
 {
-	if (!pri || !call)
+	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
+	}
 	return q931_information(pri, call, digit);
 }
 
 int pri_keypad_facility(struct pri *pri, q931_call *call, const char *digits)
 {
-	if (!pri || !call || !digits || !digits[0])
+	if (!pri || !pri_is_call_valid(pri, call) || !digits || !digits[0]) {
 		return -1;
+	}
 
 	return q931_keypad_facility(pri, call, digits);
 }
 
 int pri_notify(struct pri *pri, q931_call *call, int channel, int info)
 {
-	if (!pri || !call)
+	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
+	}
 	return q931_notify(pri, call, channel, info);
 }
 
 void pri_destroycall(struct pri *pri, q931_call *call)
 {
-	if (pri && call)
+	if (pri && pri_is_call_valid(pri, call)) {
 		q931_destroycall(pri, call);
-	return;
+	}
 }
 
 int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisdn)
 {
-	if (!pri || !call)
+	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
+	}
 	return q931_setup_ack(pri, call, channel, nonisdn);
 }
 
 int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn)
 {
-	if (!pri || !call)
+	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
+	}
 	return q931_connect(pri, call, channel, nonisdn);
 }
 
@@ -738,7 +754,7 @@ int pri_connected_line_update(struct pri *ctrl, q931_call *call, const struct pr
 	unsigned idx;
 	struct q931_call *subcall;
 
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 
@@ -804,7 +820,7 @@ int pri_redirecting_update(struct pri *ctrl, q931_call *call, const struct pri_p
 	unsigned idx;
 	struct q931_call *subcall;
 
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 
@@ -908,23 +924,31 @@ int pri_redirecting_update(struct pri *ctrl, q931_call *call, const struct pri_p
 /* deprecated routines, use pri_hangup */
 int pri_release(struct pri *pri, q931_call *call, int cause)
 {
-	if (!pri || !call)
+	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
+	}
 	return q931_release(pri, call, cause);
 }
 
 int pri_disconnect(struct pri *pri, q931_call *call, int cause)
 {
-	if (!pri || !call)
+	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
+	}
 	return q931_disconnect(pri, call, cause);
 }
 #endif
 
 int pri_channel_bridge(q931_call *call1, q931_call *call2)
 {
-	if (!call1 || !call2)
+	/*
+	 * There is a slight risk here if call1 or call2 is actually
+	 * stale.  However, if they are stale then it is better to catch
+	 * it here than to write with these pointers.
+	 */
+	if (!pri_is_call_valid(NULL, call1) || !pri_is_call_valid(NULL, call2)) {
 		return -1;
+	}
 
 	/* Make sure we have compatible switchtypes */
 	if (call1->pri->switchtype != call2->pri->switchtype)
@@ -976,8 +1000,9 @@ void pri_hangup_fix_enable(struct pri *ctrl, int enable)
 
 int pri_hangup(struct pri *pri, q931_call *call, int cause)
 {
-	if (!pri || !call)
+	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
+	}
 	if (cause == -1)
 		/* normal clear cause */
 		cause = PRI_CAUSE_NORMAL_CLEARING;
@@ -1055,8 +1080,10 @@ int pri_mwi_activate(struct pri *pri, q931_call *c, char *caller, int callerplan
 					int calledplan)
 {
 	struct pri_sr req;
-	if (!pri || !c)
+
+	if (!pri || !pri_is_call_valid(pri, c)) {
 		return -1;
+	}
 
 	pri_sr_init(&req);
 	pri_sr_set_connection_call_independent(&req);
@@ -1075,8 +1102,10 @@ int pri_mwi_deactivate(struct pri *pri, q931_call *c, char *caller, int callerpl
 					int calledplan)
 {
 	struct pri_sr req;
-	if (!pri || !c)
+
+	if (!pri || !pri_is_call_valid(pri, c)) {
 		return -1;
+	}
 
 	pri_sr_init(&req);
 	pri_sr_set_connection_call_independent(&req);
@@ -1093,8 +1122,9 @@ int pri_mwi_deactivate(struct pri *pri, q931_call *c, char *caller, int callerpl
 	
 int pri_setup(struct pri *pri, q931_call *c, struct pri_sr *req)
 {
-	if (!pri || !c)
+	if (!pri || !pri_is_call_valid(pri, c)) {
 		return -1;
+	}
 
 	return q931_setup(pri, c, req);
 }
@@ -1104,8 +1134,11 @@ int pri_call(struct pri *pri, q931_call *c, int transmode, int channel, int excl
 					int calledplan, int ulayer1)
 {
 	struct pri_sr req;
-	if (!pri || !c)
+
+	if (!pri || !pri_is_call_valid(pri, c)) {
 		return -1;
+	}
+
 	pri_sr_init(&req);
 	pri_sr_set_caller(&req, caller, callername, callerplan, callerpres);
 	pri_sr_set_called(&req, called, calledplan, 0);
@@ -1344,11 +1377,17 @@ char *pri_dump_info_str(struct pri *ctrl)
 
 int pri_get_crv(struct pri *pri, q931_call *call, int *callmode)
 {
+	if (!pri || !pri_is_call_valid(pri, call)) {
+		return -1;
+	}
 	return q931_call_getcrv(pri, call, callmode);
 }
 
 int pri_set_crv(struct pri *pri, q931_call *call, int crv, int callmode)
 {
+	if (!pri || !pri_is_call_valid(pri, call)) {
+		return -1;
+	}
 	return q931_call_setcrv(pri, call, crv, callmode);
 }
 
@@ -1497,7 +1536,7 @@ void pri_hold_enable(struct pri *ctrl, int enable)
 
 int pri_hold(struct pri *ctrl, q931_call *call)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 	return q931_send_hold(ctrl, call);
@@ -1505,7 +1544,7 @@ int pri_hold(struct pri *ctrl, q931_call *call)
 
 int pri_hold_ack(struct pri *ctrl, q931_call *call)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 	return q931_send_hold_ack(ctrl, call);
@@ -1513,7 +1552,7 @@ int pri_hold_ack(struct pri *ctrl, q931_call *call)
 
 int pri_hold_rej(struct pri *ctrl, q931_call *call, int cause)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 	return q931_send_hold_rej(ctrl, call, cause);
@@ -1521,7 +1560,7 @@ int pri_hold_rej(struct pri *ctrl, q931_call *call, int cause)
 
 int pri_retrieve(struct pri *ctrl, q931_call *call, int channel)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 	return q931_send_retrieve(ctrl, call, channel);
@@ -1529,7 +1568,7 @@ int pri_retrieve(struct pri *ctrl, q931_call *call, int channel)
 
 int pri_retrieve_ack(struct pri *ctrl, q931_call *call, int channel)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 	return q931_send_retrieve_ack(ctrl, call, channel);
@@ -1537,7 +1576,7 @@ int pri_retrieve_ack(struct pri *ctrl, q931_call *call, int channel)
 
 int pri_retrieve_rej(struct pri *ctrl, q931_call *call, int cause)
 {
-	if (!ctrl || !call) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
 		return -1;
 	}
 	return q931_send_retrieve_rej(ctrl, call, cause);
@@ -1545,8 +1584,9 @@ int pri_retrieve_rej(struct pri *ctrl, q931_call *call, int cause)
 
 int pri_callrerouting_facility(struct pri *pri, q931_call *call, const char *dest, const char* original, const char* reason)
 {
-	if (!pri || !call || !dest)
+	if (!pri || !pri_is_call_valid(pri, call) || !dest) {
 		return -1;
+	}
 
 	return qsig_cf_callrerouting(pri, call, dest, original, reason);
 }
@@ -1565,7 +1605,7 @@ int pri_reroute_call(struct pri *ctrl, q931_call *call, const struct pri_party_i
 	struct q931_party_id local_caller;
 	struct q931_party_redirecting reroute;
 
-	if (!ctrl || !call || !deflection) {
+	if (!ctrl || !pri_is_call_valid(ctrl, call) || !deflection) {
 		return -1;
 	}
 

@@ -321,6 +321,76 @@ static int q931_encode_channel(const q931_call *call)
 }
 
 /*!
+ * \brief Check if the given call ptr is valid.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param func_name Calling function name for debug tracing. (__PRETTY_FUNCTION__)
+ * \param func_line Calling function line number for debug tracing. (__LINE__)
+ *
+ * \retval TRUE if call ptr is valid.
+ * \retval FALSE if call ptr is invalid.
+ */
+int q931_is_call_valid(struct pri *ctrl, struct q931_call *call, const char *func_name, unsigned long func_line)
+{
+	struct q931_call *cur;
+	struct pri *gripe;
+	struct pri *link;
+	int idx;
+
+	if (!call) {
+		return 0;
+	}
+
+	if (!ctrl) {
+		/* Must use suspect ctrl from call ptr. */
+		if (!call->pri) {
+			pri_message(NULL,
+				"!! %s() line:%lu Called with invalid call ptr (%p) (No ctrl)\n",
+				func_name, func_line, call);
+			return 0;
+		}
+		/* Find the master - He has the call pool */
+		ctrl = PRI_MASTER(call->pri);
+		gripe = NULL;
+	} else {
+		/* Find the master - He has the call pool */
+		ctrl = PRI_MASTER(ctrl);
+		gripe = ctrl;
+	}
+
+	/* Check real call records. */
+	for (cur = *ctrl->callpool; cur; cur = cur->next) {
+		if (call == cur) {
+			/* Found it. */
+			return 1;
+		}
+		if (cur->outboundbroadcast) {
+			/* Check subcalls for call ptr. */
+			for (idx = 0; idx < ARRAY_LEN(cur->subcalls); ++idx) {
+				if (call == cur->subcalls[idx]) {
+					/* Found it. */
+					return 1;
+				}
+			}
+		}
+	}
+
+	/* Check dummy call records. */
+	for (link = ctrl; link; link = link->subchannel) {
+		if (link->dummy_call == call) {
+			/* Found it. */
+			return 1;
+		}
+	}
+
+	/* Well it looks like this is a stale call ptr. */
+	pri_message(gripe, "!! %s() line:%lu Called with invalid call ptr (%p)\n",
+		func_name, func_line, call);
+	return 0;
+}
+
+/*!
  * \brief Initialize the given struct q931_party_name
  *
  * \param name Structure to initialize

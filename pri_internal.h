@@ -543,6 +543,20 @@ struct d_ctrl_dummy {
 	struct q931_call dummy_call;
 };
 
+/*!
+ * \brief Check if the given call ptr is valid.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ *
+ * \retval TRUE if call ptr is valid.
+ * \retval FALSE if call ptr is invalid.
+ */
+#define pri_is_call_valid(ctrl, call)	\
+	q931_is_call_valid(ctrl, call, __PRETTY_FUNCTION__, __LINE__)
+
+int q931_is_call_valid(struct pri *ctrl, struct q931_call *call, const char *func_name, unsigned long func_line);
+
 extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);
 
 extern pri_event *pri_schedule_run(struct pri *pri);
