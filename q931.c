@@ -7739,81 +7739,50 @@ static void pri_dl_down_cancelcall(void *data)
 }
 
 /*!
- * \brief Layer 2 is removing the link's TEI.
+ * \internal
+ * \brief Convert the DL event to a string.
  *
- * \param link Q.921 link losing it's TEI.
+ * \param event Data-link event to convert to a string.
  *
- * \note
- * For NT PTMP, this deviation from the specifications is needed
- * because we have no way to re-associate any T309 calls on the
- * removed TEI.
+ * \return DL event string
+ */
+static const char *q931_dl_event2str(enum Q931_DL_EVENT event)
+{
+	const char *str;
+
+	str = "Unknown";
+	switch (event) {
+	case Q931_DL_EVENT_NONE:
+		str = "Q931_DL_EVENT_NONE";
+		break;
+	case Q931_DL_EVENT_DL_ESTABLISH_IND:
+		str = "Q931_DL_EVENT_DL_ESTABLISH_IND";
+		break;
+	case Q931_DL_EVENT_DL_ESTABLISH_CONFIRM:
+		str = "Q931_DL_EVENT_DL_ESTABLISH_CONFIRM";
+		break;
+	case Q931_DL_EVENT_DL_RELEASE_IND:
+		str = "Q931_DL_EVENT_DL_RELEASE_IND";
+		break;
+	case Q931_DL_EVENT_DL_RELEASE_CONFIRM:
+		str = "Q931_DL_EVENT_DL_RELEASE_CONFIRM";
+		break;
+	case Q931_DL_EVENT_TEI_REMOVAL:
+		str = "Q931_DL_EVENT_TEI_REMOVAL";
+		break;
+	}
+	return str;
+}
+
+/*!
+ * \brief Receive a DL event from layer 2.
+ *
+ * \param link Q.921 link event occurred on.
+ * \param event Data-link event reporting.
  *
  * \return Nothing
  */
-void q931_dl_tei_removal(struct pri *link)
-{
-	struct q931_call *cur;
-	struct q931_call *call;
-	struct pri *ctrl;
-	int idx;
-
-	/* Find the master - He has the call pool */
-	ctrl = PRI_MASTER(link);
-
-	if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
-		pri_message(ctrl, "DL TEI removal\n");
-	}
-
-	if (!BRI_NT_PTMP(ctrl)) {
-		/* Only NT PTMP has anything to worry about when the TEI is removed. */
-		return;
-	}
-
-	for (cur = *ctrl->callpool; cur; cur = cur->next) {
-		if (!(cur->cr & ~Q931_CALL_REFERENCE_FLAG)) {
-			/* Don't do anything on the global call reference call record. */
-			continue;
-		}
-		if (cur->outboundbroadcast) {
-			/* Does this master call have a subcall on the link that went down? */
-			call = NULL;
-			for (idx = 0; idx < ARRAY_LEN(cur->subcalls); ++idx) {
-				if (cur->subcalls[idx] && cur->subcalls[idx]->pri == link) {
-					/* This subcall is on the link that went down. */
-					call = cur->subcalls[idx];
-					break;
-				}
-			}
-			if (!call) {
-				/* No subcall is on the link that went down. */
-				continue;
-			}
-		} else if (cur->pri != link) {
-			/* This call is not on the link that went down. */
-			continue;
-		} else {
-			call = cur;
-		}
-
-		/*
-		 * NOTE:  We are gambling that no T309 timer's have had a chance
-		 * to expire.  They should not expire since we are either called
-		 * immediately after the q931_dl_indication() or after a timeout
-		 * of 0.
-		 */
-		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
-			pri_message(ctrl, "Cancel call cref=%d on channel %d in state %d (%s)\n",
-				call->cr, call->channelno, call->ourcallstate,
-				q931_call_state_str(call->ourcallstate));
-		}
-		call->pri = ctrl;/* Point to a safer place until the call is destroyed. */
-		pri_schedule_del(ctrl, call->retranstimer);
-		call->retranstimer = pri_schedule_event(ctrl, 0, pri_dl_down_cancelcall, call);
-	}
-}
-
-/* Receive an indication from Layer 2 */
-void q931_dl_indication(struct pri *link, int event)
+void q931_dl_event(struct pri *link, enum Q931_DL_EVENT event)
 {
 	struct q931_call *cur;
 	struct q931_call *call;
@@ -7827,16 +7796,73 @@ void q931_dl_indication(struct pri *link, int event)
 	/* Find the master - He has the call pool */
 	ctrl = PRI_MASTER(link);
 
+	if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+		pri_message(ctrl, "TEI=%d DL event: %s(%d)\n", link->tei,
+			q931_dl_event2str(event), event);
+	}
+
 	if (BRI_TE_PTMP(ctrl)) {
 		/* The link is always the master */
 		link = ctrl;
 	}
 
 	switch (event) {
-	case PRI_EVENT_DCHAN_DOWN:
-		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
-			pri_message(ctrl, "DL-RELEASE indication (link is DOWN)\n");
+	case Q931_DL_EVENT_TEI_REMOVAL:
+		if (!BRI_NT_PTMP(ctrl)) {
+			/* Only NT PTMP has anything to worry about when the TEI is removed. */
+			break;
 		}
+
+		/*
+		 * For NT PTMP, this deviation from the specifications is needed
+		 * because we have no way to re-associate any T309 calls on the
+		 * removed TEI.
+		 */
+		for (cur = *ctrl->callpool; cur; cur = cur->next) {
+			if (!(cur->cr & ~Q931_CALL_REFERENCE_FLAG)) {
+				/* Don't do anything on the global call reference call record. */
+				continue;
+			}
+			if (cur->outboundbroadcast) {
+				/* Does this master call have a subcall on the link that went down? */
+				call = NULL;
+				for (idx = 0; idx < ARRAY_LEN(cur->subcalls); ++idx) {
+					if (cur->subcalls[idx] && cur->subcalls[idx]->pri == link) {
+						/* This subcall is on the link that went down. */
+						call = cur->subcalls[idx];
+						break;
+					}
+				}
+				if (!call) {
+					/* No subcall is on the link that went down. */
+					continue;
+				}
+			} else if (cur->pri != link) {
+				/* This call is not on the link that went down. */
+				continue;
+			} else {
+				call = cur;
+			}
+
+			/*
+			 * NOTE:  We are gambling that no T309 timer's have had a chance
+			 * to expire.  They should not expire since we are either called
+			 * immediately after the Q931_DL_EVENT_DL_RELEASE_xxx or after a
+			 * timeout of 0.
+			 */
+			if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+				pri_message(ctrl, "Cancel call cref=%d on channel %d in state %d (%s)\n",
+					call->cr, call->channelno, call->ourcallstate,
+					q931_call_state_str(call->ourcallstate));
+			}
+			call->pri = ctrl;/* Point to a safer place until the call is destroyed. */
+			pri_schedule_del(ctrl, call->retranstimer);
+			call->retranstimer = pri_schedule_event(ctrl, 0, pri_dl_down_cancelcall,
+				call);
+		}
+		break;
+	case Q931_DL_EVENT_DL_RELEASE_IND:
+	case Q931_DL_EVENT_DL_RELEASE_CONFIRM:
 		for (cur = *ctrl->callpool; cur; cur = cur->next) {
 			if (!(cur->cr & ~Q931_CALL_REFERENCE_FLAG)) {
 				/* Don't do anything on the global call reference call record. */
@@ -7917,10 +7943,8 @@ void q931_dl_indication(struct pri *link, int event)
 			}
 		}
 		break;
-	case PRI_EVENT_DCHAN_UP:
-		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
-			pri_message(ctrl, "DL-ESTABLISH indication (link is UP)\n");
-		}
+	case Q931_DL_EVENT_DL_ESTABLISH_IND:
+	case Q931_DL_EVENT_DL_ESTABLISH_CONFIRM:
 		for (cur = *ctrl->callpool; cur; cur = cur->next) {
 			if (!(cur->cr & ~Q931_CALL_REFERENCE_FLAG)) {
 				/* Don't do anything on the global call reference call record. */
@@ -7965,6 +7989,14 @@ void q931_dl_indication(struct pri *link, int event)
 			case Q931_CALL_STATE_RELEASE_REQUEST:
 				break;
 			default:
+				if (event == Q931_DL_EVENT_DL_ESTABLISH_CONFIRM) {
+					/*
+					 * Lets not send a STATUS message for this call as we
+					 * requested the link to be established as a likely
+					 * result of this call.
+					 */
+					break;
+				}
 				/*
 				 * The STATUS message sent here is not required by Q.931,
 				 * but it may help anyway.
