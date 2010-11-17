@@ -6912,9 +6912,20 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			q931_release_complete(ctrl,c,PRI_CAUSE_INVALID_CALL_REFERENCE);
 			break;
 		}
-		if (c->ourcallstate == Q931_CALL_STATE_ACTIVE) {
-			q931_status(ctrl, c, PRI_CAUSE_WRONG_MESSAGE);
+		switch (c->ourcallstate) {
+		case Q931_CALL_STATE_CALL_INITIATED:
+		case Q931_CALL_STATE_OVERLAP_SENDING:
+		case Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING:
+		case Q931_CALL_STATE_CALL_DELIVERED:
+		case Q931_CALL_STATE_CALL_PRESENT:
+		case Q931_CALL_STATE_CALL_RECEIVED:
+		case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
+		case Q931_CALL_STATE_OVERLAP_RECEIVING:
+			/* Accept CONNECT in these states. */
 			break;
+		default:
+			q931_status(ctrl, c, PRI_CAUSE_WRONG_CALL_STATE);
+			return 0;
 		}
 		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_ACTIVE);
 		c->peercallstate = Q931_CALL_STATE_CONNECT_REQUEST;
@@ -6934,7 +6945,6 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		if (c->cis_auto_disconnect && c->cis_call) {
 			/* Make sure WE release when we initiate a signalling only connection */
 			q931_hangup(ctrl, c, PRI_CAUSE_NORMAL_CLEARING);
-			break;
 		} else {
 			c->incoming_ct_state = INCOMING_CT_STATE_IDLE;
 
@@ -6947,6 +6957,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 
 			return Q931_RES_HAVEEVENT;
 		}
+		break;
 	case Q931_FACILITY:
 		if (c->newcall) {
 			q931_release_complete(ctrl,c,PRI_CAUSE_INVALID_CALL_REFERENCE);
