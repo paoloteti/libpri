@@ -1280,6 +1280,7 @@ static void q921_clear_exception_conditions(struct pri *ctrl)
 static pri_event * q921_sabme_rx(struct pri *ctrl, q921_h *h)
 {
 	pri_event *res = NULL;
+	int delay_q931_dl_indication;
 
 	switch (ctrl->q921_state) {
 	case Q921_TIMER_RECOVERY:
@@ -1292,25 +1293,36 @@ static pri_event * q921_sabme_rx(struct pri *ctrl, q921_h *h)
 		if (ctrl->v_s != ctrl->v_a) {
 			q921_discard_iqueue(ctrl);
 			/* DL-ESTABLISH indication */
-			q931_dl_indication(ctrl, PRI_EVENT_DCHAN_UP);
+			delay_q931_dl_indication = 1;
+		} else {
+			delay_q931_dl_indication = 0;
 		}
 		stop_t200(ctrl);
 		start_t203(ctrl);
 		ctrl->v_s = ctrl->v_a = ctrl->v_r = 0;
 		q921_setstate(ctrl, Q921_MULTI_FRAME_ESTABLISHED);
+		if (delay_q931_dl_indication) {
+			/* Delayed because Q.931 could send STATUS messages. */
+			q931_dl_indication(ctrl, PRI_EVENT_DCHAN_UP);
+		}
 		break;
 	case Q921_TEI_ASSIGNED:
 		q921_send_ua(ctrl, h->u.p_f);
 		q921_clear_exception_conditions(ctrl);
 		ctrl->v_s = ctrl->v_a = ctrl->v_r = 0;
 		/* DL-ESTABLISH indication */
-		q931_dl_indication(ctrl, PRI_EVENT_DCHAN_UP);
+		//delay_q931_dl_indication = 1;
 		if (PTP_MODE(ctrl)) {
 			ctrl->ev.gen.e = PRI_EVENT_DCHAN_UP;
 			res = &ctrl->ev;
 		}
 		start_t203(ctrl);
 		q921_setstate(ctrl, Q921_MULTI_FRAME_ESTABLISHED);
+		//if (delay_q931_dl_indication)
+		{
+			/* Delayed because Q.931 could send STATUS messages. */
+			q931_dl_indication(ctrl, PRI_EVENT_DCHAN_UP);
+		}
 		break;
 	case Q921_AWAITING_ESTABLISHMENT:
 		q921_send_ua(ctrl, h->u.p_f);
@@ -1347,7 +1359,7 @@ static pri_event *q921_disc_rx(struct pri *ctrl, q921_h *h)
 	case Q921_TIMER_RECOVERY:
 		q921_discard_iqueue(ctrl);
 		q921_send_ua(ctrl, h->u.p_f);
-		/* DL-RELEASE Indication */
+		/* DL-RELEASE indication */
 		q931_dl_indication(ctrl, PRI_EVENT_DCHAN_DOWN);
 		stop_t200(ctrl);
 		if (ctrl->q921_state == Q921_MULTI_FRAME_ESTABLISHED)
@@ -1696,7 +1708,8 @@ static void q921_mdl_error(struct pri *ctrl, char error)
 
 static pri_event *q921_ua_rx(struct pri *ctrl, q921_h *h)
 {
-	pri_event * res = NULL;
+	pri_event *res = NULL;
+	int delay_q931_dl_indication;
 
 	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
 		pri_message(ctrl, "TEI=%d Got UA\n", ctrl->tei);
@@ -1718,15 +1731,16 @@ static pri_event *q921_ua_rx(struct pri *ctrl, q921_h *h)
 			break;
 		}
 
+		delay_q931_dl_indication = 0;
 		if (!ctrl->l3initiated) {
 			if (ctrl->v_s != ctrl->v_a) {
 				q921_discard_iqueue(ctrl);
-				/* return DL-ESTABLISH-INDICATION */
-				q931_dl_indication(ctrl, PRI_EVENT_DCHAN_UP);
+				/* DL-ESTABLISH indication */
+				delay_q931_dl_indication = 1;
 			}
 		} else {
 			ctrl->l3initiated = 0;
-			/* return DL-ESTABLISH-CONFIRM */
+			/* DL-ESTABLISH confirm */
 		}
 
 		if (PTP_MODE(ctrl)) {
@@ -1740,12 +1754,16 @@ static pri_event *q921_ua_rx(struct pri *ctrl, q921_h *h)
 		ctrl->v_r = ctrl->v_s = ctrl->v_a = 0;
 
 		q921_setstate(ctrl, Q921_MULTI_FRAME_ESTABLISHED);
+		if (delay_q931_dl_indication) {
+			/* Delayed because Q.931 could send STATUS messages. */
+			q931_dl_indication(ctrl, PRI_EVENT_DCHAN_UP);
+		}
 		break;
 	case Q921_AWAITING_RELEASE:
 		if (!h->u.p_f) {
 			q921_mdl_error(ctrl, 'D');
 		} else {
-			/* return DL-RELEASE-CONFIRM */
+			/* DL-RELEASE confirm */
 			stop_t200(ctrl);
 			q921_setstate(ctrl, Q921_TEI_ASSIGNED);
 		}
@@ -2047,10 +2065,12 @@ static pri_event *q921_iframe_rx(struct pri *ctrl, q921_h *h, int len)
 {
 	pri_event * eres = NULL;
 	int res = 0;
+	int delay_q931_receive;
 
 	switch (ctrl->q921_state) {
 	case Q921_TIMER_RECOVERY:
 	case Q921_MULTI_FRAME_ESTABLISHED:
+		delay_q931_receive = 0;
 		/* FIXME: Verify that it's a command ... */
 		if (ctrl->own_rx_busy) {
 			/* XXX: Note: There's a difference in th P/F between both states */
@@ -2060,19 +2080,20 @@ static pri_event *q921_iframe_rx(struct pri *ctrl, q921_h *h, int len)
 
 			ctrl->reject_exception = 0;
 
-			//res = q931_receive(PRI_MASTER(ctrl), ctrl->tei, (q931_h *)h->i.data, len - 4);
-			res = q931_receive(ctrl, ctrl->tei, (q931_h *)h->i.data, len - 4);
-			if (res != -1 && (res & Q931_RES_HAVEEVENT)) {
-				eres = &ctrl->ev;
+			/*
+			 * Dump Q.931 message where Q.921 says to queue it to Q.931 so if
+			 * Q.921 is dumping its frames they will be in the correct order.
+			 */
+			if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
+				q931_dump(ctrl, ctrl->tei, (q931_h *) h->i.data, len - 4, 0);
 			}
+			delay_q931_receive = 1;
 
 			if (h->i.p_f) {
 				q921_rr(ctrl, 1, 0);
 				ctrl->acknowledge_pending = 0;
 			} else {
-				if (!ctrl->acknowledge_pending) {
-					ctrl->acknowledge_pending = 1;
-				}
+				ctrl->acknowledge_pending = 1;
 			}
 		} else {
 			if (ctrl->reject_exception) {
@@ -2108,6 +2129,13 @@ static pri_event *q921_iframe_rx(struct pri *ctrl, q921_h *h, int len)
 						}
 					}
 				}
+			}
+		}
+		if (delay_q931_receive) {
+			/* Q.921 has finished processing the frame so we can give it to Q.931 now. */
+			res = q931_receive(ctrl, ctrl->tei, (q931_h *) h->i.data, len - 4);
+			if (res != -1 && (res & Q931_RES_HAVEEVENT)) {
+				eres = &ctrl->ev;
 			}
 		}
 		break;
@@ -2342,6 +2370,9 @@ static pri_event *__q921_receive_qualified(struct pri *ctrl, q921_h *h, int len)
 			break;
 		case 0x00:
 			/* UI-frame */
+			if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
+				q931_dump(ctrl, ctrl->tei, (q931_h *) h->u.data, len - 3, 0);
+			}
 			res = q931_receive(ctrl, ctrl->tei, (q931_h *) h->u.data, len - 3);
 			if (res != -1 && (res & Q931_RES_HAVEEVENT)) {
 				ev = &ctrl->ev;
