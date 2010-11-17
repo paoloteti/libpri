@@ -2,6 +2,122 @@
 
 	* libpri 1.4.11.5 released.
 
+2010-11-17 21:32 +0000 [r2131-2139]  Richard Mudgett <rmudgett@digium.com>
+
+	* q921.c: Merged revision 2101 from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ..........
+	  r2101 | rmudgett | 2010-11-05 14:24:01 -0500 (Fri, 05 Nov 2010) |
+	  9 lines Remove all TEIs when NT PTMP starts. Remove all TEIs when
+	  a NT PTMP link is started and there are no other links to make
+	  sure there are no devices that think they have a TEI. A device
+	  may think it has a TEI if the upper layer program is restarted or
+	  the system reboots. This fixes the bug portion of JIRA
+	  LIBPRI-51/SWP-2453. ..........
+
+	* q921.c: Merged revision 2088 from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ..........
+	  r2088 | rmudgett | 2010-11-02 14:11:01 -0500 (Tue, 02 Nov 2010) |
+	  14 lines B410P gets incoming call packets on ISDN but Asterisk
+	  doesn't see the call. The Cisco 1751 with VIC 2-BRI ports sends
+	  out SETUP messages on the broadcast TEI as if the BRI were PTMP
+	  even though it is configured for PTP mode. Make PTP mode also
+	  accept frames on SAPI=0, TEI=127 (Broadcast). (closes issue
+	  #18232) Reported by: lelio Patches: issue18232_v1.4.patch
+	  uploaded by rmudgett (license 664) Tested by: lelio ..........
+
+	* q931.c: Merged revision 2021 from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ..........
+	  r2021 | rmudgett | 2010-10-14 13:35:48 -0500 (Thu, 14 Oct 2010) |
+	  10 lines Crash when receiving an unknown/unsupported message
+	  type. Fix double free of a call record and the subsequent
+	  continued use of the freed call record when receiving an
+	  unsupported/unknown message type. (closes issue #17968) Reported
+	  by: gelo Patches: issue_17968_v1.4.patch uploaded by rmudgett
+	  (license 664) issue_17968_v1.4.11.4.patch uploaded by rmudgett
+	  (license 664) ..........
+
+	* q931.c, pri_facility.c, pri.c, pri_internal.h: Merged revision
+	  2015 from https://origsvn.digium.com/svn/libpri/branches/1.4
+	  .......... r2015 | rmudgett | 2010-10-14 12:09:40 -0500 (Thu, 14
+	  Oct 2010) | 16 lines Segfault in pri_schedule_del() - ctrl value
+	  is invalid. Validate the given call pointer in libpri API calls.
+	  If the call pointer is not an active call record then a complaint
+	  message is issued and the API call aborts. The call pointer is
+	  likely stale. This patch is defensive. More information is needed
+	  to figure out why Asterisk still has a call pointer during its
+	  hangup sequence. (closes issue #17522) (closes issue #18032)
+	  Reported by: schmoozecom Patches: issue_18032_v1.4.patch uploaded
+	  by rmudgett (license 664) issue_18032_v1.4.11.4.patch uploaded by
+	  rmudgett (license 664) Tested by: rmudgett ..........
+
+	* pri_q931.h, q921.c, q931.c: Merged revision 1991 from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ..........
+	  r1991 | rmudgett | 2010-09-13 16:21:37 -0500 (Mon, 13 Sep 2010) |
+	  9 lines PRI links do not retain active calls if the link comes
+	  back before T309 expires. The DL-ESTABLISH confirm event was not
+	  passed from Q.921 to Q.931 so Q.931 never cancelled the T309
+	  timer. Refactored q931_dl_tei_removal() and q931_dl_indication()
+	  into q931_dl_event() to allow the DL-ESTABLISH confirm/indication
+	  and DL-RELEASE confirm/indication events to be passed to Q.931.
+	  ..........
+
+	* pri_q931.h, q921.c, q931.c, prisched.c, pri.c, pri_internal.h:
+	  Merged revision 1982 from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ..........
+	  r1982 | rmudgett | 2010-09-13 11:07:24 -0500 (Mon, 13 Sep 2010) |
+	  18 lines BRI PTMP: Active channels not cleared when the interface
+	  goes down. If the connection to the terminal is lost while there
+	  are open channels on the interface, red alarm is reported, but
+	  the open channels are never cleared. Additionally, if you
+	  manually try to channel request hangup, Asterisk crashes. For
+	  PTMP, the T309 processing was not searching the call pool on the
+	  master control record. Additionally, for NT PTMP, the timeout
+	  events were not passed to the upper layer because the events were
+	  not put on the master control record where timer processing
+	  expects them. (closes issue #17865) Reported by: wimpy Patches:
+	  issue17865_v1.4.patch uploaded by rmudgett (license 664) Tested
+	  by: rmudgett, wimpy ..........
+
+	* q921.c, q931.c: Merged revision 1962 from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ..........
+	  r1962 | rmudgett | 2010-09-07 19:13:24 -0500 (Tue, 07 Sep 2010) |
+	  21 lines Made Q.921 delay events to Q.931 if the event could
+	  immediately generate response frames. Q.921 was passing a
+	  q931_dl_indication(up) event to Q.931 before it was finished
+	  processing the frame. The q931_dl_indication(up) event could
+	  immediately send STATUS messages in the Q.921 intermediate state
+	  that would then get stuck in the tx queue with an invalid N(S).
+	  Q.921 was passing i-frames to Q.931 before it was finished
+	  processing the frame. The i-frames could cause Q.931 to
+	  immediately generate a response message that may cause the peer
+	  to see the P/F bit as incorrect. Delayed passing
+	  q931_dl_indication(up) events and i-frames to Q.931 until Q.921
+	  has completed processing the frame event. (The Q.921 SDL diagrams
+	  were designed with this assumption.) (closes issue #17360)
+	  Reported by: shawkris Patches: issue17360_v1.4.patch uploaded by
+	  rmudgett (license 664) Tested by: shawkris, rmudgett ..........
+
+	* q931.c: Merged revision 1961 from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ..........
+	  r1961 | rmudgett | 2010-09-07 19:10:05 -0500 (Tue, 07 Sep 2010) |
+	  12 lines Prevent a CONNECT message from sending a CONNECT
+	  ACKNOWLEDGE in the wrong state. Filter the processing of the
+	  CONNECT message to prevent libpri from sending a CONNECT
+	  ACKNOWLEDGE when the call is in an inappropriate state. This can
+	  happen when we hang up an outgoing call after the other end has
+	  sent a CONNECT but before we have processed the CONNECT. (issue
+	  #17360) Reported by: shawkris Patches:
+	  issue17360_con_ack_v1.4.patch uploaded by rmudgett (license 664)
+	  ..........
+
+	* q931.c, pri.c: Merged revision 1955,1958 from
+	  https://origsvn.digium.com/svn/libpri/branches/1.4 ..........
+	  r1955 | rmudgett | 2010-09-02 12:33:51 -0500 (Thu, 02 Sep 2010) |
+	  1 line Don't crash in __pri_new_tei() if a GR303 subchannel
+	  creation fails. .......... r1958 | rmudgett | 2010-09-07 18:13:04
+	  -0500 (Tue, 07 Sep 2010) | 1 line Balance curly braces in
+	  post_handle_q931_message(). ..........
+
 2010-08-30 Leif Madsen <lmadsen@digium.com>
 
 	* libpri 1.4.11.4 released.
