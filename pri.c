@@ -324,7 +324,7 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 		p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_EOC_PATH, p, NULL, NULL, NULL, Q921_TEI_GR303_EOC_PATH, 0);
 		if (!p->subchannel) {
 			free(p);
-			p = NULL;
+			return NULL;
 		}
 		break;
 	case PRI_SWITCH_GR303_TMC:
@@ -334,7 +334,7 @@ struct pri *__pri_new_tei(int fd, int node, int switchtype, struct pri *master, 
 		p->subchannel = __pri_new_tei(-1, node, PRI_SWITCH_GR303_TMC_SWITCHING, p, NULL, NULL, NULL, Q921_TEI_GR303_TMC_SWITCHING, 0);
 		if (!p->subchannel) {
 			free(p);
-			p = NULL;
+			return NULL;
 		}
 		break;
 	case PRI_SWITCH_GR303_TMC_SWITCHING:

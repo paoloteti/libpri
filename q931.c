@@ -7040,16 +7040,24 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		if ((ctrl->debug & PRI_DEBUG_Q931_ANOMALY) &&
 		    (c->cause != PRI_CAUSE_INTERWORKING)) 
 			pri_error(ctrl, "Received unsolicited status: %s\n", pri_cause2str(c->cause));
-		/* Workaround for S-12 ver 7.3 - it responds for invalid/non-implemented IEs at SETUP with null call state */
+		if (
 #if 0
-		if (!c->sugcallstate && (c->ourcallstate != Q931_CALL_STATE_CALL_INITIATED)) {
+			/*
+			 * Workaround for S-12 ver 7.3 - it responds to
+			 * invalid/non-implemented IEs in SETUP with NULL call state.
+			 */
+			!c->sugcallstate && (c->ourcallstate != Q931_CALL_STATE_CALL_INITIATED)
 #else
-		/* Remove "workaround" since it breaks certification testing.  If we receive a STATUS message of call state
-		 * NULL and we are not in the call state NULL we must clear resources and return to the call state to pass
-		 * testing.  See section 5.8.11 of Q.931 */
+			/*
+			 * Remove "workaround" since it breaks certification testing. If
+			 * we receive a STATUS message of call state NULL and we are not
+			 * in the call state NULL we must clear resources and return to
+			 * the call state to pass testing.  See section 5.8.11 of Q.931.
+			 */
 
-		if (!c->sugcallstate) {
+			!c->sugcallstate
 #endif
+			) {
 			ctrl->ev.hangup.subcmds = &ctrl->subcmds;
 			ctrl->ev.hangup.channel = q931_encode_channel(c);
 			ctrl->ev.hangup.cause = c->cause;
