@@ -2505,7 +2505,9 @@ static pri_event *__q921_receive(struct pri *ctrl, q921_h *h, int len)
 		} else {
 			ev = q921_handle_unmatched_frame(ctrl, h, len);
 		}
-	} else if (PTP_MODE(ctrl) && (h->h.sapi == ctrl->sapi) && (h->h.tei == ctrl->tei)) {
+	} else if (PTP_MODE(ctrl)
+		&& h->h.sapi == ctrl->sapi
+		&& (h->h.tei == ctrl->tei || h->h.tei == Q921_TEI_GROUP)) {
 		ev = __q921_receive_qualified(ctrl, h, len);
 	} else {
 		ev = NULL;
