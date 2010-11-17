@@ -494,7 +494,8 @@ void q931_dump(struct pri *ctrl, int tei, q931_h *h, int len, int txrx);
 
 void q931_destroycall(struct pri *pri, q931_call *c);
 
-extern void q931_dl_indication(struct pri *pri, int event);
+void q931_dl_tei_removal(struct pri *link);
+void q931_dl_indication(struct pri *link, int event);
 
 int q931_send_hold(struct pri *ctrl, struct q931_call *call);
 int q931_send_hold_ack(struct pri *ctrl, struct q931_call *call);

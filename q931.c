@@ -4595,10 +4595,11 @@ static void pri_connect_timeout(void *data)
 {
 	struct q931_call *c = data;
 	struct pri *ctrl = c->pri;
+
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
 		pri_message(ctrl, "Timed out looking for connect acknowledge\n");
+	c->retranstimer = 0;
 	q931_disconnect(ctrl, c, PRI_CAUSE_NORMAL_CLEARING);
-	
 }
 
 /* T308 expiry, first time */
@@ -4606,9 +4607,11 @@ static void pri_release_timeout(void *data)
 {
 	struct q931_call *c = data;
 	struct pri *ctrl = c->pri;
+
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
 		pri_message(ctrl, "Timed out looking for release complete\n");
 	c->t308_timedout++;
+	c->retranstimer = 0;
 	c->alive = 1;
 
 	/* The call to q931_release will re-schedule T308 */
@@ -4620,6 +4623,8 @@ static void pri_release_finaltimeout(void *data)
 {
 	struct q931_call *c = data;
 	struct pri *ctrl = c->pri;
+
+	c->retranstimer = 0;
 	c->alive = 1;
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
 		pri_message(ctrl, "Final time-out looking for release complete\n");
@@ -4646,8 +4651,10 @@ static void pri_disconnect_timeout(void *data)
 {
 	struct q931_call *c = data;
 	struct pri *ctrl = c->pri;
+
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
 		pri_message(ctrl, "Timed out looking for release\n");
+	c->retranstimer = 0;
 	c->alive = 1;
 	q931_release(ctrl, c, PRI_CAUSE_NORMAL_CLEARING);
 }
@@ -4946,6 +4953,9 @@ int q931_setup(struct pri *ctrl, q931_call *c, struct pri_sr *req)
 
 	pri_call_add_standard_apdus(ctrl, c);
 
+	if (BRI_NT_PTMP(ctrl)) {
+		c->outboundbroadcast = 1;
+	}
 	if (ctrl->subchannel && !ctrl->bri)
 		res = send_message(ctrl, c, Q931_SETUP, gr303_setup_ies);
 	else if (c->cis_call)
@@ -4959,13 +4969,9 @@ int q931_setup(struct pri *ctrl, q931_call *c, struct pri_sr *req)
 		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_CALL_INITIATED);
 		c->peercallstate = Q931_CALL_STATE_CALL_PRESENT;
 		c->t303_expirycnt = 0;
-		if (BRI_NT_PTMP(ctrl)) {
-			c->outboundbroadcast = 1;
-		}
 		start_t303(c);
 	}
 	return res;
-	
 }
 
 static int release_complete_ies[] = { Q931_IE_USER_USER, -1 };
@@ -5461,6 +5467,12 @@ static void pri_fake_clearing(void *data)
 	struct q931_call *c = data;
 	struct pri *ctrl = c->pri;
 
+	/*
+	 * We cannot clear the retranstimer id because we are called by t303_expiry also.
+	 * Fortunately, it doesn't matter because pri_internal_clear() will stop it if
+	 * it was actually running.
+	 */
+	//c->retranstimer = 0;
 	c->performing_fake_clearing = 1;
 	if (pri_internal_clear(c) == Q931_RES_HAVEEVENT)
 		ctrl->schedev = 1;
@@ -5468,6 +5480,7 @@ static void pri_fake_clearing(void *data)
 
 static void pri_create_fake_clearing(struct q931_call *c, struct pri *master)
 {
+	/* Point to the master so the timeout event can come out. */
 	c->pri = master;
 
 	pri_schedule_del(master, c->retranstimer);
@@ -7644,6 +7657,18 @@ static int pri_internal_clear(void *data)
 
 	UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_NULL);
 	c->peercallstate = Q931_CALL_STATE_NULL;
+
+	if (c->master_call->outboundbroadcast
+		&& c == q931_find_winning_call(c)) {
+		/* Pass the hangup cause to the master_call. */
+		c->master_call->cause = c->cause;
+
+		/* Declare this winning subcall to no longer be the winner and destroy it. */
+		c->master_call->pri_winner = -1;
+		q931_destroycall(ctrl, c);
+		return 0;
+	}
+
 	q931_clr_subcommands(ctrl);
 	ctrl->ev.hangup.subcmds = &ctrl->subcmds;
 	ctrl->ev.hangup.channel = q931_encode_channel(c);
@@ -7680,9 +7705,15 @@ static void pri_dl_down_timeout(void *data)
 {
 	struct q931_call *c = data;
 	struct pri *ctrl = c->pri;
-	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
-		pri_message(ctrl, DBGHEAD "Timed out waiting for data link re-establishment\n", DBGINFO);
 
+	/* Point to the master so the timeout event can come out. */
+	ctrl = PRI_MASTER(ctrl);
+	c->pri = ctrl;
+
+	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
+		pri_message(ctrl, "T309 timed out waiting for data link re-establishment\n");
+
+	c->retranstimer = 0;
 	c->cause = PRI_CAUSE_DESTINATION_OUT_OF_ORDER;
 	if (pri_internal_clear(c) == Q931_RES_HAVEEVENT)
 		ctrl->schedev = 1;
@@ -7693,94 +7724,260 @@ static void pri_dl_down_cancelcall(void *data)
 {
 	struct q931_call *c = data;
 	struct pri *ctrl = c->pri;
-	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
-		pri_message(ctrl, DBGHEAD "Cancel non active call after data link failure\n", DBGINFO);
 
+	/* Point to the master so the timeout event can come out. */
+	ctrl = PRI_MASTER(ctrl);
+	c->pri = ctrl;
+
+	if (ctrl->debug & PRI_DEBUG_Q931_STATE)
+		pri_message(ctrl, "Cancel call after data link failure\n");
+
+	c->retranstimer = 0;
 	c->cause = PRI_CAUSE_DESTINATION_OUT_OF_ORDER;
 	if (pri_internal_clear(c) == Q931_RES_HAVEEVENT)
 		ctrl->schedev = 1;
 }
 
-/* Receive an indication from Layer 2 */
-void q931_dl_indication(struct pri *ctrl, int event)
+/*!
+ * \brief Layer 2 is removing the link's TEI.
+ *
+ * \param link Q.921 link losing it's TEI.
+ *
+ * \note
+ * For NT PTMP, this deviation from the specifications is needed
+ * because we have no way to re-associate any T309 calls on the
+ * removed TEI.
+ *
+ * \return Nothing
+ */
+void q931_dl_tei_removal(struct pri *link)
 {
 	struct q931_call *cur;
-	struct q931_call *winner;
+	struct q931_call *call;
+	struct pri *ctrl;
+	int idx;
 
-	/* Just return if T309 is not enabled. */
-	if (!ctrl || ctrl->timers[PRI_TIMER_T309] < 0)
+	/* Find the master - He has the call pool */
+	ctrl = PRI_MASTER(link);
+
+	if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+		pri_message(ctrl, "DL TEI removal\n");
+	}
+
+	if (!BRI_NT_PTMP(ctrl)) {
+		/* Only NT PTMP has anything to worry about when the TEI is removed. */
 		return;
+	}
+
+	for (cur = *ctrl->callpool; cur; cur = cur->next) {
+		if (!(cur->cr & ~Q931_CALL_REFERENCE_FLAG)) {
+			/* Don't do anything on the global call reference call record. */
+			continue;
+		}
+		if (cur->outboundbroadcast) {
+			/* Does this master call have a subcall on the link that went down? */
+			call = NULL;
+			for (idx = 0; idx < ARRAY_LEN(cur->subcalls); ++idx) {
+				if (cur->subcalls[idx] && cur->subcalls[idx]->pri == link) {
+					/* This subcall is on the link that went down. */
+					call = cur->subcalls[idx];
+					break;
+				}
+			}
+			if (!call) {
+				/* No subcall is on the link that went down. */
+				continue;
+			}
+		} else if (cur->pri != link) {
+			/* This call is not on the link that went down. */
+			continue;
+		} else {
+			call = cur;
+		}
+
+		/*
+		 * NOTE:  We are gambling that no T309 timer's have had a chance
+		 * to expire.  They should not expire since we are either called
+		 * immediately after the q931_dl_indication() or after a timeout
+		 * of 0.
+		 */
+		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+			pri_message(ctrl, "Cancel call cref=%d on channel %d in state %d (%s)\n",
+				call->cr, call->channelno, call->ourcallstate,
+				q931_call_state_str(call->ourcallstate));
+		}
+		call->pri = ctrl;/* Point to a safer place until the call is destroyed. */
+		pri_schedule_del(ctrl, call->retranstimer);
+		call->retranstimer = pri_schedule_event(ctrl, 0, pri_dl_down_cancelcall, call);
+	}
+}
+
+/* Receive an indication from Layer 2 */
+void q931_dl_indication(struct pri *link, int event)
+{
+	struct q931_call *cur;
+	struct q931_call *call;
+	struct pri *ctrl;
+	int idx;
+
+	if (!link) {
+		return;
+	}
+
+	/* Find the master - He has the call pool */
+	ctrl = PRI_MASTER(link);
+
+	if (BRI_TE_PTMP(ctrl)) {
+		/* The link is always the master */
+		link = ctrl;
+	}
 
 	switch (event) {
 	case PRI_EVENT_DCHAN_DOWN:
 		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
-			pri_message(ctrl, DBGHEAD "link is DOWN\n", DBGINFO);
+			pri_message(ctrl, "DL-RELEASE indication (link is DOWN)\n");
 		}
 		for (cur = *ctrl->callpool; cur; cur = cur->next) {
 			if (!(cur->cr & ~Q931_CALL_REFERENCE_FLAG)) {
 				/* Don't do anything on the global call reference call record. */
 				continue;
-			} else if (cur->ourcallstate == Q931_CALL_STATE_ACTIVE) {
-				/* For a call in Active state, activate T309 only if there is no timer already running. */
-				if (!cur->retranstimer) {
-					if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
-						pri_message(ctrl,
-							DBGHEAD "activate T309 for call %d on channel %d\n", DBGINFO,
-							cur->cr, cur->channelno);
+			}
+			if (cur->outboundbroadcast) {
+				/* Does this master call have a subcall on the link that went down? */
+				call = NULL;
+				for (idx = 0; idx < ARRAY_LEN(cur->subcalls); ++idx) {
+					if (cur->subcalls[idx] && cur->subcalls[idx]->pri == link) {
+						/* This subcall is on the link that went down. */
+						call = cur->subcalls[idx];
+						break;
 					}
-					cur->retranstimer = pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T309], pri_dl_down_timeout, cur);
 				}
-			} else if (cur->ourcallstate != Q931_CALL_STATE_NULL) {
-				/* For a call that is not in Active state, schedule internal clearing of the call 'ASAP' (delay 0). */
+				if (!call) {
+					/* No subcall is on the link that went down. */
+					continue;
+				}
+			} else if (cur->pri != link) {
+				/* This call is not on the link that went down. */
+				continue;
+			} else {
+				call = cur;
+			}
+			switch (call->ourcallstate) {
+			case Q931_CALL_STATE_ACTIVE:
+				/* NOTE: Only a winning subcall can get to the active state. */
+				if (ctrl->nfas) {
+					/*
+					 * The upper layer should handle T309 for NFAS since the calls
+					 * could be maintained by a backup D channel if the B channel
+					 * for the call did not go into alarm.
+					 */
+					break;
+				}
+				/*
+				 * For a call in Active state, activate T309 only if there is
+				 * no timer already running.
+				 *
+				 * NOTE: cur != call when we have a winning subcall.
+				 */
+				if (!cur->retranstimer || !call->retranstimer) {
+					if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+						pri_message(ctrl, "Start T309 for call cref=%d on channel %d\n",
+							call->cr, call->channelno);
+					}
+					call->retranstimer = pri_schedule_event(ctrl,
+						ctrl->timers[PRI_TIMER_T309], pri_dl_down_timeout, call);
+				}
+				break;
+			case Q931_CALL_STATE_NULL:
+				break;
+			default:
+				/*
+				 * For a call that is not in Active state, schedule internal
+				 * clearing of the call 'ASAP' (delay 0).
+				 *
+				 * NOTE: We are killing NFAS calls that are not connected yet
+				 * because there are likely messages in flight when this link
+				 * went down that could leave the call in an unknown/stuck state.
+				 */
 				if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
 					pri_message(ctrl,
-						DBGHEAD "cancel call %d on channel %d in state %d (%s)\n", DBGINFO,
-						cur->cr, cur->channelno, cur->ourcallstate,
-						q931_call_state_str(cur->ourcallstate));
+						"Cancel call cref=%d on channel %d in state %d (%s)\n",
+						call->cr, call->channelno, call->ourcallstate,
+						q931_call_state_str(call->ourcallstate));
 				}
-				pri_schedule_del(ctrl, cur->retranstimer);
-				cur->retranstimer = pri_schedule_event(ctrl, 0, pri_dl_down_cancelcall, cur);
+				if (cur->outboundbroadcast) {
+					/* Simply destroy non-winning subcalls. */
+					q931_destroycall(ctrl, call);
+					continue;
+				}
+				pri_schedule_del(ctrl, call->retranstimer);
+				call->retranstimer = pri_schedule_event(ctrl, 0, pri_dl_down_cancelcall,
+					call);
+				break;
 			}
 		}
 		break;
 	case PRI_EVENT_DCHAN_UP:
 		if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
-			pri_message(ctrl, DBGHEAD "link is UP\n", DBGINFO);
+			pri_message(ctrl, "DL-ESTABLISH indication (link is UP)\n");
 		}
 		for (cur = *ctrl->callpool; cur; cur = cur->next) {
 			if (!(cur->cr & ~Q931_CALL_REFERENCE_FLAG)) {
 				/* Don't do anything on the global call reference call record. */
 				continue;
-			} else if (cur->ourcallstate == Q931_CALL_STATE_ACTIVE && cur->retranstimer) {
-				if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
-					pri_message(ctrl,
-						DBGHEAD "cancel T309 for call %d on channel %d\n", DBGINFO,
-						cur->cr, cur->channelno);
+			}
+			if (cur->outboundbroadcast) {
+				/* Does this master call have a subcall on the link that came up? */
+				call = NULL;
+				for (idx = 0; idx < ARRAY_LEN(cur->subcalls); ++idx) {
+					if (cur->subcalls[idx] && cur->subcalls[idx]->pri == link) {
+						/* This subcall is on the link that came up. */
+						call = cur->subcalls[idx];
+						break;
+					}
 				}
-				pri_schedule_del(ctrl, cur->retranstimer);
-				cur->retranstimer = 0;
-				winner = q931_find_winning_call(cur);
-				if (winner) {
-					q931_status(ctrl, winner, PRI_CAUSE_NORMAL_UNSPECIFIED);
+				if (!call) {
+					/* No subcall is on the link that came up. */
+					continue;
 				}
-			} else if (cur->ourcallstate != Q931_CALL_STATE_NULL &&
-				cur->ourcallstate != Q931_CALL_STATE_DISCONNECT_REQUEST &&
-				cur->ourcallstate != Q931_CALL_STATE_DISCONNECT_INDICATION &&
-				cur->ourcallstate != Q931_CALL_STATE_RELEASE_REQUEST) {
+			} else if (cur->pri != link) {
+				/* This call is not on the link that came up. */
+				continue;
+			} else {
+				call = cur;
+			}
+			switch (call->ourcallstate) {
+			case Q931_CALL_STATE_ACTIVE:
+				/* NOTE: Only a winning subcall can get to the active state. */
+				if (pri_schedule_check(ctrl, call->retranstimer, pri_dl_down_timeout, call)) {
+					if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+						pri_message(ctrl, "Stop T309 for call cref=%d on channel %d\n",
+							call->cr, call->channelno);
+					}
+					pri_schedule_del(ctrl, call->retranstimer);
+					call->retranstimer = 0;
+				}
+				q931_status(ctrl, call, PRI_CAUSE_NORMAL_UNSPECIFIED);
+				break;
+			case Q931_CALL_STATE_NULL:
+			case Q931_CALL_STATE_DISCONNECT_REQUEST:
+			case Q931_CALL_STATE_DISCONNECT_INDICATION:
+			case Q931_CALL_STATE_RELEASE_REQUEST:
+				break;
+			default:
 				/*
 				 * The STATUS message sent here is not required by Q.931,
 				 * but it may help anyway.
 				 * This looks like a new call started while the link was down.
 				 */
-				winner = q931_find_winning_call(cur);
-				if (winner) {
-					q931_status(ctrl, winner, PRI_CAUSE_NORMAL_UNSPECIFIED);
-				}
+				q931_status(ctrl, call, PRI_CAUSE_NORMAL_UNSPECIFIED);
+				break;
 			}
 		}
 		break;
 	default:
 		pri_message(ctrl, DBGHEAD "unexpected event %d.\n", DBGINFO, event);
+		break;
 	}
 }
 

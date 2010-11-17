@@ -1433,6 +1433,8 @@ static void q921_mdl_remove(struct pri *ctrl)
 		return;
 	}
 
+	q931_dl_tei_removal(ctrl);
+
 	/*
 	 * Negate the TEI value so debug messages will display a
 	 * negated TEI when it is actually unassigned.

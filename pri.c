@@ -1328,7 +1328,7 @@ char *pri_dump_info_str(struct pri *ctrl)
 			enum PRI_TIMERS_AND_COUNTERS tmr;
 
 			tmr = pri_timer[idx].number;
-			if (0 <= ctrl->timers[tmr] || tmr == PRI_TIMER_T309) {
+			if (0 <= ctrl->timers[tmr]) {
 				used = pri_snprintf(buf, used, buf_size, "  %s: %d\n",
 					pri_timer[idx].name, ctrl->timers[tmr]);
 			}
@@ -1354,8 +1354,11 @@ int pri_set_crv(struct pri *pri, q931_call *call, int crv, int callmode)
 
 void pri_enslave(struct pri *master, struct pri *slave)
 {
-	if (master && slave)
+	if (master && slave) {
 		slave->callpool = &master->localpool;
+		slave->nfas = 1;
+		master->nfas = 1;
+	}
 }
 
 struct pri_sr *pri_sr_new(void)
