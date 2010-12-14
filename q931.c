@@ -4808,15 +4808,16 @@ int q931_notify(struct pri *ctrl, q931_call *c, int channel, int info)
 		break;
 	default:
 		if ((info > 0x2) || (info < 0x00)) {
-			return 0;
+			return -1;
 		}
 		break;
 	}
 
 	if (info >= 0) {
-		info = info & 0x7F;
+		info &= 0x7F;
 	} else {
-		info = -1;
+		/* Cannot send NOTIFY message if the mandatory ie is not going to be present. */
+		return -1;
 	}
 	return q931_notify_redirection(ctrl, c, info, NULL);
 }
