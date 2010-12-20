@@ -532,9 +532,9 @@ struct q931_call {
 
 	/*! \brief Incoming call transfer state. */
 	enum INCOMING_CT_STATE incoming_ct_state;
-	/*! Call hold supplementary state. */
+	/*! Call hold supplementary state.  Valid on master call record only. */
 	enum Q931_HOLD_STATE hold_state;
-	/*! Call hold event timer */
+	/*! Call hold event timer.  Valid on master call record only. */
 	int hold_timer;
 
 	int deflection_in_progress;	/*!< CallDeflection for NT PTMP in progress. */

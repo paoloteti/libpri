@@ -5572,6 +5572,7 @@ int q931_connect_acknowledge(struct pri *ctrl, q931_call *call, int channel)
 static void q931_hold_timeout(void *data)
 {
 	struct q931_call *call = data;
+	struct q931_call *master = call->master_call;
 	struct pri *ctrl = call->pri;
 
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
@@ -5579,16 +5580,23 @@ static void q931_hold_timeout(void *data)
 	}
 
 	/* Ensure that the timer is deleted. */
-	pri_schedule_del(ctrl, call->hold_timer);
-	call->hold_timer = 0;
+	pri_schedule_del(ctrl, master->hold_timer);
+	master->hold_timer = 0;
 
-	UPDATE_HOLD_STATE(ctrl, call, Q931_HOLD_STATE_IDLE);
+	/* Don't change the hold state if there was HOLD a collision. */
+	switch (master->hold_state) {
+	case Q931_HOLD_STATE_HOLD_REQ:
+		UPDATE_HOLD_STATE(ctrl, master, Q931_HOLD_STATE_IDLE);
+		break;
+	default:
+		break;
+	}
 
 	q931_clr_subcommands(ctrl);
 	ctrl->schedev = 1;
 	ctrl->ev.e = PRI_EVENT_HOLD_REJ;
 	ctrl->ev.hold_rej.channel = q931_encode_channel(call);
-	ctrl->ev.hold_rej.call = call;
+	ctrl->ev.hold_rej.call = master;
 	ctrl->ev.hold_rej.cause = PRI_CAUSE_MESSAGE_TYPE_NONEXIST;
 	ctrl->ev.hold_rej.subcmds = &ctrl->subcmds;
 }
@@ -5662,8 +5670,8 @@ int q931_send_hold(struct pri *ctrl, struct q931_call *call)
 	}
 	pri_schedule_del(ctrl, call->hold_timer);
 	call->hold_timer = pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T_HOLD],
-		q931_hold_timeout, call);
-	if (send_message(ctrl, winner, Q931_HOLD, hold_ies)) {
+		q931_hold_timeout, winner);
+	if (!call->hold_timer || send_message(ctrl, winner, Q931_HOLD, hold_ies)) {
 		pri_schedule_del(ctrl, call->hold_timer);
 		call->hold_timer = 0;
 		return -1;
@@ -5764,33 +5772,38 @@ int q931_send_hold_rej(struct pri *ctrl, struct q931_call *call, int cause)
 static void q931_retrieve_timeout(void *data)
 {
 	struct q931_call *call = data;
+	struct q931_call *master = call->master_call;
 	struct pri *ctrl = call->pri;
-	struct q931_call *winner;
 
 	if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
 		pri_message(ctrl, "Time-out waiting for RETRIEVE response\n");
 	}
 
 	/* Ensure that the timer is deleted. */
-	pri_schedule_del(ctrl, call->hold_timer);
-	call->hold_timer = 0;
+	pri_schedule_del(ctrl, master->hold_timer);
+	master->hold_timer = 0;
 
-	UPDATE_HOLD_STATE(ctrl, call, Q931_HOLD_STATE_CALL_HELD);
+	/* Don't change the hold state if there was RETRIEVE a collision. */
+	switch (master->hold_state) {
+	case Q931_HOLD_STATE_CALL_HELD:
+	case Q931_HOLD_STATE_RETRIEVE_REQ:
+		UPDATE_HOLD_STATE(ctrl, master, Q931_HOLD_STATE_CALL_HELD);
 
-	winner = q931_find_winning_call(call);
-	if (winner) {
 		/* Call is still on hold so forget the channel. */
-		winner->channelno = 0;/* No channel */
-		winner->ds1no = 0;
-		winner->ds1explicit = 0;
-		winner->chanflags = 0;
+		call->channelno = 0;/* No channel */
+		call->ds1no = 0;
+		call->ds1explicit = 0;
+		call->chanflags = 0;
+		break;
+	default:
+		break;
 	}
 
 	q931_clr_subcommands(ctrl);
 	ctrl->schedev = 1;
 	ctrl->ev.e = PRI_EVENT_RETRIEVE_REJ;
 	ctrl->ev.retrieve_rej.channel = q931_encode_channel(call);
-	ctrl->ev.retrieve_rej.call = call;
+	ctrl->ev.retrieve_rej.call = master;
 	ctrl->ev.retrieve_rej.cause = PRI_CAUSE_MESSAGE_TYPE_NONEXIST;
 	ctrl->ev.retrieve_rej.subcmds = &ctrl->subcmds;
 }
@@ -5869,7 +5882,7 @@ int q931_send_retrieve(struct pri *ctrl, struct q931_call *call, int channel)
 		winner->ds1no = (channel & 0xff00) >> 8;
 		winner->ds1explicit = (channel & 0x10000) >> 16;
 		winner->channelno = channel & 0xff;
-		if (ctrl->localtype == PRI_NETWORK) {
+		if (ctrl->localtype == PRI_NETWORK && winner->channelno != 0xFF) {
 			winner->chanflags = FLAG_EXCLUSIVE;
 		} else {
 			winner->chanflags = FLAG_PREFERRED;
@@ -5881,8 +5894,8 @@ int q931_send_retrieve(struct pri *ctrl, struct q931_call *call, int channel)
 
 	pri_schedule_del(ctrl, call->hold_timer);
 	call->hold_timer = pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T_RETRIEVE],
-		q931_retrieve_timeout, call);
-	if (send_message(ctrl, winner, Q931_RETRIEVE, retrieve_ies)) {
+		q931_retrieve_timeout, winner);
+	if (!call->hold_timer || send_message(ctrl, winner, Q931_RETRIEVE, retrieve_ies)) {
 		pri_schedule_del(ctrl, call->hold_timer);
 		call->hold_timer = 0;
 
@@ -8211,6 +8224,9 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			master_call = c->master_call;
 			switch (master_call->hold_state) {
 			case Q931_HOLD_STATE_HOLD_REQ:
+				if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+					pri_message(ctrl, "HOLD collision\n");
+				}
 				if (ctrl->localtype == PRI_NETWORK) {
 					/* The network ignores HOLD request on a hold collision. */
 					break;
@@ -8224,10 +8240,6 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 				res = Q931_RES_HAVEEVENT;
 
 				UPDATE_HOLD_STATE(ctrl, master_call, Q931_HOLD_STATE_HOLD_IND);
-
-				/* Stop any T-HOLD timer from possible hold collision. */
-				pri_schedule_del(ctrl, master_call->hold_timer);
-				master_call->hold_timer = 0;
 				break;
 			default:
 				q931_send_hold_rej_msg(ctrl, c, PRI_CAUSE_WRONG_CALL_STATE);
@@ -8324,6 +8336,9 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			master_call = c->master_call;
 			switch (master_call->hold_state) {
 			case Q931_HOLD_STATE_RETRIEVE_REQ:
+				if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+					pri_message(ctrl, "RETRIEVE collision\n");
+				}
 				if (ctrl->localtype == PRI_NETWORK) {
 					/* The network ignores RETRIEVE request on a retrieve collision. */
 					break;
@@ -8338,10 +8353,6 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 				res = Q931_RES_HAVEEVENT;
 
 				UPDATE_HOLD_STATE(ctrl, master_call, Q931_HOLD_STATE_RETRIEVE_IND);
-
-				/* Stop any T-RETRIEVE timer from possible retrieve collision. */
-				pri_schedule_del(ctrl, master_call->hold_timer);
-				master_call->hold_timer = 0;
 				break;
 			default:
 				q931_send_retrieve_rej_msg(ctrl, c, PRI_CAUSE_WRONG_CALL_STATE);
@@ -8383,6 +8394,8 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		res = 0;
 		master_call = c->master_call;
 		switch (master_call->hold_state) {
+		case Q931_HOLD_STATE_CALL_HELD:
+			/* In this state likely because of a RETRIEVE collision. */
 		case Q931_HOLD_STATE_RETRIEVE_REQ:
 			UPDATE_HOLD_STATE(ctrl, master_call, Q931_HOLD_STATE_CALL_HELD);
 
