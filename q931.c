@@ -7426,12 +7426,16 @@ struct q931_call *q931_find_held_active_call(struct pri *ctrl, struct q931_call 
 	struct q931_call *winner;
 	struct q931_call *match;
 
+	if (!held_call->link) {
+		/* Held call does not have an active link. */
+		return NULL;
+	}
 	match = NULL;
 	for (cur = *ctrl->callpool; cur; cur = cur->next) {
 		if (cur->hold_state == Q931_HOLD_STATE_IDLE) {
 			/* Found an active call. */
 			winner = q931_find_winning_call(cur);
-			if (!winner || (BRI_NT_PTMP(ctrl) && winner->pri != held_call->pri)) {
+			if (!winner || (BRI_NT_PTMP(ctrl) && winner->link != held_call->link)) {
 				/* There is no winner or the active call does not go to the same TEI. */
 				continue;
 			}
@@ -7478,12 +7482,16 @@ static struct q931_call *q931_find_held_call(struct pri *ctrl, struct q931_call 
 	struct q931_call *winner;
 	struct q931_call *match;
 
+	if (!active_call->link) {
+		/* Active call does not have an active link. */
+		return NULL;
+	}
 	match = NULL;
 	for (cur = *ctrl->callpool; cur; cur = cur->next) {
 		if (cur->hold_state == Q931_HOLD_STATE_CALL_HELD) {
 			/* Found a held call. */
 			winner = q931_find_winning_call(cur);
-			if (!winner || (BRI_NT_PTMP(ctrl) && winner->pri != active_call->pri)) {
+			if (!winner || (BRI_NT_PTMP(ctrl) && winner->link != active_call->link)) {
 				/* There is no winner or the held call does not go to the same TEI. */
 				continue;
 			}
