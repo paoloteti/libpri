@@ -949,6 +949,9 @@ int pri_connected_line_update(struct pri *ctrl, q931_call *call, const struct pr
 {
 	struct q931_party_id party_id;
 	unsigned idx;
+	unsigned new_name;
+	unsigned new_number;
+	unsigned new_subaddress;
 	struct q931_call *subcall;
 
 	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
@@ -957,13 +960,14 @@ int pri_connected_line_update(struct pri *ctrl, q931_call *call, const struct pr
 
 	pri_copy_party_id_to_q931(&party_id, &connected->id);
 	q931_party_id_fixup(ctrl, &party_id);
-	if (!q931_party_id_cmp(&party_id, &call->local_id)) {
-		/* The local party information did not change so do nothing. */
-		return 0;
-	}
-	call->local_id = party_id;
 
-	/* Update all subcalls with new local_id. */
+	new_name = q931_party_name_cmp(&party_id.name, &call->local_id.name);
+	new_number = q931_party_number_cmp(&party_id.number, &call->local_id.number);
+	new_subaddress = party_id.subaddress.valid
+		&& q931_party_subaddress_cmp(&party_id.subaddress, &call->local_id.subaddress);
+
+	/* Update the call and all subcalls with new local_id. */
+	call->local_id = party_id;
 	if (call->outboundbroadcast && call->master_call == call) {
 		for (idx = 0; idx < ARRAY_LEN(call->subcalls); ++idx) {
 			subcall = call->subcalls[idx];
@@ -982,23 +986,100 @@ int pri_connected_line_update(struct pri *ctrl, q931_call *call, const struct pr
 		 * The local party transferred to someone else before
 		 * the remote end answered.
 		 */
+		switch (ctrl->switchtype) {
+		case PRI_SWITCH_EUROISDN_E1:
+		case PRI_SWITCH_EUROISDN_T1:
+			if (BRI_NT_PTMP(ctrl)) {
+				/*
+				 * NT PTMP mode
+				 *
+				 * We should not send these messages to the network if we are
+				 * the CPE side since phones do not transfer calls within
+				 * themselves.  Well... If you consider handing the handset to
+				 * someone else a transfer then how is the network to know?
+				 */
+				if (new_number) {
+					q931_notify_redirection(ctrl, call, PRI_NOTIFY_TRANSFER_ACTIVE,
+						&party_id.number);
+				}
+				if (new_subaddress || (party_id.subaddress.valid && new_number)) {
+					q931_subaddress_transfer(ctrl, call);
+				}
+			} else if (PTP_MODE(ctrl)) {
+				/* PTP mode */
+				if (new_number) {
+					/* Immediately send EctInform APDU, callStatus=answered(0) */
+					send_call_transfer_complete(ctrl, call, 0);
+				}
+				if (new_subaddress || (party_id.subaddress.valid && new_number)) {
+					q931_subaddress_transfer(ctrl, call);
+				}
+			}
+			break;
+		case PRI_SWITCH_QSIG:
+			if (new_name || new_number) {
+				/* Immediately send CallTransferComplete APDU, callStatus=answered(0) */
+				send_call_transfer_complete(ctrl, call, 0);
+			}
+			if (new_subaddress
+				|| (party_id.subaddress.valid && (new_name || new_number))) {
+				q931_subaddress_transfer(ctrl, call);
+			}
+			break;
+		default:
+			break;
+		}
+		break;
 	case Q931_CALL_STATE_ACTIVE:
 		switch (ctrl->switchtype) {
 		case PRI_SWITCH_EUROISDN_E1:
 		case PRI_SWITCH_EUROISDN_T1:
-			if (PTMP_MODE(ctrl)) {
-				/* PTMP mode */
-				q931_notify_redirection(ctrl, call, PRI_NOTIFY_TRANSFER_ACTIVE,
-					&call->local_id.number);
-			} else {
+			if (BRI_NT_PTMP(ctrl)) {
+				/*
+				 * NT PTMP mode
+				 *
+				 * We should not send these messages to the network if we are
+				 * the CPE side since phones do not transfer calls within
+				 * themselves.  Well... If you consider handing the handset to
+				 * someone else a transfer then how is the network to know?
+				 */
+				if (new_number) {
+#if defined(USE_NOTIFY_FOR_ECT)
+					/*
+					 * Some ISDN phones only handle the NOTIFY message that the
+					 * EN 300-369 spec says should be sent only if the call has not
+					 * connected yet.
+					 */
+					q931_notify_redirection(ctrl, call, PRI_NOTIFY_TRANSFER_ACTIVE,
+						&party_id.number);
+#else
+					q931_request_subaddress(ctrl, call, PRI_NOTIFY_TRANSFER_ACTIVE,
+						&party_id.number);
+#endif	/* defined(USE_NOTIFY_FOR_ECT) */
+				}
+				if (new_subaddress || (party_id.subaddress.valid && new_number)) {
+					q931_subaddress_transfer(ctrl, call);
+				}
+			} else if (PTP_MODE(ctrl)) {
 				/* PTP mode */
-				/* Immediately send EctInform APDU, callStatus=answered(0) */
-				send_call_transfer_complete(ctrl, call, 0);
+				if (new_number) {
+					/* Immediately send EctInform APDU, callStatus=answered(0) */
+					send_call_transfer_complete(ctrl, call, 0);
+				}
+				if (new_subaddress || (party_id.subaddress.valid && new_number)) {
+					q931_subaddress_transfer(ctrl, call);
+				}
 			}
 			break;
 		case PRI_SWITCH_QSIG:
-			/* Immediately send CallTransferComplete APDU, callStatus=answered(0) */
-			send_call_transfer_complete(ctrl, call, 0);
+			if (new_name || new_number) {
+				/* Immediately send CallTransferComplete APDU, callStatus=answered(0) */
+				send_call_transfer_complete(ctrl, call, 0);
+			}
+			if (new_subaddress
+				|| (party_id.subaddress.valid && (new_name || new_number))) {
+				q931_subaddress_transfer(ctrl, call);
+			}
 			break;
 		default:
 			break;

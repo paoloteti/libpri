@@ -221,6 +221,8 @@ int qsig_cf_callrerouting(struct pri *pri, q931_call *c, const char* dest, const
 int send_reroute_request(struct pri *ctrl, q931_call *call, const struct q931_party_id *caller, const struct q931_party_redirecting *deflection, int subscription_option);
 
 int send_call_transfer_complete(struct pri *pri, q931_call *call, int call_status);
+int rose_request_subaddress_encode(struct pri *ctrl, struct q931_call *call);
+int send_subaddress_transfer(struct pri *ctrl, struct q931_call *call);
 
 int rose_diverting_leg_information1_encode(struct pri *pri, q931_call *call);
 int rose_diverting_leg_information3_encode(struct pri *pri, q931_call *call, int messagetype);

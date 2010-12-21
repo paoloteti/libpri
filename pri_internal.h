@@ -950,6 +950,8 @@ struct pri_subcommand *q931_alloc_subcommand(struct pri *ctrl);
 struct q931_call *q931_find_link_id_call(struct pri *ctrl, int link_id);
 struct q931_call *q931_find_held_active_call(struct pri *ctrl, struct q931_call *held_call);
 
+int q931_request_subaddress(struct pri *ctrl, struct q931_call *call, int notify, const struct q931_party_number *number);
+int q931_subaddress_transfer(struct pri *ctrl, struct q931_call *call);
 int q931_notify_redirection(struct pri *ctrl, q931_call *call, int notify, const struct q931_party_number *number);
 
 struct pri_cc_record *pri_cc_find_by_reference(struct pri *ctrl, unsigned reference_id);
