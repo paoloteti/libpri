@@ -2101,6 +2101,23 @@ static int transmit_redirecting_number(int full_ie, struct pri *ctrl, q931_call 
 	if (!call->redirecting.from.number.valid) {
 		return 0;
 	}
+	if (BRI_TE_PTMP(ctrl)) {
+		/*
+		 * We should not send this ie to the network if we are the TE
+		 * PTMP side since phones do not redirect calls within
+		 * themselves.  Well... If you consider someone else dialing the
+		 * handset a redirection then how is the network to know?
+		 */
+		return 0;
+	}
+	if (call->redirecting.state != Q931_REDIRECTING_STATE_IDLE) {
+		/*
+		 * There was a DivertingLegInformation2 in the message so the
+		 * Q931_REDIRECTING_NUMBER ie is redundant.  Some networks
+		 * (Deutsche Telekom) complain about it.
+		 */
+		return 0;
+	}
 
 	datalen = strlen(call->redirecting.from.number.str);
 	ie->data[0] = call->redirecting.from.number.plan;

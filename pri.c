@@ -1159,9 +1159,18 @@ int pri_redirecting_update(struct pri *ctrl, q931_call *call, const struct pri_p
 		case PRI_SWITCH_EUROISDN_E1:
 		case PRI_SWITCH_EUROISDN_T1:
 			if (PTMP_MODE(ctrl)) {
-				/* PTMP mode */
-				q931_notify_redirection(ctrl, call, PRI_NOTIFY_CALL_DIVERTING,
-					&call->redirecting.to.number);
+				if (NT_MODE(ctrl)) {
+					/*
+					 * NT PTMP mode
+					 *
+					 * We should not send these messages to the network if we are
+					 * the CPE side since phones do not redirect calls within
+					 * themselves.  Well... If you consider someone else picking up
+					 * the handset a redirection then how is the network to know?
+					 */
+					q931_notify_redirection(ctrl, call, PRI_NOTIFY_CALL_DIVERTING,
+						&call->redirecting.to.number);
+				}
 				break;
 			}
 			/* PTP mode - same behaviour as Q.SIG */
