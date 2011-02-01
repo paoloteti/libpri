@@ -24,9 +24,6 @@
 # Uncomment if you want libpri not send PROGRESS_INDICATOR w/ALERTING
 #ALERTING=-DALERTING_NO_PROGRESS
 
-# Uncomment if you want libpri to count number of Q921/Q931 sent/received
-#LIBPRI_COUNTERS=-DLIBPRI_COUNTERS
-
 CC=gcc
 GREP=grep
 AWK=awk
@@ -93,7 +90,7 @@ DYNAMIC_OBJS= \
 	rose_qsig_mwi.lo \
 	rose_qsig_name.lo \
 	version.lo
-CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g -fPIC $(ALERTING) $(LIBPRI_COUNTERS) $(LIBPRI_OPT) $(COVERAGE_CFLAGS)
+CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g -fPIC $(ALERTING) $(LIBPRI_OPT) $(COVERAGE_CFLAGS)
 INSTALL_PREFIX=$(DESTDIR)
 INSTALL_BASE=/usr
 libdir?=$(INSTALL_BASE)/lib

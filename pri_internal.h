@@ -135,13 +135,11 @@ struct pri {
 	struct q931_call **callpool;
 	struct q931_call *localpool;
 
-#ifdef LIBPRI_COUNTERS
 	/* q921/q931 packet counters */
 	unsigned int q921_txcount;
 	unsigned int q921_rxcount;
 	unsigned int q931_txcount;
 	unsigned int q931_rxcount;
-#endif
 
 	short last_invoke;	/* Last ROSE invoke ID (Valid in master record only) */
 

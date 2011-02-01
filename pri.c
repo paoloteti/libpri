@@ -476,12 +476,11 @@ static struct pri *pri_ctrl_new(int fd, int node, int switchtype, pri_io_cb rd, 
 	ctrl->nsf = PRI_NSF_NONE;
 	ctrl->callpool = &ctrl->localpool;
 	pri_default_timers(ctrl, switchtype);
-#ifdef LIBPRI_COUNTERS
 	ctrl->q921_rxcount = 0;
 	ctrl->q921_txcount = 0;
 	ctrl->q931_rxcount = 0;
 	ctrl->q931_txcount = 0;
-#endif
+
 	switch (switchtype) {
 	case PRI_SWITCH_GR303_EOC:
 		ctrl->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
@@ -1653,11 +1652,9 @@ char *pri_dump_info_str(struct pri *ctrl)
 	char *buf;
 	size_t buf_size;
 	size_t used;
-#ifdef LIBPRI_COUNTERS
 	struct q921_frame *f;
 	struct q921_link *link;
 	unsigned q921outstanding;
-#endif
 	unsigned idx;
 	unsigned long switch_bit;
 
@@ -1676,7 +1673,6 @@ char *pri_dump_info_str(struct pri *ctrl)
 	used = pri_snprintf(buf, used, buf_size, "Switchtype: %s\n",
 		pri_switch2str(ctrl->switchtype));
 	used = pri_snprintf(buf, used, buf_size, "Type: %s\n", pri_node2str(ctrl->localtype));
-#ifdef LIBPRI_COUNTERS
 	/* Remember that Q921 Counters include Q931 packets (and any retransmissions) */
 	used = pri_snprintf(buf, used, buf_size, "Q931 RX: %d\n", ctrl->q931_rxcount);
 	used = pri_snprintf(buf, used, buf_size, "Q931 TX: %d\n", ctrl->q931_txcount);
@@ -1690,7 +1686,6 @@ char *pri_dump_info_str(struct pri *ctrl)
 		used = pri_snprintf(buf, used, buf_size, "Q921 Outstanding: %u (TEI=%d)\n",
 			q921outstanding, link->tei);
 	}
-#endif
 #if 0
 	used = pri_snprintf(buf, used, buf_size, "Window Length: %d/%d\n",
 		ctrl->timers[PRI_TIMER_K], ctrl->window);

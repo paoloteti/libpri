@@ -183,9 +183,7 @@ static int q921_transmit(struct pri *ctrl, q921_h *h, int len)
 		return 0;
 	}
 #endif
-#ifdef LIBPRI_COUNTERS
 	ctrl->q921_txcount++;
-#endif
 	/* Just send it raw */
 	if (ctrl->debug & (PRI_DEBUG_Q921_DUMP | PRI_DEBUG_Q921_RAW))
 		q921_dump(ctrl, h, len, ctrl->debug & PRI_DEBUG_Q921_RAW, 1);
@@ -2959,9 +2957,7 @@ pri_event *q921_receive(struct pri *ctrl, q921_h *h, int len)
 {
 	pri_event *e;
 	e = __q921_receive(ctrl, h, len);
-#ifdef LIBPRI_COUNTERS
 	ctrl->q921_rxcount++;
-#endif
 	return e;
 }
 

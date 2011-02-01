@@ -4536,9 +4536,7 @@ static void q931_xmit(struct q921_link *link, q931_h *h, int len, int cr, int ui
 	struct pri *ctrl;
 
 	ctrl = link->ctrl;
-#ifdef LIBPRI_COUNTERS
 	ctrl->q931_txcount++;
-#endif
 	if (uiframe) {
 		if (link->tei != Q921_TEI_GROUP) {
 			pri_error(ctrl, "Huh?! Attempting to send UI-frame on TEI %d\n", link->tei);
@@ -6692,9 +6690,7 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 
 	ctrl = link->ctrl;
 	memset(last_ie, 0, sizeof(last_ie));
-#ifdef LIBPRI_COUNTERS
 	ctrl->q931_rxcount++;
-#endif
 	if (len < 3 || len < 3 + h->crlen) {
 		/* Message too short for supported protocols. */
 		return -1;
