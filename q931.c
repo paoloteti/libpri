@@ -937,6 +937,125 @@ int q931_party_id_presentation(const struct q931_party_id *id)
 }
 
 /*!
+ * \internal
+ * \brief Clear the display text.
+ *
+ * \param call Q.931 call to clear display text.
+ *
+ * \return Nothing
+ */
+static void q931_display_clear(struct q931_call *call)
+{
+	call->display.text = NULL;
+}
+
+/*!
+ * \internal
+ * \brief Set the display text for the party name.
+ *
+ * \param call Q.931 call to set display text to the party name.
+ *
+ * \return Nothing
+ */
+static void q931_display_name_send(struct q931_call *call, const struct q931_party_name *name)
+{
+	if (name->valid) {
+		switch (name->presentation & PRI_PRES_RESTRICTION) {
+		case PRI_PRES_ALLOWED:
+			call->display.text = (char *) name->str;
+			call->display.length = strlen(name->str);
+			call->display.char_set = name->char_set;
+			break;
+		default:
+			call->display.text = NULL;
+			break;
+		}
+	} else {
+		call->display.text = NULL;
+	}
+}
+
+/*!
+ * \brief Get the display text into the party name.
+ *
+ * \param call Q.931 call to get the display text into the party name.
+ * \param name Party name to fill if there is display text.
+ *
+ * \note
+ * The party name is not touched if there is no display text.
+ *
+ * \note
+ * The display text is consumed.
+ *
+ * \return TRUE if party name filled.
+ */
+int q931_display_name_get(struct q931_call *call, struct q931_party_name *name)
+{
+	if (!call->display.text) {
+		return 0;
+	}
+
+	name->valid = 1;
+	name->char_set = call->display.char_set;
+	if (call->display.length < sizeof(name->str)) {
+		memcpy(name->str, call->display.text, call->display.length);
+		name->str[call->display.length] = '\0';
+	} else {
+		name->str[0] = '\0';
+	}
+	if (name->str[0]) {
+		name->presentation = PRI_PRES_ALLOWED;
+	} else {
+		name->presentation = PRI_PRES_RESTRICTED;
+	}
+
+	/* Mark the display text as consumed. */
+	call->display.text = NULL;
+
+	return 1;
+}
+
+/*!
+ * \internal
+ * \brief Fill a subcmd with any display text.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ *
+ * \note
+ * The display text is consumed.
+ *
+ * \return Nothing
+ */
+static void q931_display_subcmd(struct pri *ctrl, struct q931_call *call)
+{
+	struct pri_subcommand *subcmd;
+
+	if (call->display.text && call->display.length
+		&& (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_TEXT)) {
+		subcmd = q931_alloc_subcommand(ctrl);
+		if (subcmd) {
+			/* Setup display text subcommand */
+			subcmd->cmd = PRI_SUBCMD_DISPLAY_TEXT;
+			subcmd->u.display.char_set = call->display.char_set;
+			if (call->display.length < sizeof(subcmd->u.display.text)) {
+				subcmd->u.display.length = call->display.length;
+			} else {
+				/* Truncate display text and leave room for a null terminator. */
+				subcmd->u.display.length = sizeof(subcmd->u.display.text) - 1;
+			}
+			memcpy(subcmd->u.display.text, call->display.text, subcmd->u.display.length);
+
+			/* Make sure display text is null terminated. */
+			subcmd->u.display.text[subcmd->u.display.length] = '\0';
+		}
+	}
+
+	/* Mark the display text as consumed. */
+	call->display.text = NULL;
+}
+
+/*!
  * \brief Find the winning subcall if it exists or current call if not outboundbroadcast.
  *
  * \param call Starting Q.931 call record of search.
@@ -2435,21 +2554,11 @@ static void dump_progress_indicator(int full_ie, struct pri *ctrl, q931_ie *ie, 
 
 static int receive_display(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
-	unsigned char *data;
+	u_int8_t *data;
 
-	switch (msgtype) {
-	case Q931_SETUP:
-	case Q931_CONNECT:
-		/*
-		 * Only keep the display message on SETUP and CONNECT messages
-		 * as the remote name.
-		 */
-		break;
-	default:
+	if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_BLOCK) {
 		return 0;
 	}
-
-	call->remote_id.name.valid = 1;
 
 	data = ie->data;
 	if (data[0] & 0x80) {
@@ -2457,14 +2566,10 @@ static int receive_display(int full_ie, struct pri *ctrl, q931_call *call, int m
 		data++;
 		len--;
 	}
-	call->remote_id.name.char_set = PRI_CHAR_SET_ISO8859_1;
 
-	q931_get_number((unsigned char *) call->remote_id.name.str, sizeof(call->remote_id.name.str), data, len - 2);
-	if (call->remote_id.name.str[0]) {
-		call->remote_id.name.presentation = PRI_PRES_ALLOWED;
-	} else {
-		call->remote_id.name.presentation = PRI_PRES_RESTRICTED;
-	}
+	call->display.text = (char *) data;
+	call->display.length = len - 2;
+	call->display.char_set = PRI_CHAR_SET_ISO8859_1;
 	return 0;
 }
 
@@ -2473,30 +2578,31 @@ static int transmit_display(int full_ie, struct pri *ctrl, q931_call *call, int 
 	size_t datalen;
 	int i;
 
-	i = 0;
-
-	if (!call->local_id.name.valid || !call->local_id.name.str[0]) {
+	if (!call->display.text || !call->display.length) {
 		return 0;
 	}
+	if (ctrl->display_flags.send & PRI_DISPLAY_OPTION_BLOCK) {
+		return 0;
+	}
+
+	i = 0;
 	switch (ctrl->switchtype) {
 	case PRI_SWITCH_QSIG:
-		/* Q.SIG supports names */
-		return 0;
 	case PRI_SWITCH_EUROISDN_E1:
 	case PRI_SWITCH_EUROISDN_T1:
-		if (ctrl->localtype == PRI_CPE) {
-			return 0;
-		}
 		break;
 	default:
-		/* Prefix name with character set indicator. */
+		/* Prefix text with character set indicator. */
 		ie->data[0] = 0xb1;
 		++i;
 		break;
 	}
 
-	datalen = strlen(call->local_id.name.str);
-	memcpy(ie->data + i, call->local_id.name.str, datalen);
+	datalen = call->display.length;
+	if (MAX_DISPLAY_TEXT < datalen + i) {
+		datalen = MAX_DISPLAY_TEXT - i;
+	}
+	memcpy(ie->data + i, call->display.text, datalen);
 	return 2 + i + datalen;
 }
 
@@ -4742,20 +4848,27 @@ int maintenance_service(struct pri *ctrl, int span, int channel, int changestatu
 	return send_message(ctrl, c, (pd << 8) | mt, maintenance_service_ies);
 }
 
-static int status_ies[] = { Q931_CAUSE, Q931_IE_CALL_STATE, -1 };
-
 static int q931_status(struct pri *ctrl, q931_call *call, int cause)
 {
+	static int status_ies[] = {
+		Q931_CAUSE,
+		Q931_IE_CALL_STATE,
+		-1
+	};
+
 	call->cause = cause;
 	call->causecode = CODE_CCITT;
 	call->causeloc = LOC_USER;
 	return send_message(ctrl, call, Q931_STATUS, status_ies);
 }
 
-static int information_ies[] = { Q931_CALLED_PARTY_NUMBER, -1 };
-
 int q931_information(struct pri *ctrl, q931_call *c, char digit)
 {
+	static int information_ies[] = {
+		Q931_CALLED_PARTY_NUMBER,
+		-1
+	};
+
 	c->overlap_digits[0] = digit;
 	c->overlap_digits[1] = '\0';
 
@@ -4771,6 +4884,84 @@ int q931_information(struct pri *ctrl, q931_call *c, char digit)
 
 	return send_message(ctrl, c, Q931_INFORMATION, information_ies);
 }
+
+/*!
+ * \internal
+ * \brief Actually send display text if in the right call state.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg
+ * \param display Display text to send.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int q931_display_text_helper(struct pri *ctrl, struct q931_call *call, const struct pri_subcmd_display_txt *display)
+{
+	int status;
+	static int information_display_ies[] = {
+		Q931_DISPLAY,
+		-1
+	};
+
+	switch (call->ourcallstate) {
+	case Q931_CALL_STATE_OVERLAP_SENDING:
+	case Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING:
+	case Q931_CALL_STATE_CALL_DELIVERED:
+	case Q931_CALL_STATE_CALL_RECEIVED:
+	case Q931_CALL_STATE_CONNECT_REQUEST:
+	case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
+	case Q931_CALL_STATE_ACTIVE:
+	case Q931_CALL_STATE_OVERLAP_RECEIVING:
+		call->display.text = display->text;
+		call->display.length = display->length;
+		call->display.char_set = display->char_set;
+		status = send_message(ctrl, call, Q931_INFORMATION, information_display_ies);
+		q931_display_clear(call);
+		break;
+	default:
+		status = 0;
+		break;
+	}
+
+	return status;
+}
+
+/*!
+ * \brief Send display text during a call.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg
+ * \param display Display text to send.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+int q931_display_text(struct pri *ctrl, struct q931_call *call, const struct pri_subcmd_display_txt *display)
+{
+	int status;
+	unsigned idx;
+	struct q931_call *subcall;
+
+	if ((ctrl->display_flags.send & (PRI_DISPLAY_OPTION_BLOCK | PRI_DISPLAY_OPTION_TEXT))
+		!= PRI_DISPLAY_OPTION_TEXT) {
+		/* Not enabled */
+		return 0;
+	}
+	if (call->outboundbroadcast && call->master_call == call) {
+		status = 0;
+		for (idx = 0; idx < ARRAY_LEN(call->subcalls); ++idx) {
+			subcall = call->subcalls[idx];
+			if (subcall && q931_display_text_helper(ctrl, subcall, display)) {
+				status = -1;
+			}
+		}
+	} else {
+		status = q931_display_text_helper(ctrl, call, display);
+	}
+	return status;
+}
+
 
 static int keypad_facility_ies[] = { Q931_IE_KEYPAD_FACILITY, -1 };
 
@@ -4789,41 +4980,66 @@ static int restart_ack(struct pri *ctrl, q931_call *c)
 	return send_message(ctrl, c, Q931_RESTART_ACKNOWLEDGE, restart_ack_ies);
 }
 
-static int facility_ies[] = { Q931_IE_FACILITY, -1 };
-
-int q931_facility(struct pri*ctrl, q931_call *c)
+int q931_facility(struct pri *ctrl, struct q931_call *call)
 {
-	return send_message(ctrl, c, Q931_FACILITY, facility_ies);
+	static int facility_ies[] = {
+		Q931_IE_FACILITY,
+		-1
+	};
+
+	return send_message(ctrl, call, Q931_FACILITY, facility_ies);
 }
 
-static int facility_notify_ies[] = {
-	Q931_IE_FACILITY,
-	Q931_IE_NOTIFY_IND,
-	Q931_IE_REDIRECTION_NUMBER,
-	-1
-};
+int q931_facility_display_name(struct pri *ctrl, struct q931_call *call, const struct q931_party_name *name)
+{
+	int status;
+	static int facility_display_ies[] = {
+		Q931_IE_FACILITY,
+		Q931_DISPLAY,
+		-1
+	};
+
+	q931_display_name_send(call, name);
+	status = send_message(ctrl, call, Q931_FACILITY, facility_display_ies);
+	q931_display_clear(call);
+	return status;
+}
 
 /*!
- * \brief Send a FACILITY RequestSubaddress with optional redirection number.
+ * \brief Send a FACILITY RequestSubaddress with optional redirection name and number.
  *
  * \param ctrl D channel controller.
  * \param call Q.931 call leg
  * \param notify Notification indicator
+ * \param name Redirection name to send if not NULL.
  * \param number Redirection number to send if not NULL.
  *
  * \retval 0 on success.
  * \retval -1 on error.
  */
-int q931_request_subaddress(struct pri *ctrl, struct q931_call *call, int notify, const struct q931_party_number *number)
+int q931_request_subaddress(struct pri *ctrl, struct q931_call *call, int notify, const struct q931_party_name *name, const struct q931_party_number *number)
 {
+	int status;
 	struct q931_call *winner;
+	static int facility_notify_ies[] = {
+		Q931_IE_FACILITY,
+		Q931_IE_NOTIFY_IND,
+		Q931_DISPLAY,
+		Q931_IE_REDIRECTION_NUMBER,
+		-1
+	};
 
 	winner = q931_find_winning_call(call);
 	if (!winner) {
 		return -1;
 	}
+	q931_display_clear(winner);
 	if (number) {
 		winner->redirection_number = *number;
+		if (number->valid && name
+			&& (ctrl->display_flags.send & PRI_DISPLAY_OPTION_NAME_UPDATE)) {
+			q931_display_name_send(winner, name);
+		}
 	} else {
 		q931_party_number_init(&winner->redirection_number);
 	}
@@ -4832,10 +5048,13 @@ int q931_request_subaddress(struct pri *ctrl, struct q931_call *call, int notify
 		|| send_message(ctrl, winner, Q931_FACILITY, facility_notify_ies)) {
 		pri_message(ctrl,
 			"Could not schedule facility message for request subaddress.\n");
-		return -1;
+		status = -1;
+	} else {
+		status = 0;
 	}
+	q931_display_clear(winner);
 
-	return 0;
+	return status;
 }
 
 /*!
@@ -4878,43 +5097,58 @@ int q931_subaddress_transfer(struct pri *ctrl, struct q931_call *call)
 	return status;
 }
 
-static int notify_ies[] = { Q931_IE_NOTIFY_IND, Q931_IE_REDIRECTION_NUMBER, -1 };
-
 /*!
  * \internal
- * \brief Actually send a NOTIFY message with optional redirection number.
+ * \brief Actually send a NOTIFY message with optional redirection name and number.
  *
  * \param ctrl D channel controller.
  * \param call Q.931 call leg
  * \param notify Notification indicator
+ * \param name Redirection display name to send if not NULL.
  * \param number Redirection number to send if not NULL.
  *
  * \retval 0 on success.
  * \retval -1 on error.
  */
-static int q931_notify_redirection_helper(struct pri *ctrl, q931_call *call, int notify, const struct q931_party_number *number)
+static int q931_notify_redirection_helper(struct pri *ctrl, struct q931_call *call, int notify, const struct q931_party_name *name, const struct q931_party_number *number)
 {
+	int status;
+	static int notify_ies[] = {
+		Q931_IE_NOTIFY_IND,
+		Q931_DISPLAY,
+		Q931_IE_REDIRECTION_NUMBER,
+		-1
+	};
+
+	q931_display_clear(call);
 	if (number) {
 		call->redirection_number = *number;
+		if (number->valid && name
+			&& (ctrl->display_flags.send & PRI_DISPLAY_OPTION_NAME_UPDATE)) {
+			q931_display_name_send(call, name);
+		}
 	} else {
 		q931_party_number_init(&call->redirection_number);
 	}
 	call->notify = notify;
-	return send_message(ctrl, call, Q931_NOTIFY, notify_ies);
+	status = send_message(ctrl, call, Q931_NOTIFY, notify_ies);
+	q931_display_clear(call);
+	return status;
 }
 
 /*!
- * \brief Send a NOTIFY message with optional redirection number.
+ * \brief Send a NOTIFY message with optional redirection name and number.
  *
  * \param ctrl D channel controller.
  * \param call Q.931 call leg
  * \param notify Notification indicator
+ * \param name Redirection display name to send if not NULL.
  * \param number Redirection number to send if not NULL.
  *
  * \retval 0 on success.
  * \retval -1 on error.
  */
-int q931_notify_redirection(struct pri *ctrl, q931_call *call, int notify, const struct q931_party_number *number)
+int q931_notify_redirection(struct pri *ctrl, struct q931_call *call, int notify, const struct q931_party_name *name, const struct q931_party_number *number)
 {
 	int status;
 	unsigned idx;
@@ -4930,7 +5164,7 @@ int q931_notify_redirection(struct pri *ctrl, q931_call *call, int notify, const
 				case Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING:
 				case Q931_CALL_STATE_CALL_DELIVERED:
 				case Q931_CALL_STATE_ACTIVE:
-					if (q931_notify_redirection_helper(ctrl, subcall, notify, number)) {
+					if (q931_notify_redirection_helper(ctrl, subcall, notify, name, number)) {
 						status = -1;
 					}
 					break;
@@ -4940,7 +5174,7 @@ int q931_notify_redirection(struct pri *ctrl, q931_call *call, int notify, const
 			}
 		}
 	} else {
-		status = q931_notify_redirection_helper(ctrl, call, notify, number);
+		status = q931_notify_redirection_helper(ctrl, call, notify, name, number);
 	}
 	return status;
 }
@@ -4964,7 +5198,7 @@ int q931_notify(struct pri *ctrl, q931_call *c, int channel, int info)
 		/* Cannot send NOTIFY message if the mandatory ie is not going to be present. */
 		return -1;
 	}
-	return q931_notify_redirection(ctrl, c, info, NULL);
+	return q931_notify_redirection(ctrl, c, info, NULL, NULL);
 }
 
 #ifdef ALERTING_NO_PROGRESS
@@ -5278,6 +5512,11 @@ int q931_connect(struct pri *ctrl, q931_call *c, int channel, int nonisdn)
 	default:
 		break;
 	}
+	if (ctrl->display_flags.send & PRI_DISPLAY_OPTION_NAME_INITIAL) {
+		q931_display_name_send(c, &c->local_id.name);
+	} else {
+		q931_display_clear(c);
+	}
 	if (ctrl->localtype == PRI_NETWORK) {
 	    /* networks may send date/time */
 	    return send_message(ctrl, c, Q931_CONNECT, connect_net_ies);
@@ -5473,6 +5712,11 @@ static void t303_expiry(void *data)
 		 * retransmits will lose the facility ies.
 		 */
 		pri_call_add_standard_apdus(ctrl, c);
+		if (ctrl->display_flags.send & PRI_DISPLAY_OPTION_NAME_INITIAL) {
+			q931_display_name_send(c, &c->local_id.name);
+		} else {
+			q931_display_clear(c);
+		}
 		c->cc.saved_ie_contents.length = 0;
 		c->cc.saved_ie_flags = 0;
 		if (ctrl->link.next && !ctrl->bri)
@@ -5567,6 +5811,11 @@ int q931_setup(struct pri *ctrl, q931_call *c, struct pri_sr *req)
 	c->aoc_charging_request = req->aoc_charging_request;
 
 	pri_call_add_standard_apdus(ctrl, c);
+	if (ctrl->display_flags.send & PRI_DISPLAY_OPTION_NAME_INITIAL) {
+		q931_display_name_send(c, &c->local_id.name);
+	} else {
+		q931_display_clear(c);
+	}
 
 	/* Save the initial cc-parties. */
 	c->cc.party_a = c->local_id;
@@ -6808,7 +7057,8 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 		break;
 	}
 	q931_clr_subcommands(ctrl);
-	
+	q931_display_clear(c);
+
 	/* Handle IEs */
 	memset(mandies, 0, sizeof(mandies));
 	for (x = 0; x < ARRAY_LEN(msgs); ++x)  {
@@ -6830,6 +7080,7 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 				/* Allow the message anyway.  We have already processed an ie. */
 				break;
 			}
+			q931_display_clear(c);
 			return -1;
 		}
 		for (y = 0; y < ARRAY_LEN(mandies); ++y) {
@@ -6907,6 +7158,17 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 	}
 
 	if (!missingmand) {
+		switch (mh->msg) {
+		case Q931_SETUP:
+		case Q931_CONNECT:
+			if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_NAME_INITIAL) {
+				q931_display_name_get(c, &c->remote_id.name);
+			}
+			break;
+		default:
+			break;
+		}
+
 		/* Now handle the facility ie's after all the other ie's were processed. */
 		q931_handle_facilities(ctrl, c, mh->msg);
 	}
@@ -6939,6 +7201,8 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 		}
 		break;
 	}
+	q931_display_subcmd(ctrl, c);
+	q931_display_clear(c);
 	return res;
 }
 
@@ -7888,6 +8152,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		default:
 			break;
 		}
+		q931_display_subcmd(ctrl, c);
 		if (ctrl->subcmds.counter_subcmd) {
 			q931_fill_facility_event(ctrl, c);
 			return Q931_RES_HAVEEVENT;
@@ -8294,6 +8559,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 				}
 			}
 
+			q931_display_subcmd(ctrl, c);
 			if (ctrl->subcmds.counter_subcmd) {
 				q931_fill_facility_event(ctrl, c);
 				res = Q931_RES_HAVEEVENT;
@@ -8307,6 +8573,17 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			}
 			/* Fall through */
 		case PRI_NOTIFY_TRANSFER_ALERTING:
+			if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_NAME_UPDATE) {
+				struct q931_party_name name;
+
+				if (q931_display_name_get(c, &name)) {
+					if (q931_party_name_cmp(&c->remote_id.name, &name)) {
+						/* The remote party name information changed. */
+						c->remote_id.name = name;
+						changed = 1;
+					}
+				}
+			}
 			if (c->redirection_number.valid
 				&& q931_party_number_cmp(&c->remote_id.number, &c->redirection_number)) {
 				/* The remote party number information changed. */
@@ -8331,6 +8608,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 				}
 			}
 
+			q931_display_subcmd(ctrl, c);
 			if (ctrl->subcmds.counter_subcmd) {
 				q931_fill_facility_event(ctrl, c);
 				res = Q931_RES_HAVEEVENT;

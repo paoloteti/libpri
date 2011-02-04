@@ -547,6 +547,7 @@ struct pri_rerouting_data {
 #define PRI_SUBCMD_AOC_CHARGING_REQ_RSP		22	/*!< Advice Of Charge Request Response information */
 #define PRI_SUBCMD_MCID_REQ					23	/*!< Malicious Call ID Request */
 #define PRI_SUBCMD_MCID_RSP					24	/*!< Malicious Call ID Request response */
+#define PRI_SUBCMD_DISPLAY_TEXT				25	/*!< Received display ie text */
 
 #if defined(STATUS_REQUEST_PLACE_HOLDER)
 struct pri_subcmd_status_request {
@@ -967,6 +968,35 @@ struct pri_subcmd_mcid_rsp {
 	int fail_code;
 };
 
+struct pri_subcmd_display_txt {
+	/*!
+	 * \brief Character set the text is using.
+	 * \details
+	 * unknown(0),
+	 * iso8859-1(1),
+	 * enum-value-withdrawn-by-ITU-T(2)
+	 * iso8859-2(3),
+	 * iso8859-3(4),
+	 * iso8859-4(5),
+	 * iso8859-5(6),
+	 * iso8859-7(7),
+	 * iso10646-BmpString(8),
+	 * iso10646-utf-8String(9)
+	 */
+	int char_set;
+	/*!
+	 * \brief Number of octets in the display message.
+	 * \note Not including any added null terminator.
+	 */
+	int length;
+	/*!
+	 * \brief Display text data.
+	 * \note Null terminated on receive.
+	 * \note Does not need to be null terminated on send.
+	 */
+	char text[128];
+};
+
 struct pri_subcommand {
 	/*! PRI_SUBCMD_xxx defined values */
 	int cmd;
@@ -999,6 +1029,7 @@ struct pri_subcommand {
 		struct pri_subcmd_aoc_e aoc_e;
 		struct pri_subcmd_mcid_req mcid_req;
 		struct pri_subcmd_mcid_rsp mcid_rsp;
+		struct pri_subcmd_display_txt display;
 	} u;
 };
 
@@ -1839,6 +1870,55 @@ int pri_transfer_rsp(struct pri *ctrl, q931_call *call, int invoke_id, int is_su
  * \return Nothing
  */
 void pri_aoc_events_enable(struct pri *ctrl, int enable);
+
+#define PRI_DISPLAY_OPTION_BLOCK		(1 << 0)	/*!< Do not pass display text. */
+#define PRI_DISPLAY_OPTION_NAME_INITIAL	(1 << 1)	/*!< Use display in SETUP/CONNECT for name. */
+#define PRI_DISPLAY_OPTION_NAME_UPDATE	(1 << 2)	/*!< Use display in FACILITY/NOTIFY for COLP name if appropriate. */
+#define PRI_DISPLAY_OPTION_TEXT			(1 << 3)	/*!< Pass arbitrary display text in INFORMATION messages during call. */
+
+/*!
+ * \brief Set the display ie send policy options.
+ *
+ * \param ctrl D channel controller.
+ * \param flags Option flags to apply.
+ *
+ * \note
+ * If no flags set then legacy default behaviour.
+ *
+ * \note
+ * Not all options are supported by all switches.
+ *
+ * \return Nothing
+ */
+void pri_display_options_send(struct pri *ctrl, unsigned long flags);
+
+/*!
+ * \brief Set the display ie receive policy options.
+ *
+ * \param ctrl D channel controller.
+ * \param flags Option flags to apply.
+ *
+ * \note
+ * If no flags set then legacy default behaviour.
+ *
+ * \note
+ * Not all options are supported by all switches.
+ *
+ * \return Nothing
+ */
+void pri_display_options_receive(struct pri *ctrl, unsigned long flags);
+
+/*!
+ * \brief Send display text during a call.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg
+ * \param display Display text to send.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+int pri_display_text(struct pri *ctrl, q931_call *call, const struct pri_subcmd_display_txt *display);
 
 /*!
  * \brief Set the call hold feature enable flag.

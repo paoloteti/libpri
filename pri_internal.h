@@ -60,6 +60,9 @@ struct pri_sched {
 /*! Maximum number of facility ie's to handle per incoming message. */
 #define MAX_FACILITY_IES	8
 
+/*! Maximum length of sent display text string.  (No null terminator.) */
+#define MAX_DISPLAY_TEXT	80
+
 /*! Accumulated pri_message() line until a '\n' is seen on the end. */
 struct pri_msg_line {
 	/*! Accumulated buffer used. */
@@ -177,6 +180,13 @@ struct pri {
 		/*! Number of facility ie's in the array from the current received message. */
 		unsigned char count;
 	} facility;
+	/*! Display text policy handling options. */
+	struct {
+		/*! Send display text policy option flags. */
+		unsigned long send;
+		/*! Receive display text policy option flags. */
+		unsigned long receive;
+	} display_flags;
 };
 
 /*! \brief Maximum name length plus null terminator (From ECMA-164) */
@@ -603,6 +613,29 @@ struct q931_call {
 		unsigned char initially_redirected;
 	} cc;
 
+	/*! Display text ie contents. */
+	struct {
+		/*! Display ie text.  NULL if not present or consumed as remote name. */
+		const char *text;
+		/*! Length of display text. */
+		unsigned char length;
+		/*!
+		 * \brief Character set the text is using.
+		 * \details
+		 * unknown(0),
+		 * iso8859-1(1),
+		 * enum-value-withdrawn-by-ITU-T(2)
+		 * iso8859-2(3),
+		 * iso8859-3(4),
+		 * iso8859-4(5),
+		 * iso8859-5(6),
+		 * iso8859-7(7),
+		 * iso10646-BmpString(8),
+		 * iso10646-utf-8String(9)
+		 */
+		unsigned char char_set;
+	} display;
+
 	/* AOC charge requesting on Setup */
 	int aoc_charging_request;
 };
@@ -938,6 +971,11 @@ void pri_copy_party_id_to_q931(struct q931_party_id *q931_id, const struct pri_p
 void q931_party_id_fixup(const struct pri *ctrl, struct q931_party_id *id);
 int q931_party_id_presentation(const struct q931_party_id *id);
 
+int q931_display_name_get(struct q931_call *call, struct q931_party_name *name);
+int q931_display_text(struct pri *ctrl, struct q931_call *call, const struct pri_subcmd_display_txt *display);
+
+int q931_facility_display_name(struct pri *ctrl, struct q931_call *call, const struct q931_party_name *name);
+
 const char *q931_call_state_str(enum Q931_CALL_STATE callstate);
 const char *msg2str(int msg);
 
@@ -948,9 +986,9 @@ struct pri_subcommand *q931_alloc_subcommand(struct pri *ctrl);
 struct q931_call *q931_find_link_id_call(struct pri *ctrl, int link_id);
 struct q931_call *q931_find_held_active_call(struct pri *ctrl, struct q931_call *held_call);
 
-int q931_request_subaddress(struct pri *ctrl, struct q931_call *call, int notify, const struct q931_party_number *number);
+int q931_request_subaddress(struct pri *ctrl, struct q931_call *call, int notify, const struct q931_party_name *name, const struct q931_party_number *number);
 int q931_subaddress_transfer(struct pri *ctrl, struct q931_call *call);
-int q931_notify_redirection(struct pri *ctrl, q931_call *call, int notify, const struct q931_party_number *number);
+int q931_notify_redirection(struct pri *ctrl, struct q931_call *call, int notify, const struct q931_party_name *name, const struct q931_party_number *number);
 
 struct pri_cc_record *pri_cc_find_by_reference(struct pri *ctrl, unsigned reference_id);
 struct pri_cc_record *pri_cc_find_by_linkage(struct pri *ctrl, unsigned linkage_id);

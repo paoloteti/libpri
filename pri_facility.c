@@ -3355,8 +3355,18 @@ int pri_call_add_standard_apdus(struct pri *ctrl, q931_call *call)
  */
 int send_call_transfer_complete(struct pri *ctrl, q931_call *call, int call_status)
 {
-	if (rose_call_transfer_complete_encode(ctrl, call, call_status)
-		|| q931_facility(ctrl, call)) {
+	int status;
+
+	status = rose_call_transfer_complete_encode(ctrl, call, call_status);
+	if (!status) {
+		if (!call_status && call->local_id.number.valid
+			&& (ctrl->display_flags.send & PRI_DISPLAY_OPTION_NAME_UPDATE)) {
+			status = q931_facility_display_name(ctrl, call, &call->local_id.name);
+		} else {
+			status = q931_facility(ctrl, call);
+		}
+	}
+	if (status) {
 		pri_message(ctrl,
 			"Could not schedule facility message for call transfer completed.\n");
 		return -1;
@@ -3574,6 +3584,7 @@ int send_subaddress_transfer(struct pri *ctrl, struct q931_call *call)
  */
 static void etsi_request_subaddress(struct pri *ctrl, struct q931_call *call)
 {
+	struct q931_party_name name;
 	int changed = 0;
 
 	switch (call->notify) {
@@ -3585,6 +3596,15 @@ static void etsi_request_subaddress(struct pri *ctrl, struct q931_call *call)
 		}
 		/* Fall through */
 	case PRI_NOTIFY_TRANSFER_ALERTING:
+		if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_NAME_UPDATE) {
+			if (q931_display_name_get(call, &name)) {
+				if (q931_party_name_cmp(&call->remote_id.name, &name)) {
+					/* The remote party name information changed. */
+					call->remote_id.name = name;
+					changed = 1;
+				}
+			}
+		}
 		if (call->redirection_number.valid
 			&& q931_party_number_cmp(&call->remote_id.number, &call->redirection_number)) {
 			/* The remote party number information changed. */
@@ -3626,6 +3646,7 @@ static void etsi_request_subaddress(struct pri *ctrl, struct q931_call *call)
 static void handle_subaddress_transfer(struct pri *ctrl, struct q931_call *call, const struct rosePartySubaddress *subaddr)
 {
 	int changed = 0;
+	struct q931_party_name name;
 	struct q931_party_subaddress q931_subaddress;
 
 	q931_party_subaddress_init(&q931_subaddress);
@@ -3639,6 +3660,15 @@ static void handle_subaddress_transfer(struct pri *ctrl, struct q931_call *call,
 		/* The remote party number information changed. */
 		call->remote_id.number = call->redirection_number;
 		changed = 1;
+	}
+	if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_NAME_UPDATE) {
+		if (q931_display_name_get(call, &name)) {
+			if (q931_party_name_cmp(&call->remote_id.name, &name)) {
+				/* The remote party name information changed. */
+				call->remote_id.name = name;
+				changed = 1;
+			}
+		}
 	}
 	if (changed) {
 		call->incoming_ct_state = INCOMING_CT_STATE_POST_CONNECTED_LINE;
@@ -4684,6 +4714,10 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		send_ect_link_id_rsp(ctrl, call, invoke->invoke_id);
 		break;
 	case ROSE_ETSI_EctInform:
+		if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_NAME_UPDATE) {
+			q931_display_name_get(call, &call->remote_id.name);
+		}
+
 		/* redirectionNumber is put in remote_id.number */
 		if (invoke->args.etsi.EctInform.redirection_present) {
 			rose_copy_presented_number_unscreened_to_q931(ctrl,
@@ -5002,6 +5036,10 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		break;
 #endif	/* Not handled yet */
 	case ROSE_QSIG_CallingName:
+		if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_NAME_UPDATE) {
+			q931_display_name_get(call, &call->remote_id.name);
+		}
+
 		/* CallingName is put in remote_id.name */
 		rose_copy_name_to_q931(ctrl, &call->remote_id.name,
 			&invoke->args.qsig.CallingName.name);
@@ -5023,6 +5061,10 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		}
 		break;
 	case ROSE_QSIG_CalledName:
+		if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_NAME_UPDATE) {
+			q931_display_name_get(call, &call->remote_id.name);
+		}
+
 		/* CalledName is put in remote_id.name */
 		rose_copy_name_to_q931(ctrl, &call->remote_id.name,
 			&invoke->args.qsig.CalledName.name);
@@ -5044,6 +5086,10 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		}
 		break;
 	case ROSE_QSIG_ConnectedName:
+		if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_NAME_UPDATE) {
+			q931_display_name_get(call, &call->remote_id.name);
+		}
+
 		/* ConnectedName is put in remote_id.name */
 		rose_copy_name_to_q931(ctrl, &call->remote_id.name,
 			&invoke->args.qsig.ConnectedName.name);
@@ -5095,6 +5141,10 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		break;
 #endif	/* Not handled yet */
 	case ROSE_QSIG_CallTransferActive:
+		if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_NAME_UPDATE) {
+			q931_display_name_get(call, &call->remote_id.name);
+		}
+
 		call->incoming_ct_state = INCOMING_CT_STATE_POST_CONNECTED_LINE;
 
 		/* connectedAddress is put in remote_id */
@@ -5108,6 +5158,10 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		}
 		break;
 	case ROSE_QSIG_CallTransferComplete:
+		if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_NAME_UPDATE) {
+			q931_display_name_get(call, &call->remote_id.name);
+		}
+
 		/* redirectionNumber is put in remote_id.number */
 		rose_copy_presented_number_screened_to_q931(ctrl, &call->remote_id.number,
 			&invoke->args.qsig.CallTransferComplete.redirection);
@@ -5138,6 +5192,10 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 		break;
 	case ROSE_QSIG_CallTransferUpdate:
 		party_id = call->remote_id;
+
+		if (ctrl->display_flags.receive & PRI_DISPLAY_OPTION_NAME_UPDATE) {
+			q931_display_name_get(call, &party_id.name);
+		}
 
 		/* redirectionNumber is put in party_id.number */
 		rose_copy_presented_number_screened_to_q931(ctrl, &party_id.number,

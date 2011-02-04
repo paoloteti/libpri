@@ -289,6 +289,60 @@ static int __pri_write(struct pri *pri, void *buf, int buflen)
 }
 
 /*!
+ * \internal
+ * \brief Determine the default display text send options.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \return Default display text send options. (legacy behaviour defaults)
+ */
+static unsigned long pri_display_options_send_default(struct pri *ctrl)
+{
+	unsigned long flags;
+
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_QSIG:
+		flags = PRI_DISPLAY_OPTION_BLOCK;
+		break;
+	case PRI_SWITCH_EUROISDN_E1:
+	case PRI_SWITCH_EUROISDN_T1:
+		if (ctrl->localtype == PRI_CPE) {
+			flags = PRI_DISPLAY_OPTION_BLOCK;
+			break;
+		}
+		flags = PRI_DISPLAY_OPTION_NAME_INITIAL;
+		break;
+	default:
+		flags = PRI_DISPLAY_OPTION_NAME_INITIAL;
+		break;
+	}
+	return flags;
+}
+
+/*!
+ * \internal
+ * \brief Determine the default display text receive options.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \return Default display text receive options. (legacy behaviour defaults)
+ */
+static unsigned long pri_display_options_receive_default(struct pri *ctrl)
+{
+	unsigned long flags;
+
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_QSIG:
+		flags = PRI_DISPLAY_OPTION_BLOCK;
+		break;
+	default:
+		flags = PRI_DISPLAY_OPTION_NAME_INITIAL;
+		break;
+	}
+	return flags;
+}
+
+/*!
  * \brief Destroy the given link.
  *
  * \param link Q.921 link to destroy.
@@ -481,6 +535,8 @@ static struct pri *pri_ctrl_new(int fd, int node, int switchtype, pri_io_cb rd, 
 	ctrl->q931_rxcount = 0;
 	ctrl->q931_txcount = 0;
 
+	ctrl->display_flags.send = pri_display_options_send_default(ctrl);
+	ctrl->display_flags.receive = pri_display_options_receive_default(ctrl);
 	switch (switchtype) {
 	case PRI_SWITCH_GR303_EOC:
 		ctrl->protodisc = GR303_PROTOCOL_DISCRIMINATOR;
@@ -999,7 +1055,7 @@ int pri_connected_line_update(struct pri *ctrl, q931_call *call, const struct pr
 				 */
 				if (new_number) {
 					q931_notify_redirection(ctrl, call, PRI_NOTIFY_TRANSFER_ACTIVE,
-						&party_id.number);
+						&party_id.name, &party_id.number);
 				}
 				if (new_subaddress || (party_id.subaddress.valid && new_number)) {
 					q931_subaddress_transfer(ctrl, call);
@@ -1050,10 +1106,10 @@ int pri_connected_line_update(struct pri *ctrl, q931_call *call, const struct pr
 					 * connected yet.
 					 */
 					q931_notify_redirection(ctrl, call, PRI_NOTIFY_TRANSFER_ACTIVE,
-						&party_id.number);
+						&party_id.name, &party_id.number);
 #else
 					q931_request_subaddress(ctrl, call, PRI_NOTIFY_TRANSFER_ACTIVE,
-						&party_id.number);
+						&party_id.name, &party_id.number);
 #endif	/* defined(USE_NOTIFY_FOR_ECT) */
 				}
 				if (new_subaddress || (party_id.subaddress.valid && new_number)) {
@@ -1167,7 +1223,7 @@ int pri_redirecting_update(struct pri *ctrl, q931_call *call, const struct pri_p
 					 * themselves.  Well... If you consider someone else picking up
 					 * the handset a redirection then how is the network to know?
 					 */
-					q931_notify_redirection(ctrl, call, PRI_NOTIFY_CALL_DIVERTING,
+					q931_notify_redirection(ctrl, call, PRI_NOTIFY_CALL_DIVERTING, NULL,
 						&call->redirecting.to.number);
 				}
 				break;
@@ -2049,4 +2105,36 @@ void pri_cc_retain_signaling_rsp(struct pri *ctrl, int signaling_retention)
 	if (ctrl) {
 		ctrl->cc.option.signaling_retention_rsp = signaling_retention ? 1 : 0;
 	}
+}
+
+void pri_display_options_send(struct pri *ctrl, unsigned long flags)
+{
+	if (!ctrl) {
+		return;
+	}
+	if (!flags) {
+		flags = pri_display_options_send_default(ctrl);
+	}
+	ctrl->display_flags.send = flags;
+}
+
+void pri_display_options_receive(struct pri *ctrl, unsigned long flags)
+{
+	if (!ctrl) {
+		return;
+	}
+	if (!flags) {
+		flags = pri_display_options_receive_default(ctrl);
+	}
+	ctrl->display_flags.receive = flags;
+}
+
+int pri_display_text(struct pri *ctrl, q931_call *call, const struct pri_subcmd_display_txt *display)
+{
+	if (!ctrl || !display || display->length <= 0
+		|| sizeof(display->text) < display->length || !pri_is_call_valid(ctrl, call)) {
+		/* Parameter sanity checks failed. */
+		return -1;
+	}
+	return q931_display_text(ctrl, call, display);
 }
