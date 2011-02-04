@@ -34,6 +34,7 @@
 
 #include <unistd.h>
 #include <stdlib.h>
+#include <time.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -2949,6 +2950,28 @@ static void dump_time_date(int full_ie, struct pri *ctrl, q931_ie *ie, int len, 
 	pri_message(ctrl, " ]\n");
 }
 
+static int receive_time_date(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
+{
+	/* Ignore incoming Date/Time since we have no use for it at this time. */
+	return 0;
+}
+
+static int transmit_time_date(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
+{
+	time_t now;
+	struct tm timedate;
+
+	/* Send the current time. */
+	time(&now);
+	localtime_r(&now, &timedate);
+	ie->data[0] = timedate.tm_year - 100; /* 1900+ */
+	ie->data[1] = timedate.tm_mon + 1;
+	ie->data[2] = timedate.tm_mday;
+	ie->data[3] = timedate.tm_hour;
+	ie->data[4] = timedate.tm_min;
+	return 7;
+}
+
 static void dump_keypad_facility(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
 {
 	char tmp[64];
@@ -3597,7 +3620,7 @@ static struct ie ies[] = {
 	{ 1, Q931_IE_ENDPOINT_ID, "Endpoint Identification" },
 	{ 1, Q931_IE_NOTIFY_IND, "Notification Indicator", dump_notify, receive_notify, transmit_notify },
 	{ 1, Q931_DISPLAY, "Display", dump_display, receive_display, transmit_display },
-	{ 1, Q931_IE_TIME_DATE, "Date/Time", dump_time_date },
+	{ 1, Q931_IE_TIME_DATE, "Date/Time", dump_time_date, receive_time_date, transmit_time_date },
 	{ 1, Q931_IE_KEYPAD_FACILITY, "Keypad Facility", dump_keypad_facility, receive_keypad_facility, transmit_keypad_facility },
 	{ 0, Q931_IE_SIGNAL, "Signal", dump_signal },
 	{ 1, Q931_IE_SWITCHHOOK, "Switch-hook" },
@@ -5191,6 +5214,17 @@ static int connect_ies[] = {
 	-1
 };
 
+static int connect_net_ies[] = {
+	Q931_CHANNEL_IDENT,
+	Q931_IE_FACILITY,
+	Q931_PROGRESS_INDICATOR,
+	Q931_DISPLAY,
+	Q931_IE_TIME_DATE,
+	Q931_IE_CONNECTED_NUM,
+	Q931_IE_CONNECTED_SUBADDR,
+	-1
+};
+
 int q931_connect(struct pri *ctrl, q931_call *c, int channel, int nonisdn)
 {
 	if (c->ourcallstate == Q931_CALL_STATE_CALL_INDEPENDENT_SERVICE) {
@@ -5244,7 +5278,12 @@ int q931_connect(struct pri *ctrl, q931_call *c, int channel, int nonisdn)
 	default:
 		break;
 	}
-	return send_message(ctrl, c, Q931_CONNECT, connect_ies);
+	if (ctrl->localtype == PRI_NETWORK) {
+	    /* networks may send date/time */
+	    return send_message(ctrl, c, Q931_CONNECT, connect_net_ies);
+	} else {
+	    return send_message(ctrl, c, Q931_CONNECT, connect_ies);
+	}
 }
 
 static int release_ies[] = { Q931_CAUSE, Q931_IE_FACILITY, Q931_IE_USER_USER, -1 };
