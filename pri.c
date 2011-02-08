@@ -1808,7 +1808,7 @@ void pri_enslave(struct pri *master, struct pri *slave)
 		/* Swap master and slave. */
 		swp = master;
 		master = slave;
-		slave = master;
+		slave = swp;
 	}
 
 	/*
