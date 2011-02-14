@@ -163,11 +163,17 @@ typedef union {
 	struct q921_header h;
 } q921_h;
 
+enum q921_tx_frame_status {
+	Q921_TX_FRAME_NEVER_SENT,
+	Q921_TX_FRAME_PUSHED_BACK,
+	Q921_TX_FRAME_SENT,
+};
+
 typedef struct q921_frame {
-	struct q921_frame *next;	/* Next in list */
-	int len;					/* Length of header + body */
-	int transmitted;			/* Have we been transmitted */
-	q921_i h;
+	struct q921_frame *next;			/*!< Next in list */
+	int len;							/*!< Length of header + body */
+	enum q921_tx_frame_status status;	/*!< Tx frame status */
+	q921_i h;							/*!< Actual frame contents. */
 } q921_frame;
 
 #define Q921_INC(j) (j) = (((j) + 1) % 128)

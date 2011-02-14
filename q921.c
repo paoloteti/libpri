@@ -406,7 +406,7 @@ static int q921_ack_packet(struct q921_link *link, int num)
 	ctrl = link->ctrl;
 
 	for (prev = NULL, f = link->tx_queue; f; prev = f, f = f->next) {
-		if (!f->transmitted) {
+		if (f->status != Q921_TX_FRAME_SENT) {
 			break;
 		}
 		if (f->h.n_s == num) {
@@ -421,7 +421,7 @@ static int q921_ack_packet(struct q921_link *link, int num)
 					"-- ACKing N(S)=%d, tx_queue head is N(S)=%d (-1 is empty, -2 is not transmitted)\n",
 					f->h.n_s,
 					link->tx_queue
-						? link->tx_queue->transmitted
+						? link->tx_queue->status == Q921_TX_FRAME_SENT
 							? link->tx_queue->h.n_s
 							: -2
 						: -1);
@@ -461,22 +461,6 @@ static void reschedule_t203(struct q921_link *link)
 		pri_message(ctrl, "-- Restarting T203 timer\n");
 	pri_schedule_del(ctrl, link->t203_timer);
 	link->t203_timer = pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T203], t203_expire, link);
-}
-#endif
-
-#if 0
-static int q921_unacked_iframes(struct q921_link *link)
-{
-	struct q921_frame *f = link->tx_queue;
-	int cnt = 0;
-
-	while (f) {
-		if (f->transmitted)
-			cnt++;
-		f = f->next;
-	}
-
-	return cnt;
 }
 #endif
 
@@ -642,8 +626,8 @@ static int q921_send_queued_iframes(struct q921_link *link)
 	ctrl = link->ctrl;
 
 	for (f = link->tx_queue; f; f = f->next) {
-		if (!f->transmitted) {
-			/* This frame has not been sent yet. */
+		if (f->status != Q921_TX_FRAME_SENT) {
+			/* This frame needs to be sent. */
 			break;
 		}
 	}
@@ -652,12 +636,20 @@ static int q921_send_queued_iframes(struct q921_link *link)
 		return 0;
 	}
 
-	if (link->peer_rx_busy
-		|| (link->v_s == Q921_ADD(link->v_a, ctrl->timers[PRI_TIMER_K]))) {
+	if (link->peer_rx_busy) {
 		/* Don't flood debug trace if not really looking at Q.921 layer. */
 		if (ctrl->debug & (/* PRI_DEBUG_Q921_STATE | */ PRI_DEBUG_Q921_DUMP)) {
 			pri_message(ctrl,
-				"TEI=%d Couldn't transmit I-frame at this time due to peer busy condition or window shut\n",
+				"TEI=%d Couldn't transmit I-frame at this time due to peer busy condition\n",
+				link->tei);
+		}
+		return 0;
+	}
+	if (link->v_s == Q921_ADD(link->v_a, ctrl->timers[PRI_TIMER_K])) {
+		/* Don't flood debug trace if not really looking at Q.921 layer. */
+		if (ctrl->debug & (/* PRI_DEBUG_Q921_STATE | */ PRI_DEBUG_Q921_DUMP)) {
+			pri_message(ctrl,
+				"TEI=%d Couldn't transmit I-frame at this time due to window shut\n",
 				link->tei);
 		}
 		return 0;
@@ -671,7 +663,30 @@ static int q921_send_queued_iframes(struct q921_link *link)
 		}
 
 		/* Send it now... */
-		++f->transmitted;
+		switch (f->status) {
+		case Q921_TX_FRAME_NEVER_SENT:
+			if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
+				pri_message(ctrl,
+					"TEI=%d Transmitting N(S)=%d, window is open V(A)=%d K=%d\n",
+					link->tei, link->v_s, link->v_a, ctrl->timers[PRI_TIMER_K]);
+			}
+			break;
+		case Q921_TX_FRAME_PUSHED_BACK:
+			if (f->h.n_s != link->v_s) {
+				/* Should never happen. */
+				pri_error(ctrl,
+					"TEI=%d Retransmitting frame with old N(S)=%d as N(S)=%d!\n",
+					link->tei, f->h.n_s, link->v_s);
+			} else if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
+				pri_message(ctrl, "TEI=%d Retransmitting frame N(S)=%d now!\n",
+					link->tei, link->v_s);
+			}
+			break;
+		default:
+			/* Should never happen. */
+			pri_error(ctrl, "Unexpected Tx Q frame status: %d", f->status);
+			break;
+		}
 
 		/*
 		 * Send the frame out on the assigned TEI.
@@ -684,26 +699,23 @@ static int q921_send_queued_iframes(struct q921_link *link)
 		f->h.n_r = link->v_r;
 		f->h.ft = 0;
 		f->h.p_f = 0;
-		if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
-			pri_message(ctrl,
-				"TEI=%d Transmitting N(S)=%d, window is open V(A)=%d K=%d\n",
-				link->tei, f->h.n_s, link->v_a, ctrl->timers[PRI_TIMER_K]);
-		}
 		q921_transmit(ctrl, (q921_h *) (&f->h), f->len);
 		Q921_INC(link->v_s);
 		++frames_txd;
 
-		if (ctrl->debug & PRI_DEBUG_Q931_DUMP) {
+		if ((ctrl->debug & PRI_DEBUG_Q931_DUMP)
+			&& f->status == Q921_TX_FRAME_NEVER_SENT) {
 			/*
 			 * The transmit operation might dump the Q.921 header, so logging
 			 * the Q.931 message body after the transmit puts the sections of
 			 * the message in the right order in the log.
 			 *
-			 * Also the dump is done here so the Q.931 part is decoded only
-			 * once instead of for every retransmission.
+			 * Also dump the Q.931 part only once instead of for every
+			 * retransmission.
 			 */
 			q931_dump(ctrl, link->tei, (q931_h *) f->h.data, f->len - 4, 1);
 		}
+		f->status = Q921_TX_FRAME_SENT;
 	}
 
 	if (frames_txd) {
@@ -934,7 +946,7 @@ static struct q921_link *pri_find_tei(struct pri *ctrl, int sapi, int tei)
 /* This is the equivalent of a DL-DATA request, as well as the I-frame queued up outcome */
 int q921_transmit_iframe(struct q921_link *link, void *buf, int len, int cr)
 {
-	q921_frame *f, *prev=NULL;
+	struct q921_frame *f, *prev=NULL;
 	struct pri *ctrl;
 
 	ctrl = link->ctrl;
@@ -979,7 +991,7 @@ int q921_transmit_iframe(struct q921_link *link, void *buf, int len, int cr)
 			prev = f;
 		}
 
-		f = calloc(1, sizeof(q921_frame) + len + 2);
+		f = calloc(1, sizeof(struct q921_frame) + len + 2);
 		if (f) {
 			Q921_INIT(link, f->h);
 			switch (ctrl->localtype) {
@@ -999,7 +1011,7 @@ int q921_transmit_iframe(struct q921_link *link, void *buf, int len, int cr)
 
 			/* Put new frame on queue tail. */
 			f->next = NULL;
-			f->transmitted = 0;
+			f->status = Q921_TX_FRAME_NEVER_SENT;
 			f->len = len + 4;
 			memcpy(f->h.data, buf, len);
 			if (prev)
@@ -1016,17 +1028,30 @@ int q921_transmit_iframe(struct q921_link *link, void *buf, int len, int cr)
 				}
 				break;
 			}
-
-			if (link->peer_rx_busy || (link->v_s == Q921_ADD(link->v_a, ctrl->timers[PRI_TIMER_K]))) {
+			if (link->peer_rx_busy) {
 				if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
 					pri_message(ctrl,
-						"TEI=%d Just queued I-frame due to peer busy condition or window shut\n",
+						"TEI=%d Just queued I-frame due to peer busy condition\n",
 						link->tei);
 				}
 				break;
 			}
 
-			q921_send_queued_iframes(link);
+			if (!q921_send_queued_iframes(link)) {
+				/*
+				 * No frames sent even though we just put a frame on the queue.
+				 *
+				 * Special debug message/test here because we want to say what
+				 * happened to the Q.931 message just queued but we don't want
+				 * to flood the debug trace if we are not really looking at the
+				 * Q.921 layer.
+				 */
+				if ((ctrl->debug & (PRI_DEBUG_Q921_STATE | PRI_DEBUG_Q921_DUMP))
+					== PRI_DEBUG_Q921_STATE) {
+					pri_message(ctrl, "TEI=%d Just queued I-frame due to window shut\n",
+						link->tei);
+				}
+			}
 		} else {
 			pri_error(ctrl, "!! Out of memory for Q.921 transmit\n");
 			return -1;
@@ -1073,14 +1098,13 @@ static void q921_dump_iqueue_info(struct q921_link *link)
 {
 	struct pri *ctrl;
 	struct q921_frame *f;
-	int pending = 0, unacked = 0;
+	int pending = 0;
+	int unacked = 0;
 
 	ctrl = link->ctrl;
 
-	unacked = pending = 0;
-
 	for (f = link->tx_queue; f; f = f->next) {
-		if (f->transmitted) {
+		if (f->status == Q921_TX_FRAME_SENT) {
 			unacked++;
 		} else {
 			pending++;
@@ -2217,11 +2241,11 @@ static void update_v_a(struct q921_link *link, int n_r)
 	link->v_a = n_r;
 }
 
+/*! \brief Is V(A) <= N(R) <= V(S) ? */
 static int n_r_is_valid(struct q921_link *link, int n_r)
 {
 	int x;
 
-	/* Is V(A) <= N(R) <= V(S) */
 	for (x = link->v_a; x != n_r && x != link->v_s; Q921_INC(x)) {
 	}
 	if (x != n_r) {
@@ -2346,37 +2370,27 @@ static pri_event *q921_rr_rx(struct q921_link *link, q921_h *h)
 
 static int q921_invoke_retransmission(struct q921_link *link, int n_r)
 {
-	int frames_txd = 0;
-	int frames_supposed_to_tx = 0;
-	q921_frame *f;
-	unsigned int local_v_s = link->v_s;
+	struct q921_frame *f;
 	struct pri *ctrl;
 
 	ctrl = link->ctrl;
 
-	/* All acked frames should already have been removed from the queue. */
-	for (f = link->tx_queue; f && f->transmitted; f = f->next) {
-		if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
-			pri_message(ctrl, "TEI=%d Retransmitting frame N(S)=%d now!\n",
-				link->tei, f->h.n_s);
+	/*
+	 * All acked frames should already have been removed from the queue.
+	 * Push back all sent frames.
+	 */
+	for (f = link->tx_queue; f && f->status == Q921_TX_FRAME_SENT; f = f->next) {
+		f->status = Q921_TX_FRAME_PUSHED_BACK;
+
+		/* Sanity check: Is V(A) <= N(S) <= V(S)? */
+		if (!n_r_is_valid(link, f->h.n_s)) {
+			pri_error(ctrl,
+				"Tx Q frame with invalid N(S)=%d.  Must be (V(A)=%d) <= N(S) <= (V(S)=%d)\n",
+				f->h.n_s, link->v_a, link->v_s);
 		}
-
-		/* Give the other side our current N(R) */
-		f->h.n_r = link->v_r;
-		f->h.p_f = 0;
-		q921_transmit(ctrl, (q921_h *) (&f->h), f->len);
-		frames_txd++;
-	} 
-
-	while (local_v_s != n_r) {
-		Q921_DEC(local_v_s);
-		frames_supposed_to_tx++;
 	}
-	if (frames_supposed_to_tx != frames_txd) {
-		pri_error(ctrl, "!!!!!!!!!!!! Should have only transmitted %d frames!\n", frames_supposed_to_tx);
-	}
-
-	return frames_txd;
+	link->v_s = n_r;
+	return q921_send_queued_iframes(link);
 }
 
 static pri_event *q921_rej_rx(struct q921_link *link, q921_h *h)
@@ -2494,7 +2508,6 @@ static pri_event *q921_iframe_rx(struct q921_link *link, q921_h *h, int len)
 		delay_q931_receive = 0;
 		/* FIXME: Verify that it's a command ... */
 		if (link->own_rx_busy) {
-			/* XXX: Note: There's a difference in th P/F between both states */
 			/* DEVIATION: Handle own rx busy */
 		} else if (h->i.n_s == link->v_r) {
 			Q921_INC(link->v_r);
