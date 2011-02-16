@@ -90,6 +90,8 @@ struct pri {
 		unsigned num_slots;
 		/*! Maximum timer slots currently needed. */
 		unsigned max_used;
+		/*! First timer id in this timer pool. */
+		unsigned first_id;
 	} sched;
 	int debug;			/* Debug stuff */
 	int state;			/* State of D-channel */
@@ -906,12 +908,12 @@ struct link_dummy {
 int q931_is_call_valid(struct pri *ctrl, struct q931_call *call);
 int q931_is_call_valid_gripe(struct pri *ctrl, struct q931_call *call, const char *func_name, unsigned long func_line);
 
-extern int pri_schedule_event(struct pri *pri, int ms, void (*function)(void *data), void *data);
+unsigned pri_schedule_event(struct pri *ctrl, int ms, void (*function)(void *data), void *data);
 
 extern pri_event *pri_schedule_run(struct pri *pri);
 
-extern void pri_schedule_del(struct pri *pri, int ev);
-int pri_schedule_check(struct pri *ctrl, int id, void (*function)(void *data), void *data);
+void pri_schedule_del(struct pri *ctrl, unsigned id);
+int pri_schedule_check(struct pri *ctrl, unsigned id, void (*function)(void *data), void *data);
 
 extern pri_event *pri_mkerror(struct pri *pri, char *errstr);
 
@@ -1008,7 +1010,7 @@ void q931_cc_indirect(struct pri *ctrl, struct pri_cc_record *cc_record, void (*
  */
 static inline struct pri *PRI_NFAS_MASTER(struct pri *ctrl)
 {
-	while (ctrl->master) {
+	if (ctrl->master) {
 		ctrl = ctrl->master;
 	}
 	return ctrl;
