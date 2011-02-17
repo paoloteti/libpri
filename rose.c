@@ -1292,6 +1292,19 @@ static const struct rose_convert_msg rose_ni2_msgs[] = {
  *			encode_invoke_args,                     encode_result_args,
  *			decode_invoke_args,                     decode_result_args
  */
+	{
+		ROSE_NI2_InformationFollowing,				&rose_ni2_oid, 4,
+			rose_enc_ni2_InformationFollowing_ARG,	NULL,
+			rose_dec_ni2_InformationFollowing_ARG,	NULL
+	},
+
+	/* Also used by PRI_SWITCH_ATT4ESS and PRI_SWITCH_LUCENT5E */
+	{
+		ROSE_NI2_InitiateTransfer,					&rose_ni2_oid, 8,
+			rose_enc_ni2_InitiateTransfer_ARG,		NULL,
+			rose_dec_ni2_InitiateTransfer_ARG,		NULL
+	},
+
 	/* NI2 seems to have pirated several Q.SIG messages */
 	/*
 	 * localValue's from Q.SIG Name-Operations
@@ -1316,19 +1329,6 @@ static const struct rose_convert_msg rose_ni2_msgs[] = {
 		ROSE_QSIG_BusyName,							NULL, 3,
 			rose_enc_qsig_BusyName_ARG,				NULL,
 			rose_dec_qsig_BusyName_ARG,				NULL
-	},
-
-	{
-		ROSE_NI2_InformationFollowing,				&rose_ni2_oid, 4,
-			rose_enc_ni2_InformationFollowing_ARG,	NULL,
-			rose_dec_ni2_InformationFollowing_ARG,	NULL
-	},
-
-	/* Also used by PRI_SWITCH_ATT4ESS and PRI_SWITCH_LUCENT5E */
-	{
-		ROSE_NI2_InitiateTransfer,					&rose_ni2_oid, 8,
-			rose_enc_ni2_InitiateTransfer_ARG,		NULL,
-			rose_dec_ni2_InitiateTransfer_ARG,		NULL
 	},
 /* *INDENT-ON* */
 };

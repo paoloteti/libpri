@@ -5528,8 +5528,9 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 #endif	/* Not handled yet */
 	default:
 		if (ctrl->debug & PRI_DEBUG_APDU) {
-			pri_message(ctrl, "!! ROSE invoke operation not handled! %s\n",
-				rose_operation2str(invoke->operation));
+			pri_message(ctrl,
+				"!! ROSE invoke operation not handled on switchtype:%s! %s\n",
+				pri_switch2str(ctrl->switchtype), rose_operation2str(invoke->operation));
 		}
 		break;
 	}
