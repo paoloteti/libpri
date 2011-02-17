@@ -1237,6 +1237,34 @@ static const struct rose_convert_msg rose_dms100_msgs[] = {
 			rose_enc_dms100_RLT_ThirdParty_ARG,		NULL,
 			rose_dec_dms100_RLT_ThirdParty_ARG,		NULL
 	},
+
+	/* DMS-100 seems to have pirated some Q.SIG messages */
+	/*
+	 * localValue's from Q.SIG Name-Operations
+	 * { iso(1) standard(0) pss1-name(13868) name-operations(0) }
+	 */
+	{
+		ROSE_QSIG_CallingName,						NULL, 0,
+			rose_enc_qsig_CallingName_ARG,			NULL,
+			rose_dec_qsig_CallingName_ARG,			NULL
+	},
+#if 0	/* ROSE_DMS100_RLT_OPERATION_IND, and ROSE_DMS100_RLT_THIRD_PARTY conflict! */
+	{
+		ROSE_QSIG_CalledName,						NULL, 1,
+			rose_enc_qsig_CalledName_ARG,			NULL,
+			rose_dec_qsig_CalledName_ARG,			NULL
+	},
+	{
+		ROSE_QSIG_ConnectedName,					NULL, 2,
+			rose_enc_qsig_ConnectedName_ARG,		NULL,
+			rose_dec_qsig_ConnectedName_ARG,		NULL
+	},
+	{
+		ROSE_QSIG_BusyName,							NULL, 3,
+			rose_enc_qsig_BusyName_ARG,				NULL,
+			rose_dec_qsig_BusyName_ARG,				NULL
+	},
+#endif
 /* *INDENT-ON* */
 };
 
