@@ -6597,7 +6597,7 @@ static int __q931_hangup(struct pri *ctrl, q931_call *c, int cause)
 	return 0;
 }
 
-static void initiate_hangup_if_needed(struct pri *pri, q931_call *call, int cause);
+static void initiate_hangup_if_needed(struct pri *ctrl, struct q931_call *subcall, int cause);
 
 int q931_hangup(struct pri *ctrl, q931_call *call, int cause)
 {
@@ -6614,7 +6614,7 @@ int q931_hangup(struct pri *ctrl, q931_call *call, int cause)
 					if (i == call->master_call->pri_winner) {
 						__q931_hangup(call->subcalls[i]->pri, call->subcalls[i], cause);
 					} else {
-						initiate_hangup_if_needed(call->subcalls[i]->pri, call->subcalls[i], cause);
+						initiate_hangup_if_needed(ctrl, call->subcalls[i], cause);
 					}
 					if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
 						pri_message(ctrl, "%s: Hanging up %d, winner %d\n", __FUNCTION__,
@@ -6850,11 +6850,29 @@ static struct q931_call *q931_get_subcall_winner(struct q931_call *master)
 	}
 }
 
-static void initiate_hangup_if_needed(struct pri *pri, q931_call *call, int cause)
+static void initiate_hangup_if_needed(struct pri *ctrl, struct q931_call *subcall, int cause)
 {
-	if (!call->hangupinitiated) {
-		q931_hangup(pri, call, cause);
-		call->alive = 0;
+	if (!subcall->hangupinitiated) {
+		q931_hangup(ctrl, subcall, cause);
+		subcall->alive = 0;
+	} else {
+		switch (subcall->ourcallstate) {
+		case Q931_CALL_STATE_NULL:
+			switch (subcall->peercallstate) {
+			case Q931_CALL_STATE_NULL:
+				/*
+				 * Complete the hangup of the dead subcall.  Noone else will at
+				 * this point.
+				 */
+				q931_hangup(ctrl, subcall, cause);
+				break;
+			default:
+				break;
+			}
+			break;
+		default:
+			break;
+		}
 	}
 }
 
@@ -6880,20 +6898,21 @@ static void q931_set_subcall_winner(struct q931_call *subcall)
 	int i;
 
 	/* Set the winner first */
-	for (i = 0; i < ARRAY_LEN(realcall->subcalls); ++i) {
-		if (realcall->subcalls[i] && realcall->subcalls[i] == subcall) {
-			realcall->pri_winner = i;
+	for (i = 0; ; ++i) {
+		if (ARRAY_LEN(realcall->subcalls) <= i) {
+			pri_error(subcall->pri, "We should always find the winner in the list!\n");
+			return;
 		}
-	}
-	if (realcall->pri_winner < 0) {
-		pri_error(subcall->pri, "We should always find the winner in the list!\n");
-		return;
+		if (realcall->subcalls[i] == subcall) {
+			realcall->pri_winner = i;
+			break;
+		}
 	}
 
 	/* Start tear down of calls that were not chosen */
 	for (i = 0; i < ARRAY_LEN(realcall->subcalls); ++i) {
 		if (realcall->subcalls[i] && realcall->subcalls[i] != subcall) {
-			initiate_hangup_if_needed(realcall->subcalls[i]->pri, realcall->subcalls[i],
+			initiate_hangup_if_needed(realcall->pri, realcall->subcalls[i],
 				PRI_CAUSE_NONSELECTED_USER_CLEARING);
 		}
 	}
