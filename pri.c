@@ -1729,6 +1729,8 @@ char *pri_dump_info_str(struct pri *ctrl)
 	used = pri_snprintf(buf, used, buf_size, "Switchtype: %s\n",
 		pri_switch2str(ctrl->switchtype));
 	used = pri_snprintf(buf, used, buf_size, "Type: %s\n", pri_node2str(ctrl->localtype));
+	used = pri_snprintf(buf, used, buf_size, "Remote type: %s\n",
+		pri_node2str(ctrl->remotetype));
 	/* Remember that Q921 Counters include Q931 packets (and any retransmissions) */
 	used = pri_snprintf(buf, used, buf_size, "Q931 RX: %d\n", ctrl->q931_rxcount);
 	used = pri_snprintf(buf, used, buf_size, "Q931 TX: %d\n", ctrl->q931_txcount);
