@@ -2504,14 +2504,13 @@ void pri_cc_qsig_exec_possible(struct pri *ctrl, q931_call *call, int msgtype, c
 }
 
 /*!
- * \internal
  * \brief Convert the given call completion state to a string.
  *
  * \param state CC state to convert to string.
  *
  * \return String version of call completion state.
  */
-static const char *pri_cc_fsm_state_str(enum CC_STATES state)
+const char *pri_cc_fsm_state_str(enum CC_STATES state)
 {
 	const char *str;
 
@@ -2555,14 +2554,13 @@ static const char *pri_cc_fsm_state_str(enum CC_STATES state)
 }
 
 /*!
- * \internal
  * \brief Convert the given call completion event to a string.
  *
  * \param event CC event to convert to string.
  *
  * \return String version of call completion event.
  */
-static const char *pri_cc_fsm_event_str(enum CC_EVENTS event)
+const char *pri_cc_fsm_event_str(enum CC_EVENTS event)
 {
 	const char *str;
 

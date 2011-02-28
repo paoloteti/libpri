@@ -981,6 +981,7 @@ int q931_facility_display_name(struct pri *ctrl, struct q931_call *call, const s
 const char *q931_call_state_str(enum Q931_CALL_STATE callstate);
 const char *msg2str(int msg);
 
+int q931_get_subcall_count(struct q931_call *master);
 struct q931_call *q931_find_winning_call(struct q931_call *call);
 int q931_master_pass_event(struct pri *ctrl, struct q931_call *subcall, int msg_type);
 struct pri_subcommand *q931_alloc_subcommand(struct pri *ctrl);
@@ -997,6 +998,8 @@ struct pri_cc_record *pri_cc_find_by_linkage(struct pri *ctrl, unsigned linkage_
 struct pri_cc_record *pri_cc_find_by_addressing(struct pri *ctrl, const struct q931_party_address *party_a, const struct q931_party_address *party_b, unsigned length, const unsigned char *q931_ies);
 struct pri_cc_record *pri_cc_new_record(struct pri *ctrl, q931_call *call);
 void pri_cc_qsig_determine_available(struct pri *ctrl, q931_call *call);
+const char *pri_cc_fsm_state_str(enum CC_STATES state);
+const char *pri_cc_fsm_event_str(enum CC_EVENTS event);
 int pri_cc_event(struct pri *ctrl, q931_call *call, struct pri_cc_record *cc_record, enum CC_EVENTS event);
 int q931_cc_timeout(struct pri *ctrl, struct pri_cc_record *cc_record, enum CC_EVENTS event);
 void q931_cc_indirect(struct pri *ctrl, struct pri_cc_record *cc_record, void (*func)(struct pri *ctrl, q931_call *call, struct pri_cc_record *cc_record));

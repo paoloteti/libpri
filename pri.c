@@ -1710,6 +1710,10 @@ char *pri_dump_info_str(struct pri *ctrl)
 	size_t used;
 	struct q921_frame *f;
 	struct q921_link *link;
+	struct pri_cc_record *cc_record;
+	struct q931_call *call;
+	unsigned num_calls;
+	unsigned num_globals;
 	unsigned q921outstanding;
 	unsigned idx;
 	unsigned long switch_bit;
@@ -1728,30 +1732,12 @@ char *pri_dump_info_str(struct pri *ctrl)
 	used = 0;
 	used = pri_snprintf(buf, used, buf_size, "Switchtype: %s\n",
 		pri_switch2str(ctrl->switchtype));
-	used = pri_snprintf(buf, used, buf_size, "Type: %s\n", pri_node2str(ctrl->localtype));
+	used = pri_snprintf(buf, used, buf_size, "Type: %s%s%s\n",
+		ctrl->bri ? "BRI " : "",
+		pri_node2str(ctrl->localtype),
+		PTMP_MODE(ctrl) ? " PTMP" : "");
 	used = pri_snprintf(buf, used, buf_size, "Remote type: %s\n",
 		pri_node2str(ctrl->remotetype));
-	/* Remember that Q921 Counters include Q931 packets (and any retransmissions) */
-	used = pri_snprintf(buf, used, buf_size, "Q931 RX: %d\n", ctrl->q931_rxcount);
-	used = pri_snprintf(buf, used, buf_size, "Q931 TX: %d\n", ctrl->q931_txcount);
-	used = pri_snprintf(buf, used, buf_size, "Q921 RX: %d\n", ctrl->q921_rxcount);
-	used = pri_snprintf(buf, used, buf_size, "Q921 TX: %d\n", ctrl->q921_txcount);
-	for (link = &ctrl->link; link; link = link->next) {
-		q921outstanding = 0;
-		for (f = link->tx_queue; f; f = f->next) {
-			++q921outstanding;
-		}
-		used = pri_snprintf(buf, used, buf_size, "Q921 Outstanding: %u (TEI=%d)\n",
-			q921outstanding, link->tei);
-	}
-#if 0
-	used = pri_snprintf(buf, used, buf_size, "Window Length: %d/%d\n",
-		ctrl->timers[PRI_TIMER_K], ctrl->window);
-	used = pri_snprintf(buf, used, buf_size, "Sentrej: %d\n", ctrl->sentrej);
-	used = pri_snprintf(buf, used, buf_size, "SolicitFbit: %d\n", ctrl->solicitfbit);
-	used = pri_snprintf(buf, used, buf_size, "Retrans: %d\n", ctrl->retrans);
-	used = pri_snprintf(buf, used, buf_size, "Busy: %d\n", ctrl->busy);
-#endif
 	used = pri_snprintf(buf, used, buf_size, "Overlap Dial: %d\n", ctrl->overlapdial);
 	used = pri_snprintf(buf, used, buf_size, "Logical Channel Mapping: %d\n",
 		ctrl->chan_mapping_logical);
@@ -1767,6 +1753,52 @@ char *pri_dump_info_str(struct pri *ctrl)
 					pri_timer[idx].name, ctrl->timers[tmr]);
 			}
 		}
+	}
+
+	/* Remember that Q921 Counters include Q931 packets (and any retransmissions) */
+	used = pri_snprintf(buf, used, buf_size, "Q931 RX: %d\n", ctrl->q931_rxcount);
+	used = pri_snprintf(buf, used, buf_size, "Q931 TX: %d\n", ctrl->q931_txcount);
+	used = pri_snprintf(buf, used, buf_size, "Q921 RX: %d\n", ctrl->q921_rxcount);
+	used = pri_snprintf(buf, used, buf_size, "Q921 TX: %d\n", ctrl->q921_txcount);
+	for (link = &ctrl->link; link; link = link->next) {
+		q921outstanding = 0;
+		for (f = link->tx_queue; f; f = f->next) {
+			++q921outstanding;
+		}
+		used = pri_snprintf(buf, used, buf_size, "Q921 Outstanding: %u (TEI=%d)\n",
+			q921outstanding, link->tei);
+	}
+
+	/* Count the call records in existance.  Useful to check for unreleased calls. */
+	num_calls = 0;
+	num_globals = 0;
+	for (call = *ctrl->callpool; call; call = call->next) {
+		if (!(call->cr & ~Q931_CALL_REFERENCE_FLAG)) {
+			++num_globals;
+			continue;
+		}
+		++num_calls;
+		if (call->outboundbroadcast) {
+			used = pri_snprintf(buf, used, buf_size,
+				"Master call subcall count: %d\n", q931_get_subcall_count(call));
+		}
+	}
+	used = pri_snprintf(buf, used, buf_size, "Total active-calls:%u global:%u\n",
+		num_calls, num_globals);
+
+	/*
+	 * List simplified call completion records.
+	 *
+	 * This should be last in the output because it could overflow
+	 * the buffer.
+	 */
+	used = pri_snprintf(buf, used, buf_size, "CC records:\n");
+	for (cc_record = ctrl->cc.pool; cc_record; cc_record = cc_record->next) {
+		used = pri_snprintf(buf, used, buf_size,
+			"  %ld A:%s B:%s state:%s\n", cc_record->record_id,
+			cc_record->party_a.number.valid ? cc_record->party_a.number.str : "",
+			cc_record->party_b.number.valid ? cc_record->party_b.number.str : "",
+			pri_cc_fsm_state_str(cc_record->state));
 	}
 
 	if (buf_size < used) {

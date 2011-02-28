@@ -4201,6 +4201,20 @@ static void cleanup_and_free_call(struct q931_call *cur)
 	free(cur);
 }
 
+int q931_get_subcall_count(struct q931_call *master)
+{
+	int count = 0;
+	int idx;
+
+	for (idx = 0; idx < ARRAY_LEN(master->subcalls); ++idx) {
+		if (master->subcalls[idx]) {
+			++count;
+		}
+	}
+
+	return count;
+}
+
 static void pri_create_fake_clearing(struct q931_call *c, struct pri *master);
 
 void q931_destroycall(struct pri *ctrl, q931_call *c)
@@ -6409,8 +6423,6 @@ static void pri_create_fake_clearing(struct q931_call *c, struct pri *master)
 	c->retranstimer = pri_schedule_event(master, 0, pri_fake_clearing, c);
 }
 
-//static int q931_get_subcall_count(struct q931_call *call);
-
 static int __q931_hangup(struct pri *ctrl, q931_call *c, int cause)
 {
 	int disconnect = 1;
@@ -6875,22 +6887,6 @@ static void initiate_hangup_if_needed(struct pri *ctrl, struct q931_call *subcal
 		}
 	}
 }
-
-#if 0
-static int q931_get_subcall_count(struct q931_call *call)
-{
-	int count = 0;
-	int i;
-
-	call = call->master_call;
-	for (i = 0; i < ARRAY_LEN(call->subcalls); ++i) {
-		if (call->subcalls[i])
-			count++;
-	}
-
-	return count;
-}
-#endif
 
 static void q931_set_subcall_winner(struct q931_call *subcall)
 {
