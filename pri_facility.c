@@ -1907,7 +1907,7 @@ static unsigned char *enc_ni2_initiate_transfer(struct pri *ctrl, unsigned char 
 	msg.operation = ROSE_NI2_InitiateTransfer;
 	msg.invoke_id = get_invokeid(ctrl);
 	/* Let's do the trickery to make sure the flag is correct */
-	msg.args.ni2.InitiateTransfer.call_reference = call->cr ^ 0x8000;
+	msg.args.ni2.InitiateTransfer.call_reference = call->cr ^ Q931_CALL_REFERENCE_FLAG;
 	pos = rose_encode_invoke(ctrl, pos, end, &msg);
 
 	return pos;
