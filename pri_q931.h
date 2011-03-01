@@ -443,6 +443,8 @@ enum Q931_RANKED_CALL_STATE {
 	Q931_RANKED_CALL_STATE_CONNECT,
 	/*! Call is in some non-call establishment state (likely disconnecting). */
 	Q931_RANKED_CALL_STATE_OTHER,
+	/*! Master call is aborting. */
+	Q931_RANKED_CALL_STATE_ABORT,
 };
 
 /* EuroISDN  */

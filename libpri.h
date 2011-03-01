@@ -2153,6 +2153,8 @@ enum PRI_TIMERS_AND_COUNTERS {
 	PRI_TIMER_QSIG_CC_T3,	/*!< Max time to wait for user A to respond to user B availability. */
 	PRI_TIMER_QSIG_CC_T4,	/*!< Path reservation supervision timeout. */
 
+	PRI_TIMER_T312,			/*!< Supervise broadcast SETUP message call reference retention. */
+
 	/* Must be last in the enum list */
 	PRI_MAX_TIMERS
 };

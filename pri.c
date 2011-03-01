@@ -77,6 +77,7 @@ static const struct pri_timer_table pri_timer[] = {
 	{ "T308",           PRI_TIMER_T308,             PRI_ALL_SWITCHES },
 	{ "T309",           PRI_TIMER_T309,             PRI_ALL_SWITCHES },
 	{ "T310",           PRI_TIMER_T310,             PRI_ALL_SWITCHES },
+	{ "T312",           PRI_TIMER_T312,             PRI_ALL_SWITCHES },
 	{ "T313",           PRI_TIMER_T313,             PRI_ALL_SWITCHES },
 	{ "T314",           PRI_TIMER_T314,             PRI_ALL_SWITCHES },
 	{ "T316",           PRI_TIMER_T316,             PRI_ALL_SWITCHES },
@@ -181,6 +182,7 @@ static void pri_default_timers(struct pri *ctrl, int switchtype)
 	ctrl->timers[PRI_TIMER_T305] = 30 * 1000;	/* Wait for DISCONNECT acknowledge */
 	ctrl->timers[PRI_TIMER_T308] = 4 * 1000;	/* Wait for RELEASE acknowledge */
 	ctrl->timers[PRI_TIMER_T309] = 6 * 1000;	/* Time to wait before clearing calls in case of D-channel transient event.  Q.931 specifies 6-90 seconds */
+	ctrl->timers[PRI_TIMER_T312] = (4 + 2) * 1000;/* Supervise broadcast SETUP message call reference retention. T303 + 2 seconds */
 	ctrl->timers[PRI_TIMER_T313] = 4 * 1000;	/* Wait for CONNECT acknowledge, CPE side only */
 
 	ctrl->timers[PRI_TIMER_TM20] = 2500;		/* Max time awaiting XID response - Q.921 Appendix IV */

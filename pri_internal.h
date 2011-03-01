@@ -578,11 +578,14 @@ struct q931_call {
 							0,2-7 - Reserved for future use */
 	int t303_timer;
 	int t303_expirycnt;
+	int t312_timer;
+	int fake_clearing_timer;
 
 	int hangupinitiated;
 	/*! \brief TRUE if we broadcast this call's SETUP message. */
 	int outboundbroadcast;
-	int performing_fake_clearing;
+	/*! TRUE if the master call is processing a hangup.  Don't destroy it now. */
+	int master_hanging_up;
 	/*!
 	 * \brief Master call controlling this call.
 	 * \note Always valid.  Master and normal calls point to self.
