@@ -3951,7 +3951,12 @@ int pri_rerouting_rsp(struct pri *ctrl, q931_call *call, int invoke_id, enum PRI
 	rose_err = ROSE_ERROR_Gen_ResourceUnavailable;
 	switch (code) {
 	case PRI_REROUTING_RSP_OK_CLEAR:
-		return rose_result_ok_encode(ctrl, call, Q931_DISCONNECT, invoke_id);
+		/*
+		 * Send the response out on the next message which should be
+		 * either Q931_DISCONNECT or Q931_RELEASE depending upon who
+		 * initiates the disconnect first.
+		 */
+		return rose_result_ok_encode(ctrl, call, Q931_ANY_MESSAGE, invoke_id);
 	case PRI_REROUTING_RSP_OK_RETAIN:
 		return send_facility_result_ok(ctrl, call, invoke_id);
 	case PRI_REROUTING_RSP_NOT_SUBSCRIBED:
