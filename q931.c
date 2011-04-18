@@ -2342,26 +2342,42 @@ static int receive_called_party_number(int full_ie, struct pri *ctrl, q931_call 
 		return -1;
 	}
 
-	call->called.number.valid = 1;
-	call->called.number.plan = ie->data[0] & 0x7f;
-	if (msgtype == Q931_SETUP) {
+	switch (msgtype) {
+	case Q931_FACILITY:
+		if (!q931_is_dummy_call(call)) {
+			/* Discard the number. */
+			return 0;
+		}
+		/* Fall through */
+	case Q931_REGISTER:
+		/* Accept the number for REGISTER only because it is so similar to SETUP. */
+	case Q931_SETUP:
 		q931_get_number((unsigned char *) call->called.number.str,
 			sizeof(call->called.number.str), ie->data + 1, len - 3);
-	} else if (call->ourcallstate == Q931_CALL_STATE_OVERLAP_RECEIVING) {
-		/*
-		 * Since we are receiving overlap digits now, we need to append
-		 * them to any previously received digits in call->called.number.str.
-		 */
-		called_len = strlen(call->called.number.str);
-		called_end = call->called.number.str + called_len;
-		max_len = (sizeof(call->called.number.str) - 1) - called_len;
-		if (max_len < len - 3) {
-			called_len = max_len;
-		} else {
-			called_len = len - 3;
+		break;
+	case Q931_INFORMATION:
+		if (call->ourcallstate == Q931_CALL_STATE_OVERLAP_RECEIVING) {
+			/*
+			 * Since we are receiving overlap digits now, we need to append
+			 * them to any previously received digits in call->called.number.str.
+			 */
+			called_len = strlen(call->called.number.str);
+			called_end = call->called.number.str + called_len;
+			max_len = (sizeof(call->called.number.str) - 1) - called_len;
+			if (max_len < len - 3) {
+				called_len = max_len;
+			} else {
+				called_len = len - 3;
+			}
+			strncat(called_end, (char *) ie->data + 1, called_len);
 		}
-		strncat(called_end, (char *) ie->data + 1, called_len);
+		break;
+	default:
+		/* Discard the number. */
+		return 0;
 	}
+	call->called.number.valid = 1;
+	call->called.number.plan = ie->data[0] & 0x7f;
 
 	q931_get_number((unsigned char *) call->overlap_digits, sizeof(call->overlap_digits),
 		ie->data + 1, len - 3);
@@ -5101,6 +5117,35 @@ int q931_facility(struct pri *ctrl, struct q931_call *call)
 	};
 
 	return send_message(ctrl, call, Q931_FACILITY, facility_ies);
+}
+
+/*!
+ * \brief Send a FACILITY message with the called party number and subaddress ies.
+ *
+ * \param ctrl D channel controller.
+ * \param call Call leg to send message over.
+ * \param called Called party information to send.
+ *
+ * \note
+ * This function can only be used by the dummy call because the call's called
+ * structure is used by normal calls to contain persistent information.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+int q931_facility_called(struct pri *ctrl, struct q931_call *call, const struct q931_party_id *called)
+{
+	static int facility_called_ies[] = {
+		Q931_IE_FACILITY,
+		Q931_CALLED_PARTY_NUMBER,
+		Q931_CALLED_PARTY_SUBADDR,
+		-1
+	};
+
+	q931_party_id_copy_to_address(&call->called, called);
+	libpri_copy_string(call->overlap_digits, call->called.number.str,
+		sizeof(call->overlap_digits));
+	return send_message(ctrl, call, Q931_FACILITY, facility_called_ies);
 }
 
 int q931_facility_display_name(struct pri *ctrl, struct q931_call *call, const struct q931_party_name *name)

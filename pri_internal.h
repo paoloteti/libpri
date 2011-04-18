@@ -980,6 +980,7 @@ int q931_display_name_get(struct q931_call *call, struct q931_party_name *name);
 int q931_display_text(struct pri *ctrl, struct q931_call *call, const struct pri_subcmd_display_txt *display);
 
 int q931_facility_display_name(struct pri *ctrl, struct q931_call *call, const struct q931_party_name *name);
+int q931_facility_called(struct pri *ctrl, struct q931_call *call, const struct q931_party_id *called);
 
 const char *q931_call_state_str(enum Q931_CALL_STATE callstate);
 const char *msg2str(int msg);

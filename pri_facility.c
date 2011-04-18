@@ -1746,11 +1746,11 @@ int mwi_message_send(struct pri *ctrl, q931_call *call, struct pri_sr *req, int 
  * \param ctrl D channel controller for diagnostic messages or global options.
  * \param pos Starting position to encode the facility ie contents.
  * \param end End of facility ie contents encoding data buffer.
- * \param mailbox Controlling party number (NULL if not present).
+ * \param vm_id Controlling party number (NULL if not present).
  * \param basic_service Basic service enum (-1 if not present).
  * \param num_messages NumberOfMessages (-1 if not present).
  * \param caller_id Controlling party privided number (NULL if not present).
- * \param timestamp Generalized Time format (NULL if not present).
+ * \param timestamp When message left. (Generalized Time format, NULL if not present)
  * \param message_reference Message reference number (-1 if not present).
  * \param message_status Message status: added(0), removed(1).
  *
@@ -1758,7 +1758,7 @@ int mwi_message_send(struct pri *ctrl, q931_call *call, struct pri_sr *req, int 
  * \retval NULL on error.
  */
 static unsigned char *enc_etsi_mwi_indicate_message(struct pri *ctrl, unsigned char *pos,
-	unsigned char *end, const struct pri_party_id *mailbox, int basic_service,
+	unsigned char *end, const struct pri_party_id *vm_id, int basic_service,
 	int num_messages, const struct pri_party_id *caller_id, const char *timestamp,
 	int message_reference, int message_status)
 {
@@ -1774,8 +1774,8 @@ static unsigned char *enc_etsi_mwi_indicate_message(struct pri *ctrl, unsigned c
 	msg.operation = ROSE_ETSI_MWIIndicate;
 	msg.invoke_id = get_invokeid(ctrl);
 
-	if (mailbox && mailbox->number.valid) {
-		pri_copy_party_number_to_q931(&number, &mailbox->number);
+	if (vm_id && vm_id->number.valid) {
+		pri_copy_party_number_to_q931(&number, &vm_id->number);
 		q931_copy_number_to_rose(ctrl, &msg.args.etsi.MWIIndicate.controlling_user_number,
 			&number);
 	}
@@ -1814,11 +1814,11 @@ static unsigned char *enc_etsi_mwi_indicate_message(struct pri *ctrl, unsigned c
  *
  * \param ctrl D channel controller.
  * \param call Call leg to queue message.
- * \param mailbox Controlling party number (NULL if not present).
+ * \param vm_id Voicemail system number (NULL if not present).
  * \param basic_service Basic service enum (-1 if not present).
  * \param num_messages NumberOfMessages (-1 if not present).
- * \param caller_id Controlling party privided number (NULL if not present).
- * \param timestamp Generalized Time format (NULL if not present).
+ * \param caller_id Party leaving message (NULL if not present).
+ * \param timestamp When message left. (Generalized Time format, NULL if not present)
  * \param message_reference Message reference number (-1 if not present).
  * \param message_status Message status: added(0), removed(1).
  *
@@ -1826,14 +1826,14 @@ static unsigned char *enc_etsi_mwi_indicate_message(struct pri *ctrl, unsigned c
  * \retval -1 on error.
  */
 static int rose_mwi_indicate_encode(struct pri *ctrl, struct q931_call *call,
-	const struct pri_party_id *mailbox, int basic_service, int num_messages,
+	const struct pri_party_id *vm_id, int basic_service, int num_messages,
 	const struct pri_party_id *caller_id, const char *timestamp, int message_reference,
 	int message_status)
 {
 	unsigned char buffer[255];
 	unsigned char *end;
 
-	end = enc_etsi_mwi_indicate_message(ctrl, buffer, buffer + sizeof(buffer), mailbox,
+	end = enc_etsi_mwi_indicate_message(ctrl, buffer, buffer + sizeof(buffer), vm_id,
 		basic_service, num_messages, caller_id, timestamp, message_reference,
 		message_status);
 	if (!end) {
@@ -1843,11 +1843,13 @@ static int rose_mwi_indicate_encode(struct pri *ctrl, struct q931_call *call,
 	return pri_call_apdu_queue(call, Q931_FACILITY, buffer, end - buffer, NULL);
 }
 
-int pri_mwi_indicate(struct pri *ctrl, const struct pri_party_id *mailbox,
-	int basic_service, int num_messages, const struct pri_party_id *caller_id,
-	const char *timestamp, int message_reference, int message_status)
+int pri_mwi_indicate_v2(struct pri *ctrl, const struct pri_party_id *mailbox,
+	const struct pri_party_id *vm_id, int basic_service, int num_messages,
+	const struct pri_party_id *caller_id, const char *timestamp, int message_reference,
+	int message_status)
 {
 	struct q931_call *call;
+	struct q931_party_id called;
 
 	if (!ctrl) {
 		return -1;
@@ -1868,15 +1870,24 @@ int pri_mwi_indicate(struct pri *ctrl, const struct pri_party_id *mailbox,
 		return -1;
 	}
 
-	if (rose_mwi_indicate_encode(ctrl, call, mailbox, basic_service, num_messages,
+	pri_copy_party_id_to_q931(&called, mailbox);
+	if (rose_mwi_indicate_encode(ctrl, call, vm_id, basic_service, num_messages,
 		caller_id, timestamp, message_reference, message_status)
-		|| q931_facility(ctrl, call)) {
+		|| q931_facility_called(ctrl, call, &called)) {
 		pri_message(ctrl,
 			"Could not schedule facility message for MWI indicate message.\n");
 		return -1;
 	}
 
 	return 0;
+}
+
+int pri_mwi_indicate(struct pri *ctrl, const struct pri_party_id *mailbox,
+	int basic_service, int num_messages, const struct pri_party_id *caller_id,
+	const char *timestamp, int message_reference, int message_status)
+{
+	return pri_mwi_indicate_v2(ctrl, mailbox, mailbox, basic_service, num_messages,
+	caller_id, timestamp, message_reference, message_status);
 }
 /* End MWI */
 
