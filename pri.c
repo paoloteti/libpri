@@ -345,6 +345,27 @@ static unsigned long pri_display_options_receive_default(struct pri *ctrl)
 }
 
 /*!
+ * \internal
+ * \brief Determine the default date/time send option default.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \return Default date/time send option.
+ */
+static int pri_date_time_send_default(struct pri *ctrl)
+{
+	int date_time_send;
+
+	if (BRI_NT_PTMP(ctrl)) {
+		date_time_send = PRI_DATE_TIME_SEND_DATE_HHMM;
+	} else {
+		date_time_send = PRI_DATE_TIME_SEND_NO;
+	}
+
+	return date_time_send;
+}
+
+/*!
  * \brief Destroy the given link.
  *
  * \param link Q.921 link to destroy.
@@ -565,6 +586,7 @@ static struct pri *pri_ctrl_new(int fd, int node, int switchtype, pri_io_cb rd, 
 			tei);
 		break;
 	}
+	ctrl->date_time_send = pri_date_time_send_default(ctrl);
 	if (dummy_ctrl) {
 		/* Initialize the dummy call reference call record. */
 		ctrl->link.dummy_call = &dummy_ctrl->dummy_call;
@@ -2173,4 +2195,31 @@ int pri_display_text(struct pri *ctrl, q931_call *call, const struct pri_subcmd_
 		return -1;
 	}
 	return q931_display_text(ctrl, call, display);
+}
+
+void pri_date_time_send_option(struct pri *ctrl, int option)
+{
+	if (!ctrl) {
+		return;
+	}
+	switch (option) {
+	case PRI_DATE_TIME_SEND_DEFAULT:
+		ctrl->date_time_send = pri_date_time_send_default(ctrl);
+		break;
+	default:
+	case PRI_DATE_TIME_SEND_NO:
+		ctrl->date_time_send = PRI_DATE_TIME_SEND_NO;
+		break;
+	case PRI_DATE_TIME_SEND_DATE:
+	case PRI_DATE_TIME_SEND_DATE_HH:
+	case PRI_DATE_TIME_SEND_DATE_HHMM:
+	case PRI_DATE_TIME_SEND_DATE_HHMMSS:
+		if (NT_MODE(ctrl)) {
+			/* Only networks may send date/time ie. */
+			ctrl->date_time_send = option;
+		} else {
+			ctrl->date_time_send = PRI_DATE_TIME_SEND_NO;
+		}
+		break;
+	}
 }

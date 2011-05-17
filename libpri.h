@@ -2102,6 +2102,27 @@ void pri_cc_status(struct pri *ctrl, long cc_id, int status);
 int pri_cc_call(struct pri *ctrl, long cc_id, q931_call *call, struct pri_sr *req);
 void pri_cc_cancel(struct pri *ctrl, long cc_id);
 
+/* Date/time ie send policy option values. */
+#define PRI_DATE_TIME_SEND_DEFAULT		0	/*!< Send date/time ie default. */
+#define PRI_DATE_TIME_SEND_NO			1	/*!< Send date/time ie never. */
+#define PRI_DATE_TIME_SEND_DATE			2	/*!< Send date/time ie date only. */
+#define PRI_DATE_TIME_SEND_DATE_HH		3	/*!< Send date/time ie date and hour. */
+#define PRI_DATE_TIME_SEND_DATE_HHMM	4	/*!< Send date/time ie date, hour, and minute. */
+#define PRI_DATE_TIME_SEND_DATE_HHMMSS	5	/*!< Send date/time ie date, hour, minute, and second. */
+
+/*!
+ * \brief Set the date/time ie send policy option.
+ *
+ * \param ctrl D channel controller.
+ * \param option Policy option to set.
+ *
+ * \note
+ * Only valid in NT mode.
+ *
+ * \return Nothing
+ */
+void pri_date_time_send_option(struct pri *ctrl, int option);
+
 /* Get/Set PRI Timers  */
 #define PRI_GETSET_TIMERS
 int pri_set_timer(struct pri *pri, int timer, int value);

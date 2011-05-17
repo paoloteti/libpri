@@ -3082,16 +3082,44 @@ static int transmit_time_date(int full_ie, struct pri *ctrl, q931_call *call, in
 {
 	time_t now;
 	struct tm timedate;
+	int ie_len;
 
-	/* Send the current time. */
-	time(&now);
-	localtime_r(&now, &timedate);
-	ie->data[0] = timedate.tm_year - 100; /* 1900+ */
-	ie->data[1] = timedate.tm_mon + 1;
-	ie->data[2] = timedate.tm_mday;
-	ie->data[3] = timedate.tm_hour;
-	ie->data[4] = timedate.tm_min;
-	return 7;
+	do {
+		if (ctrl->date_time_send < PRI_DATE_TIME_SEND_DATE) {
+			ie_len = 0;
+			break;
+		}
+
+		/* Send the current date/time. */
+		time(&now);
+		localtime_r(&now, &timedate);
+		ie->data[0] = timedate.tm_year - 100; /* 1900+ */
+		ie->data[1] = timedate.tm_mon + 1;
+		ie->data[2] = timedate.tm_mday;
+		ie_len = 2 + 3;
+		if (ctrl->date_time_send < PRI_DATE_TIME_SEND_DATE_HH) {
+			break;
+		}
+
+		/* Add optional hour. */
+		ie->data[3] = timedate.tm_hour;
+		++ie_len;
+		if (ctrl->date_time_send < PRI_DATE_TIME_SEND_DATE_HHMM) {
+			break;
+		}
+
+		/* Add optional minutes. */
+		ie->data[4] = timedate.tm_min;
+		++ie_len;
+		if (ctrl->date_time_send < PRI_DATE_TIME_SEND_DATE_HHMMSS) {
+			break;
+		}
+
+		/* Add optional seconds. */
+		ie->data[5] = timedate.tm_sec;
+		++ie_len;
+	} while (0);
+	return ie_len;
 }
 
 static void dump_keypad_facility(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
@@ -5601,16 +5629,6 @@ static int connect_ies[] = {
 	Q931_IE_FACILITY,
 	Q931_PROGRESS_INDICATOR,
 	Q931_DISPLAY,
-	Q931_IE_CONNECTED_NUM,
-	Q931_IE_CONNECTED_SUBADDR,
-	-1
-};
-
-static int connect_net_ies[] = {
-	Q931_CHANNEL_IDENT,
-	Q931_IE_FACILITY,
-	Q931_PROGRESS_INDICATOR,
-	Q931_DISPLAY,
 	Q931_IE_TIME_DATE,
 	Q931_IE_CONNECTED_NUM,
 	Q931_IE_CONNECTED_SUBADDR,
@@ -5675,12 +5693,7 @@ int q931_connect(struct pri *ctrl, q931_call *c, int channel, int nonisdn)
 	} else {
 		q931_display_clear(c);
 	}
-	if (ctrl->localtype == PRI_NETWORK) {
-	    /* networks may send date/time */
-	    return send_message(ctrl, c, Q931_CONNECT, connect_net_ies);
-	} else {
-	    return send_message(ctrl, c, Q931_CONNECT, connect_ies);
-	}
+	return send_message(ctrl, c, Q931_CONNECT, connect_ies);
 }
 
 static int release_ies[] = { Q931_CAUSE, Q931_IE_FACILITY, Q931_IE_USER_USER, -1 };

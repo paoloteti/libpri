@@ -189,6 +189,8 @@ struct pri {
 		/*! Receive display text policy option flags. */
 		unsigned long receive;
 	} display_flags;
+	/*! Configured date/time ie send policy option. */
+	int date_time_send;
 };
 
 /*! \brief Maximum name length plus null terminator (From ECMA-164) */
