@@ -1,0 +1,325 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" /><title>Release Summary - libpri-1.4.12</title></head>
+<body>
+<h1 align="center"><a name="top">Release Summary</a></h1>
+<h3 align="center">libpri-1.4.12</h3>
+<h3 align="center">Date: 2011-07-05</h3>
+<h3 align="center">&lt;asteriskteam@digium.com&gt;</h3>
+<hr/>
+<h2 align="center">Table of Contents</h2>
+<ol>
+   <li><a href="#summary">Summary</a></li>
+   <li><a href="#contributors">Contributors</a></li>
+   <li><a href="#issues">Closed Issues</a></li>
+   <li><a href="#commits">Other Changes</a></li>
+   <li><a href="#diffstat">Diffstat</a></li>
+</ol>
+<hr/>
+<a name="summary"><h2 align="center">Summary</h2></a>
+<center><a href="#top">[Back to Top]</a></center><br/><p>This release includes only bug fixes.  The changes included were made only to address problems that have been identified in this release series.  Users should be able to safely upgrade to this version if this release series is already in use.  Users considering upgrading from a previous release series are strongly encouraged to review the UPGRADE.txt document as well as the CHANGES document for information about upgrading to this release series.</p>
+<p>The data in this summary reflects changes that have been made since the previous release, libpri-1.4.11.</p>
+<hr/>
+<a name="contributors"><h2 align="center">Contributors</h2></a>
+<center><a href="#top">[Back to Top]</a></center><br/><p>This table lists the people who have submitted code, those that have tested patches, as well as those that reported issues on the issue tracker that were resolved in this release.  For coders, the number is how many of their patches (of any size) were committed into this release.  For testers, the number is the number of times their name was listed as assisting with testing a patch.  Finally, for reporters, the number is the number of issues that they reported that were closed by commits that went into this release.</p>
+<table width="100%" border="0">
+<tr>
+<td width="33%"><h3>Coders</h3></td>
+<td width="33%"><h3>Testers</h3></td>
+<td width="33%"><h3>Reporters</h3></td>
+</tr>
+<tr valign="top">
+<td>
+77 rmudgett<br/>
+1 alecdavis<br/>
+1 dvossel<br/>
+1 horape<br/>
+1 jcollie<br/>
+1 mattf<br/>
+1 nic<br/>
+1 paravoid<br/>
+1 russell<br/>
+1 tilghman<br/>
+</td>
+<td>
+10 rmudgett<br/>
+1 cmorford<br/>
+1 ibercom<br/>
+1 jcovert<br/>
+1 jsmith<br/>
+1 lelio<br/>
+1 paravoid<br/>
+1 patrol-cz<br/>
+1 shawkris<br/>
+1 wimpy<br/>
+</td>
+<td>
+2 wuwu<br/>
+1 alecdavis<br/>
+1 bklang<br/>
+1 cmorford<br/>
+1 gelo<br/>
+1 horape<br/>
+1 ibercom<br/>
+1 jcollie<br/>
+1 jcovert<br/>
+1 jims8650<br/>
+1 jmls<br/>
+1 jsmith<br/>
+1 kenner<br/>
+1 kobaz<br/>
+1 lelio<br/>
+1 nic_bellamy<br/>
+1 paravoid<br/>
+1 patrol-cz<br/>
+1 schmoozecom<br/>
+1 shawkris<br/>
+1 tomaso<br/>
+1 wimpy<br/>
+</td>
+</tr>
+</table>
+<hr/>
+<a name="issues"><h2 align="center">Closed Issues</h2></a>
+<center><a href="#top">[Back to Top]</a></center><br/><p>This is a list of all issues from the issue tracker that were closed by changes that went into this release.</p>
+<h3>Category: Channels/chan_dahdi</h3><br/>
+<a href="https://issues.asterisk.org/jira/browse/ASTERISK-16038">ASTERISK-16038</a>: getting warning message every 4 seconds<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2113">2113</a><br/>
+Reporter: jmls<br/>
+Coders: rmudgett<br/>
+<br/>
+<h3>Category: Channels/chan_dahdi/NewFeature</h3><br/>
+<a href="https://issues.asterisk.org/jira/browse/ASTERISK-13410">ASTERISK-13410</a>: [patch] CCBS/CCNR support for QSIG (libpri & chan_dahdi)<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1714">1714</a><br/>
+Reporter: tomaso<br/>
+Testers: rmudgett<br/>
+Coders: rmudgett<br/>
+<br/>
+<h3>Category: General</h3><br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-102">PRI-102</a>: [patch] [regression] Calling Number assignment logic change in libpri 1.4.11.<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1823">1823</a><br/>
+Reporter: ibercom<br/>
+Testers: ibercom<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-103">PRI-103</a>: segfault in pri_schedule_del - ctrl invalid value<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2015">2015</a><br/>
+Reporter: wuwu<br/>
+Testers: rmudgett<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-105">PRI-105</a>: [patch] ISDN BRI does not recover from line faults<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1918">1918</a><br/>
+Reporter: jcovert<br/>
+Testers: jcovert, rmudgett<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-107">PRI-107</a>: [patch] Calling name not successfully processed on inbound QSIG PRI calls from Mitel PBX<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1828">1828</a><br/>
+Reporter: jims8650<br/>
+Testers: rmudgett<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-110">PRI-110</a>: [patch] BRI NT ptmp: Active channels not cleard when i/f goes down<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1982">1982</a><br/>
+Reporter: wimpy<br/>
+Testers: rmudgett, wimpy<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-112">PRI-112</a>: [patch] Libpri crashes when receiving Message Type (100)<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2021">2021</a><br/>
+Reporter: gelo<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-113">PRI-113</a>: [patch] Asterisk is core dumping with LibPRI<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2015">2015</a><br/>
+Reporter: schmoozecom<br/>
+Testers: rmudgett<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-114">PRI-114</a>: [patch] add extra IE  Q931_IE_TIME_DATE to CONNECT message when in network mode<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2187">2187</a><br/>
+Reporter: wuwu<br/>
+Testers: rmudgett<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-116">PRI-116</a>: [patch] B410P gets incoming call packets on ISDN but DAHDI doesn't generate the call in Asterisk<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2088">2088</a><br/>
+Reporter: lelio<br/>
+Testers: lelio<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-117">PRI-117</a>: SABME flood on backup D-channel in NFAS configuration<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2111">2111</a><br/>
+Reporter: bklang<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-120">PRI-120</a>: [patch] Swap of master/slave in pri_enslave incorrect<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2192">2192</a><br/>
+Reporter: jcollie<br/>
+Coders: jcollie<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-121">PRI-121</a>: [patch] Caller ID Name always blank<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2206">2206</a><br/>
+Reporter: cmorford<br/>
+Testers: cmorford<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-62">PRI-62</a>: [patch] Inband disconnect setting does nothing<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1794">1794</a><br/>
+Reporter: paravoid<br/>
+Testers: paravoid<br/>
+Coders: paravoid<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-81">PRI-81</a>: [patch] q921_rnr_rx Q921_TIMER_RECOVERY SDL issue<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1845">1845</a><br/>
+Reporter: alecdavis<br/>
+Coders: alecdavis<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-94">PRI-94</a>: [patch] pritest hadn't been ported to DAHDI<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1833">1833</a><br/>
+Reporter: horape<br/>
+Coders: horape<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-95">PRI-95</a>: [patch] LibPRI problem with restart of PBX processor (Testing SVN 1688)<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1962">1962</a><br/>
+Reporter: shawkris<br/>
+Testers: shawkris, rmudgett<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-98">PRI-98</a>: [patch] Regression in libpri 1.4.11 - handling ROSE<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1785">1785</a><br/>
+Reporter: patrol-cz<br/>
+Testers: rmudgett, patrol-cz<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-99">PRI-99</a>: [patch] CallerID name not transmitted on versions of LibPRI after 1.4.10.2<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1810">1810</a><br/>
+Reporter: jsmith<br/>
+Testers: rmudgett, jsmith<br/>
+Coders: rmudgett<br/>
+<br/>
+<h3>Category: NewFeature</h3><br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-122">PRI-122</a>: Option needed for IE_TIME_DATE to be optional on connect<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2266">2266</a><br/>
+Reporter: kenner<br/>
+Coders: rmudgett<br/>
+<br/>
+<a href="https://issues.asterisk.org/jira/browse/PRI-54">PRI-54</a>: [patch] Add pri_new_bri_cb() API - Create BRI D-channel with user defined I/O callbacks and data<br/>
+Revision: <a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1836">1836</a><br/>
+Reporter: nic_bellamy<br/>
+Coders: nic<br/>
+<br/>
+<hr/>
+<a name="commits"><h2 align="center">Commits Not Associated with an Issue</h2></a>
+<center><a href="#top">[Back to Top]</a></center><br/><p>This is a list of all changes that went into this release that did not directly close an issue from the issue tracker.  The commits may have been marked as being related to an issue.  If that is the case, the issue numbers are listed here, as well.</p>
+<table width="100%" border="1">
+<tr><td><b>Revision</b></td><td><b>Author</b></td><td><b>Summary</b></td><td><b>Issues Referenced</b></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1723">1723</a></td><td>rmudgett</td><td>Added ETSI Explicit Call Transfer (ECT) support.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1737">1737</a></td><td>rmudgett</td><td>ETSI Advice Of Charge (AOC) event reporting.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1746">1746</a></td><td>rmudgett</td><td>ETSI Call Waiting support.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1757">1757</a></td><td>rmudgett</td><td>ETSI Malicious Call ID support.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1767">1767</a></td><td>rmudgett</td><td>ETSI Message Waiting Indication (MWI) support.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1776">1776</a></td><td>dvossel</td><td>support for sending ETSI advice of charge</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1829">1829</a></td><td>rmudgett</td><td>Added a libpri version output line as a sanity check for rosetest.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1830">1830</a></td><td>rmudgett</td><td>Only need to output one version of the version message.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1842">1842</a></td><td>rmudgett</td><td>Renamed local struct pri *pri variables to struct pri *ctrl in q921.c.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1848">1848</a></td><td>rmudgett</td><td>Improved Q.921/Q.931 debug output.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1852">1852</a></td><td>rmudgett</td><td>Learn (AGAIN!) why state 7 and state 8 transitions were suppressed.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1853">1853</a></td><td>rmudgett</td><td>No audio on inbound J1 calls.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-35">PRI-35</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1878">1878</a></td><td>mattf</td><td>Add silly fake MDL error Z for kicking L2 to reactivate if a DISC or DM is received in proper states on PTP links.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1883">1883</a></td><td>rmudgett</td><td>Don't silently fail to post our fake MDL-ERROR(Z).</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1884">1884</a></td><td>rmudgett</td><td>Added gripe check to rosetest for invalid operation and error codes.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1894">1894</a></td><td>rmudgett</td><td>Make pri_dump_event() only print the event name.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1904">1904</a></td><td>rmudgett</td><td>Add support to receive ECMA-164 2nd edition OID name ROSE messages.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-37">PRI-37</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1912">1912</a></td><td>rmudgett</td><td>Convert most references of Q931_MAX_TEI to use ARRAY_LEN().</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1923">1923</a></td><td>rmudgett</td><td>Q.921 improvements from comparing Q.921 SDL diagrams with implementation.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1928">1928</a></td><td>rmudgett</td><td>Q.921/Q.931 message debug output improvements.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1929">1929</a></td><td>rmudgett</td><td>Reduced fake MDL-ERROR (Z) message severity to be visible only when debugging enabled.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1955">1955</a></td><td>rmudgett</td><td>Don't crash in __pri_new_tei() if a GR303 subchannel creation fails.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1958">1958</a></td><td>rmudgett</td><td>Balance curly braces in post_handle_q931_message().</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1961">1961</a></td><td>rmudgett</td><td>Prevent a CONNECT message from sending a CONNECT ACKNOWLEDGE in the wrong state.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-95">PRI-95</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1965">1965</a></td><td>rmudgett</td><td>Added more parameter checks to pri_set_timer() and pri_get_timer().</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1976">1976</a></td><td>rmudgett</td><td>Fix spelling error in PTMP agent FSM files.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=1991">1991</a></td><td>rmudgett</td><td>PRI links do not retain active calls if the link comes back before T309 expires.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2001">2001</a></td><td>russell</td><td>Makefile tweaks to allow building for code coverage analysis.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2009">2009</a></td><td>tilghman</td><td>Minor changes to make libpri build on Mac OS X</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2027">2027</a></td><td>rmudgett</td><td>Create two versions of call ptr verify.  One gripes and one does not.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2042">2042</a></td><td>rmudgett</td><td>Dump Q.931 message using the TEI value the message came in with.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2063">2063</a></td><td>rmudgett</td><td>Logically separate Q.921 TEI link processing from D channel control.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2070">2070</a></td><td>rmudgett</td><td>Restructure the Q.931 call record to layer 2 link association.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2077">2077</a></td><td>rmudgett</td><td>Extract the layer 2 link structure out of struct pri.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2078">2078</a></td><td>rmudgett</td><td>Partial support for dynamic interfaces with NFAS.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2079">2079</a></td><td>rmudgett</td><td>Fixes CC agents not automatically clearing if T309 clears the original call.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-46">PRI-46</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2098">2098</a></td><td>rmudgett</td><td>Mainly put space after switch and while keywords.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2101">2101</a></td><td>rmudgett</td><td>Remove all TEIs when NT PTMP starts.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-51">PRI-51</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2102">2102</a></td><td>rmudgett</td><td>Remove unneeded struct q921_link.mdl_error_state member.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2103">2103</a></td><td>rmudgett</td><td>Convert TEI identity defines to enum and create 2str() function.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2104">2104</a></td><td>rmudgett</td><td>Q.921 TEI assignment procedure corrections.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2105">2105</a></td><td>rmudgett</td><td>Added TEI identity check feature to reclaim dead TEIs.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-51">PRI-51</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2109">2109</a></td><td>rmudgett</td><td>Minor MDL handler changes.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2166">2166</a></td><td>rmudgett</td><td>Fix bizarre logic to work as originally intended in q931_notify().</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2167">2167</a></td><td>rmudgett</td><td>Return error if q931_notify() cannot send NOTIFY.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2169">2169</a></td><td>rmudgett</td><td>Fix regression when reorganized for struct pri and struct q921_link.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2170">2170</a></td><td>rmudgett</td><td>Better HOLD/RETRIEVE collision handling.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2172">2172</a></td><td>rmudgett</td><td>Add call transfer exchange of subaddresses support and fix PTMP call transfer signaling.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-47">PRI-47</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2174">2174</a></td><td>rmudgett</td><td>Fix Q.931 retried SETUP not sending facility ies.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2175">2175</a></td><td>rmudgett</td><td>Invalid PTMP redirecting signaling as TE towards NT.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-53">PRI-53</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2183">2183</a></td><td>rmudgett</td><td>Enable LIBPRI_COUNTERS code by default.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-61">PRI-61</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2190">2190</a></td><td>rmudgett</td><td>Add display ie text handling options.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2200">2200</a></td><td>rmudgett</td><td>Fix I-frame retransmission quirks.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-60">PRI-60</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2202">2202</a></td><td>rmudgett</td><td>Crash if NFAS swaps D channels on a call with an active timer.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-58">PRI-58</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2204">2204</a></td><td>rmudgett</td><td>* Added switchtype to ROSE invoke operation not handled message.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2207">2207</a></td><td>rmudgett</td><td>B channel lost by incoming call in BRI NT PTMP mode.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2227">2227</a></td><td>rmudgett</td><td>Add determined remote node type to pri_dump_info_str().</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2232">2232</a></td><td>rmudgett</td><td>Improve the usefulness of pri_dump_info_str() output.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2233">2233</a></td><td>rmudgett</td><td>Fix valgrind reported invalid read/write for display text feature.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2236">2236</a></td><td>rmudgett</td><td>Miscellaneous cleanup before T312 branch merge.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2238">2238</a></td><td>rmudgett</td><td>Implement the mandatory T312 timer for NT PTMP broadcast SETUP calls.</td>
+<td><a href="https://issues.asterisk.org/jira/browse/PRI-32">PRI-32</a></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2258">2258</a></td><td>rmudgett</td><td>CallRerouting response not sent if peer hangs up first.</td>
+<td></td></tr><tr><td><a href="http://svn.digium.com/view/libpri/branches/1.4?view=revision&revision=2262">2262</a></td><td>rmudgett</td><td>Problems with ISDN MWI to phones.</td>
+<td></td></tr></table>
+<hr/>
+<a name="diffstat"><h2 align="center">Diffstat Results</h2></a>
+<center><a href="#top">[Back to Top]</a></center><br/><p>This is a summary of the changes to the source code that went into this release that was generated using the diffstat utility.</p>
+<pre>
+Makefile                          |   39
+doc/cc_ptmp_agent.fsm             |  376 +
+doc/cc_ptmp_agent_flattened.fsm   |  494 ++
+doc/cc_ptmp_monitor.fsm           |  181
+doc/cc_ptmp_monitor_flattened.fsm |  225 +
+doc/cc_ptp_agent.fsm              |  152
+doc/cc_ptp_agent_flattened.fsm    |  200
+doc/cc_ptp_monitor.fsm            |  168
+doc/cc_ptp_monitor_flattened.fsm  |  217 +
+doc/cc_qsig_agent.fsm             |  140
+doc/cc_qsig_agent_flattened.fsm   |  187
+doc/cc_qsig_monitor.fsm           |  249 +
+doc/cc_qsig_monitor_flattened.fsm |  327 +
+libpri.h                          |  900 ++++
+pri.c                             | 1151 ++++-
+pri_aoc.c                         | 1764 ++++++++
+pri_cc.c                          | 7884 ++++++++++++++++++++++++++++++++++++++
+pri_facility.c                    | 1823 +++++++-
+pri_facility.h                    |   87
+pri_internal.h                    |  593 ++
+pri_q921.h                        |  115
+pri_q931.h                        |   27
+prisched.c                        |  228 -
+pritest.c                         |   83
+q921.c                            | 2942 +++++++++-----
+q931.c                            | 3388 ++++++++++++----
+rose.c                            |  536 ++
+rose.h                            |  856 ++++
+rose_etsi_aoc.c                   |    9
+rose_etsi_cc.c                    | 1853 ++++++++
+rose_etsi_mwi.c                   |  686 +++
+rose_internal.h                   |  205
+rose_qsig_cc.c                    |  984 ++++
+rose_qsig_mwi.c                   |    9
+rose_qsig_name.c                  |    1
+rosetest.c                        |  919 ++++
+36 files changed, 27493 insertions(+), 2505 deletions(-)
+</pre><br/>
+<hr/>
+</body>
+</html>

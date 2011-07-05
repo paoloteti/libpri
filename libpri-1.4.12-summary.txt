@@ -1,0 +1,483 @@
+                                Release Summary
+
+                                 libpri-1.4.12
+
+                                Date: 2011-07-05
+
+                           <asteriskteam@digium.com>
+
+     ----------------------------------------------------------------------
+
+                               Table of Contents
+
+    1. Summary
+    2. Contributors
+    3. Closed Issues
+    4. Other Changes
+    5. Diffstat
+
+     ----------------------------------------------------------------------
+
+                                    Summary
+
+                                 [Back to Top]
+
+   This release includes only bug fixes. The changes included were made only
+   to address problems that have been identified in this release series.
+   Users should be able to safely upgrade to this version if this release
+   series is already in use. Users considering upgrading from a previous
+   release series are strongly encouraged to review the UPGRADE.txt document
+   as well as the CHANGES document for information about upgrading to this
+   release series.
+
+   The data in this summary reflects changes that have been made since the
+   previous release, libpri-1.4.11.
+
+     ----------------------------------------------------------------------
+
+                                  Contributors
+
+                                 [Back to Top]
+
+   This table lists the people who have submitted code, those that have
+   tested patches, as well as those that reported issues on the issue tracker
+   that were resolved in this release. For coders, the number is how many of
+   their patches (of any size) were committed into this release. For testers,
+   the number is the number of times their name was listed as assisting with
+   testing a patch. Finally, for reporters, the number is the number of
+   issues that they reported that were closed by commits that went into this
+   release.
+
+     Coders                   Testers                  Reporters              
+   77 rmudgett              10 rmudgett              2 wuwu                   
+   1 alecdavis              1 cmorford               1 alecdavis              
+   1 dvossel                1 ibercom                1 bklang                 
+   1 horape                 1 jcovert                1 cmorford               
+   1 jcollie                1 jsmith                 1 gelo                   
+   1 mattf                  1 lelio                  1 horape                 
+   1 nic                    1 paravoid               1 ibercom                
+   1 paravoid               1 patrol-cz              1 jcollie                
+   1 russell                1 shawkris               1 jcovert                
+   1 tilghman               1 wimpy                  1 jims8650               
+                                                     1 jmls                   
+                                                     1 jsmith                 
+                                                     1 kenner                 
+                                                     1 kobaz                  
+                                                     1 lelio                  
+                                                     1 nic_bellamy            
+                                                     1 paravoid               
+                                                     1 patrol-cz              
+                                                     1 schmoozecom            
+                                                     1 shawkris               
+                                                     1 tomaso                 
+                                                     1 wimpy                  
+
+     ----------------------------------------------------------------------
+
+                                 Closed Issues
+
+                                 [Back to Top]
+
+   This is a list of all issues from the issue tracker that were closed by
+   changes that went into this release.
+
+  Category: Channels/chan_dahdi
+
+   ASTERISK-16038: getting warning message every 4 seconds
+   Revision: 2113
+   Reporter: jmls
+   Coders: rmudgett
+
+  Category: Channels/chan_dahdi/NewFeature
+
+   ASTERISK-13410: [patch] CCBS/CCNR support for QSIG (libpri & chan_dahdi)
+   Revision: 1714
+   Reporter: tomaso
+   Testers: rmudgett
+   Coders: rmudgett
+
+  Category: General
+
+   PRI-102: [patch] [regression] Calling Number assignment logic change in
+   libpri 1.4.11.
+   Revision: 1823
+   Reporter: ibercom
+   Testers: ibercom
+   Coders: rmudgett
+
+   PRI-103: segfault in pri_schedule_del - ctrl invalid value
+   Revision: 2015
+   Reporter: wuwu
+   Testers: rmudgett
+   Coders: rmudgett
+
+   PRI-105: [patch] ISDN BRI does not recover from line faults
+   Revision: 1918
+   Reporter: jcovert
+   Testers: jcovert, rmudgett
+   Coders: rmudgett
+
+   PRI-107: [patch] Calling name not successfully processed on inbound QSIG
+   PRI calls from Mitel PBX
+   Revision: 1828
+   Reporter: jims8650
+   Testers: rmudgett
+   Coders: rmudgett
+
+   PRI-110: [patch] BRI NT ptmp: Active channels not cleard when i/f goes
+   down
+   Revision: 1982
+   Reporter: wimpy
+   Testers: rmudgett, wimpy
+   Coders: rmudgett
+
+   PRI-112: [patch] Libpri crashes when receiving Message Type (100)
+   Revision: 2021
+   Reporter: gelo
+   Coders: rmudgett
+
+   PRI-113: [patch] Asterisk is core dumping with LibPRI
+   Revision: 2015
+   Reporter: schmoozecom
+   Testers: rmudgett
+   Coders: rmudgett
+
+   PRI-114: [patch] add extra IE Q931_IE_TIME_DATE to CONNECT message when in
+   network mode
+   Revision: 2187
+   Reporter: wuwu
+   Testers: rmudgett
+   Coders: rmudgett
+
+   PRI-116: [patch] B410P gets incoming call packets on ISDN but DAHDI
+   doesn't generate the call in Asterisk
+   Revision: 2088
+   Reporter: lelio
+   Testers: lelio
+   Coders: rmudgett
+
+   PRI-117: SABME flood on backup D-channel in NFAS configuration
+   Revision: 2111
+   Reporter: bklang
+   Coders: rmudgett
+
+   PRI-120: [patch] Swap of master/slave in pri_enslave incorrect
+   Revision: 2192
+   Reporter: jcollie
+   Coders: jcollie
+
+   PRI-121: [patch] Caller ID Name always blank
+   Revision: 2206
+   Reporter: cmorford
+   Testers: cmorford
+   Coders: rmudgett
+
+   PRI-62: [patch] Inband disconnect setting does nothing
+   Revision: 1794
+   Reporter: paravoid
+   Testers: paravoid
+   Coders: paravoid
+
+   PRI-81: [patch] q921_rnr_rx Q921_TIMER_RECOVERY SDL issue
+   Revision: 1845
+   Reporter: alecdavis
+   Coders: alecdavis
+
+   PRI-94: [patch] pritest hadn't been ported to DAHDI
+   Revision: 1833
+   Reporter: horape
+   Coders: horape
+
+   PRI-95: [patch] LibPRI problem with restart of PBX processor (Testing SVN
+   1688)
+   Revision: 1962
+   Reporter: shawkris
+   Testers: shawkris, rmudgett
+   Coders: rmudgett
+
+   PRI-98: [patch] Regression in libpri 1.4.11 - handling ROSE
+   Revision: 1785
+   Reporter: patrol-cz
+   Testers: rmudgett, patrol-cz
+   Coders: rmudgett
+
+   PRI-99: [patch] CallerID name not transmitted on versions of LibPRI after
+   1.4.10.2
+   Revision: 1810
+   Reporter: jsmith
+   Testers: rmudgett, jsmith
+   Coders: rmudgett
+
+  Category: NewFeature
+
+   PRI-122: Option needed for IE_TIME_DATE to be optional on connect
+   Revision: 2266
+   Reporter: kenner
+   Coders: rmudgett
+
+   PRI-54: [patch] Add pri_new_bri_cb() API - Create BRI D-channel with user
+   defined I/O callbacks and data
+   Revision: 1836
+   Reporter: nic_bellamy
+   Coders: nic
+
+     ----------------------------------------------------------------------
+
+                      Commits Not Associated with an Issue
+
+                                 [Back to Top]
+
+   This is a list of all changes that went into this release that did not
+   directly close an issue from the issue tracker. The commits may have been
+   marked as being related to an issue. If that is the case, the issue
+   numbers are listed here, as well.
+
+   +------------------------------------------------------------------------+
+   | Revision | Author   | Summary                             | Issues     |
+   |          |          |                                     | Referenced |
+   |----------+----------+-------------------------------------+------------|
+   | 1723     | rmudgett | Added ETSI Explicit Call Transfer   |            |
+   |          |          | (ECT) support.                      |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1737     | rmudgett | ETSI Advice Of Charge (AOC) event   |            |
+   |          |          | reporting.                          |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1746     | rmudgett | ETSI Call Waiting support.          |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1757     | rmudgett | ETSI Malicious Call ID support.     |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1767     | rmudgett | ETSI Message Waiting Indication     |            |
+   |          |          | (MWI) support.                      |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1776     | dvossel  | support for sending ETSI advice of  |            |
+   |          |          | charge                              |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1829     | rmudgett | Added a libpri version output line  |            |
+   |          |          | as a sanity check for rosetest.     |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1830     | rmudgett | Only need to output one version of  |            |
+   |          |          | the version message.                |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Renamed local struct pri *pri       |            |
+   | 1842     | rmudgett | variables to struct pri *ctrl in    |            |
+   |          |          | q921.c.                             |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1848     | rmudgett | Improved Q.921/Q.931 debug output.  |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Learn (AGAIN!) why state 7 and      |            |
+   | 1852     | rmudgett | state 8 transitions were            |            |
+   |          |          | suppressed.                         |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1853     | rmudgett | No audio on inbound J1 calls.       | PRI-35     |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Add silly fake MDL error Z for      |            |
+   | 1878     | mattf    | kicking L2 to reactivate if a DISC  |            |
+   |          |          | or DM is received in proper states  |            |
+   |          |          | on PTP links.                       |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1883     | rmudgett | Don't silently fail to post our     |            |
+   |          |          | fake MDL-ERROR(Z).                  |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1884     | rmudgett | Added gripe check to rosetest for   |            |
+   |          |          | invalid operation and error codes.  |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1894     | rmudgett | Make pri_dump_event() only print    |            |
+   |          |          | the event name.                     |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1904     | rmudgett | Add support to receive ECMA-164 2nd | PRI-37     |
+   |          |          | edition OID name ROSE messages.     |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1912     | rmudgett | Convert most references of          |            |
+   |          |          | Q931_MAX_TEI to use ARRAY_LEN().    |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Q.921 improvements from comparing   |            |
+   | 1923     | rmudgett | Q.921 SDL diagrams with             |            |
+   |          |          | implementation.                     |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1928     | rmudgett | Q.921/Q.931 message debug output    |            |
+   |          |          | improvements.                       |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Reduced fake MDL-ERROR (Z) message  |            |
+   | 1929     | rmudgett | severity to be visible only when    |            |
+   |          |          | debugging enabled.                  |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1955     | rmudgett | Don't crash in __pri_new_tei() if a |            |
+   |          |          | GR303 subchannel creation fails.    |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1958     | rmudgett | Balance curly braces in             |            |
+   |          |          | post_handle_q931_message().         |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Prevent a CONNECT message from      |            |
+   | 1961     | rmudgett | sending a CONNECT ACKNOWLEDGE in    | PRI-95     |
+   |          |          | the wrong state.                    |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Added more parameter checks to      |            |
+   | 1965     | rmudgett | pri_set_timer() and                 |            |
+   |          |          | pri_get_timer().                    |            |
+   |----------+----------+-------------------------------------+------------|
+   | 1976     | rmudgett | Fix spelling error in PTMP agent    |            |
+   |          |          | FSM files.                          |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | PRI links do not retain active      |            |
+   | 1991     | rmudgett | calls if the link comes back before |            |
+   |          |          | T309 expires.                       |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2001     | russell  | Makefile tweaks to allow building   |            |
+   |          |          | for code coverage analysis.         |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2009     | tilghman | Minor changes to make libpri build  |            |
+   |          |          | on Mac OS X                         |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Create two versions of call ptr     |            |
+   | 2027     | rmudgett | verify. One gripes and one does     |            |
+   |          |          | not.                                |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2042     | rmudgett | Dump Q.931 message using the TEI    |            |
+   |          |          | value the message came in with.     |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2063     | rmudgett | Logically separate Q.921 TEI link   |            |
+   |          |          | processing from D channel control.  |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2070     | rmudgett | Restructure the Q.931 call record   |            |
+   |          |          | to layer 2 link association.        |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2077     | rmudgett | Extract the layer 2 link structure  |            |
+   |          |          | out of struct pri.                  |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2078     | rmudgett | Partial support for dynamic         |            |
+   |          |          | interfaces with NFAS.               |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Fixes CC agents not automatically   |            |
+   | 2079     | rmudgett | clearing if T309 clears the         | PRI-46     |
+   |          |          | original call.                      |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2098     | rmudgett | Mainly put space after switch and   |            |
+   |          |          | while keywords.                     |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2101     | rmudgett | Remove all TEIs when NT PTMP        | PRI-51     |
+   |          |          | starts.                             |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2102     | rmudgett | Remove unneeded struct              |            |
+   |          |          | q921_link.mdl_error_state member.   |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2103     | rmudgett | Convert TEI identity defines to     |            |
+   |          |          | enum and create 2str() function.    |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2104     | rmudgett | Q.921 TEI assignment procedure      |            |
+   |          |          | corrections.                        |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2105     | rmudgett | Added TEI identity check feature to | PRI-51     |
+   |          |          | reclaim dead TEIs.                  |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2109     | rmudgett | Minor MDL handler changes.          |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Fix bizarre logic to work as        |            |
+   | 2166     | rmudgett | originally intended in              |            |
+   |          |          | q931_notify().                      |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2167     | rmudgett | Return error if q931_notify()       |            |
+   |          |          | cannot send NOTIFY.                 |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2169     | rmudgett | Fix regression when reorganized for |            |
+   |          |          | struct pri and struct q921_link.    |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2170     | rmudgett | Better HOLD/RETRIEVE collision      |            |
+   |          |          | handling.                           |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Add call transfer exchange of       |            |
+   | 2172     | rmudgett | subaddresses support and fix PTMP   | PRI-47     |
+   |          |          | call transfer signaling.            |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2174     | rmudgett | Fix Q.931 retried SETUP not sending |            |
+   |          |          | facility ies.                       |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2175     | rmudgett | Invalid PTMP redirecting signaling  | PRI-53     |
+   |          |          | as TE towards NT.                   |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2183     | rmudgett | Enable LIBPRI_COUNTERS code by      | PRI-61     |
+   |          |          | default.                            |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2190     | rmudgett | Add display ie text handling        |            |
+   |          |          | options.                            |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2200     | rmudgett | Fix I-frame retransmission quirks.  | PRI-60     |
+   |----------+----------+-------------------------------------+------------|
+   | 2202     | rmudgett | Crash if NFAS swaps D channels on a | PRI-58     |
+   |          |          | call with an active timer.          |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2204     | rmudgett | * Added switchtype to ROSE invoke   |            |
+   |          |          | operation not handled message.      |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2207     | rmudgett | B channel lost by incoming call in  |            |
+   |          |          | BRI NT PTMP mode.                   |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2227     | rmudgett | Add determined remote node type to  |            |
+   |          |          | pri_dump_info_str().                |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2232     | rmudgett | Improve the usefulness of           |            |
+   |          |          | pri_dump_info_str() output.         |            |
+   |----------+----------+-------------------------------------+------------|
+   |          |          | Fix valgrind reported invalid       |            |
+   | 2233     | rmudgett | read/write for display text         |            |
+   |          |          | feature.                            |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2236     | rmudgett | Miscellaneous cleanup before T312   |            |
+   |          |          | branch merge.                       |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2238     | rmudgett | Implement the mandatory T312 timer  | PRI-32     |
+   |          |          | for NT PTMP broadcast SETUP calls.  |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2258     | rmudgett | CallRerouting response not sent if  |            |
+   |          |          | peer hangs up first.                |            |
+   |----------+----------+-------------------------------------+------------|
+   | 2262     | rmudgett | Problems with ISDN MWI to phones.   |            |
+   +------------------------------------------------------------------------+
+
+     ----------------------------------------------------------------------
+
+                                Diffstat Results
+
+                                 [Back to Top]
+
+   This is a summary of the changes to the source code that went into this
+   release that was generated using the diffstat utility.
+
+ Makefile                          |   39
+ doc/cc_ptmp_agent.fsm             |  376 +
+ doc/cc_ptmp_agent_flattened.fsm   |  494 ++
+ doc/cc_ptmp_monitor.fsm           |  181
+ doc/cc_ptmp_monitor_flattened.fsm |  225 +
+ doc/cc_ptp_agent.fsm              |  152
+ doc/cc_ptp_agent_flattened.fsm    |  200
+ doc/cc_ptp_monitor.fsm            |  168
+ doc/cc_ptp_monitor_flattened.fsm  |  217 +
+ doc/cc_qsig_agent.fsm             |  140
+ doc/cc_qsig_agent_flattened.fsm   |  187
+ doc/cc_qsig_monitor.fsm           |  249 +
+ doc/cc_qsig_monitor_flattened.fsm |  327 +
+ libpri.h                          |  900 ++++
+ pri.c                             | 1151 ++++-
+ pri_aoc.c                         | 1764 ++++++++
+ pri_cc.c                          | 7884 ++++++++++++++++++++++++++++++++++++++
+ pri_facility.c                    | 1823 +++++++-
+ pri_facility.h                    |   87
+ pri_internal.h                    |  593 ++
+ pri_q921.h                        |  115
+ pri_q931.h                        |   27
+ prisched.c                        |  228 -
+ pritest.c                         |   83
+ q921.c                            | 2942 +++++++++-----
+ q931.c                            | 3388 ++++++++++++----
+ rose.c                            |  536 ++
+ rose.h                            |  856 ++++
+ rose_etsi_aoc.c                   |    9
+ rose_etsi_cc.c                    | 1853 ++++++++
+ rose_etsi_mwi.c                   |  686 +++
+ rose_internal.h                   |  205
+ rose_qsig_cc.c                    |  984 ++++
+ rose_qsig_mwi.c                   |    9
+ rose_qsig_name.c                  |    1
+ rosetest.c                        |  919 ++++
+ 36 files changed, 27493 insertions(+), 2505 deletions(-)
+
+     ----------------------------------------------------------------------
