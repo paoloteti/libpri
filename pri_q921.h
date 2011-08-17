@@ -252,7 +252,7 @@ struct q921_link {
 	int n202_counter;
 	/*! Max idle time */
 	int t203_timer;
-	/*! PTP restart delay timer */
+	/*! Layer 2 persistence restart delay timer */
 	int restart_timer;
 
 	/* MDL variables */
@@ -277,6 +277,7 @@ extern void q921_dump(struct pri *pri, q921_h *h, int len, int showraw, int txrx
 
 /* Bring up the D-channel */
 void q921_start(struct q921_link *link);
+void q921_bring_layer2_up(struct pri *ctrl);
 
 //extern void q921_reset(struct pri *pri, int reset_iqueue);
 

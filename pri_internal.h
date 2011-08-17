@@ -120,6 +120,8 @@ struct pri {
 
 	/*! Layer 2 link control for D channel. */
 	struct q921_link link;
+	/*! Layer 2 persistence option. */
+	enum pri_layer2_persistence l2_persistence;
 	/*! T201 TEI Identity Check timer. */
 	int t201_timer;
 	/*! Number of times T201 has expired. */

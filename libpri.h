@@ -1892,6 +1892,31 @@ int pri_transfer_rsp(struct pri *ctrl, q931_call *call, int invoke_id, int is_su
  */
 void pri_aoc_events_enable(struct pri *ctrl, int enable);
 
+enum pri_layer2_persistence {
+	PRI_L2_PERSISTENCE_DEFAULT,
+	/*! Immediately bring layer 2 back up if the peer brings layer 2 down. */
+	PRI_L2_PERSISTENCE_KEEP_UP,
+	/*! Leave layer 2 down if the peer brings layer 2 down. */
+	PRI_L2_PERSISTENCE_LEAVE_DOWN,
+#if 0	/* Possible future option.  Would need to define how long to idle before dropping. */
+	/*! Drop layer 2 on D channel idle. */
+	PRI_L2_PERSISTENCE_IDLE_DROP,
+#endif
+};
+
+/*!
+ * \brief Set the layer2 persistence option.
+ *
+ * \param ctrl D channel controller.
+ * \param option Layer 2 persistence to apply.
+ *
+ * \note
+ * Not all values are supported by all modes.
+ *
+ * \return Nothing
+ */
+void pri_persistent_layer2_option(struct pri *ctrl, enum pri_layer2_persistence option);
+
 #define PRI_DISPLAY_OPTION_BLOCK		(1 << 0)	/*!< Do not pass display text. */
 #define PRI_DISPLAY_OPTION_NAME_INITIAL	(1 << 1)	/*!< Use display in SETUP/CONNECT for name. */
 #define PRI_DISPLAY_OPTION_NAME_UPDATE	(1 << 2)	/*!< Use display in FACILITY/NOTIFY for COLP name if appropriate. */

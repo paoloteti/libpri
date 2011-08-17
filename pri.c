@@ -292,6 +292,27 @@ static int __pri_write(struct pri *pri, void *buf, int buflen)
 
 /*!
  * \internal
+ * \brief Determine the default layer 2 persistence option.
+ *
+ * \param ctrl D channel controller.
+ *
+ * \return Default layer 2 persistence option. (legacy behaviour default)
+ */
+static enum pri_layer2_persistence pri_l2_persistence_option_default(struct pri *ctrl)
+{
+	enum pri_layer2_persistence persistence;
+
+	if (PTMP_MODE(ctrl)) {
+		persistence = PRI_L2_PERSISTENCE_LEAVE_DOWN;
+	} else {
+		persistence = PRI_L2_PERSISTENCE_KEEP_UP;
+	}
+
+	return persistence;
+}
+
+/*!
+ * \internal
  * \brief Determine the default display text send options.
  *
  * \param ctrl D channel controller.
@@ -558,6 +579,7 @@ static struct pri *pri_ctrl_new(int fd, int node, int switchtype, pri_io_cb rd, 
 	ctrl->q931_rxcount = 0;
 	ctrl->q931_txcount = 0;
 
+	ctrl->l2_persistence = pri_l2_persistence_option_default(ctrl);
 	ctrl->display_flags.send = pri_display_options_send_default(ctrl);
 	ctrl->display_flags.receive = pri_display_options_receive_default(ctrl);
 	switch (switchtype) {
@@ -2162,6 +2184,27 @@ void pri_cc_retain_signaling_rsp(struct pri *ctrl, int signaling_retention)
 {
 	if (ctrl) {
 		ctrl->cc.option.signaling_retention_rsp = signaling_retention ? 1 : 0;
+	}
+}
+
+void pri_persistent_layer2_option(struct pri *ctrl, enum pri_layer2_persistence option)
+{
+	if (!ctrl) {
+		return;
+	}
+	if (PTMP_MODE(ctrl)) {
+		switch (option) {
+		case PRI_L2_PERSISTENCE_DEFAULT:
+			ctrl->l2_persistence = pri_l2_persistence_option_default(ctrl);
+			break;
+		case PRI_L2_PERSISTENCE_KEEP_UP:
+		case PRI_L2_PERSISTENCE_LEAVE_DOWN:
+			ctrl->l2_persistence = option;
+			break;
+		}
+		if (ctrl->l2_persistence == PRI_L2_PERSISTENCE_KEEP_UP) {
+			q921_bring_layer2_up(ctrl);
+		}
 	}
 }
 
