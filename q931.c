@@ -6705,7 +6705,7 @@ static int __q931_hangup(struct pri *ctrl, q931_call *c, int cause)
 		case Q931_CALL_STATE_RESTART_REQUEST:
 		case Q931_CALL_STATE_RESTART:
 			pri_error(ctrl,
-				"Wierd, doing nothing but this shouldn't happen, ourstate %s, peerstate %s\n",
+				"Weird, doing nothing but this shouldn't happen, ourstate %s, peerstate %s\n",
 				q931_call_state_str(c->ourcallstate),
 				q931_call_state_str(c->peercallstate));
 			break;
