@@ -938,6 +938,112 @@ int q931_party_id_presentation(const struct q931_party_id *id)
 
 /*!
  * \internal
+ * \brief Get binary buffer contents into the destination buffer.
+ *
+ * \param dst Destination buffer.
+ * \param dst_size Destination buffer sizeof()
+ * \param src Source buffer.
+ * \param src_len Source buffer length to copy.
+ *
+ * \note The destination buffer is nul terminated just in case
+ * the contents are used as a string anyway.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.  The copy did not happen.
+ */
+static int q931_memget(unsigned char *dst, size_t dst_size, const unsigned char *src, int src_len)
+{
+	if (src_len < 0 || src_len > dst_size - 1) {
+		dst[0] = 0;
+		return -1;
+	}
+	memcpy(dst, src, src_len);
+	dst[src_len] = 0;
+	return 0;
+}
+
+/*!
+ * \internal
+ * \brief Get source buffer contents into the destination buffer for a string.
+ *
+ * \param dst Destination buffer.
+ * \param dst_size Destination buffer sizeof()
+ * \param src Source buffer.
+ * \param src_len Source buffer length to copy.
+ *
+ * \note The destination buffer is nul terminated.
+ * \note Nul bytes from the source buffer are not copied.
+ *
+ * \retval 0 on success.
+ * \retval -1 if nul bytes were found in the source data.
+ */
+static int q931_strget(unsigned char *dst, size_t dst_size, const unsigned char *src, int src_len)
+{
+	int saw_nul;
+
+	if (src_len < 1) {
+		dst[0] = '\0';
+		return 0;
+	}
+
+	saw_nul = 0;
+	--dst_size;
+	while (dst_size && src_len) {
+		if (*src) {
+			*dst++ = *src;
+			--dst_size;
+		} else {
+			/* Skip nul bytes in the source buffer. */
+			saw_nul = -1;
+		}
+		++src;
+		--src_len;
+	}
+	*dst = '\0';
+
+	return saw_nul;
+}
+
+
+/*!
+ * \internal
+ * \brief Get source buffer contents into the destination buffer for a string.
+ *
+ * \param ctrl D channel controller.
+ * \param ie_name IE name to report nul bytes found in.
+ * \param dst Destination buffer.
+ * \param dst_size Destination buffer sizeof()
+ * \param src Source buffer.
+ * \param src_len Source buffer length to copy.
+ *
+ * \note The destination buffer is nul terminated.
+ * \note Nul bytes from the source buffer are not copied.
+ *
+ * \retval 0 on success.
+ * \retval -1 if nul bytes were found in the source data.
+ */
+static int q931_strget_gripe(struct pri *ctrl, const char *ie_name, unsigned char *dst, size_t dst_size, const unsigned char *src, int src_len)
+{
+	int saw_nul;
+
+/* To quietly remove nul octets just comment out the following line. */
+#define UNCONDITIONALLY_REPORT_REMOVED_NUL_OCTETS	1
+
+	saw_nul = q931_strget(dst, dst_size, src, src_len);
+	if (saw_nul
+#if !defined(UNCONDITIONALLY_REPORT_REMOVED_NUL_OCTETS)
+		&& (ctrl->debug & PRI_DEBUG_Q931_STATE)
+#endif
+		) {
+		pri_message(ctrl, "!! Removed nul octets from IE '%s' and returning '%s'.\n",
+			ie_name, dst);
+	}
+
+	return saw_nul;
+}
+
+/*!
+ * \internal
  * \brief Clear the display text.
  *
  * \param call Q.931 call to clear display text.
@@ -962,7 +1068,8 @@ static void q931_display_name_send(struct q931_call *call, const struct q931_par
 	if (name->valid) {
 		switch (name->presentation & PRI_PRES_RESTRICTION) {
 		case PRI_PRES_ALLOWED:
-			call->display.text = (char *) name->str;
+			call->display.text = (unsigned char *) name->str;
+			call->display.full_ie = 0;
 			call->display.length = strlen(name->str);
 			call->display.char_set = name->char_set;
 			break;
@@ -997,12 +1104,9 @@ int q931_display_name_get(struct q931_call *call, struct q931_party_name *name)
 
 	name->valid = 1;
 	name->char_set = call->display.char_set;
-	if (call->display.length < sizeof(name->str)) {
-		memcpy(name->str, call->display.text, call->display.length);
-		name->str[call->display.length] = '\0';
-	} else {
-		name->str[0] = '\0';
-	}
+	q931_strget_gripe(call->pri, ie2str(call->display.full_ie),
+		(unsigned char *) name->str, sizeof(name->str), call->display.text,
+		call->display.length);
 	if (name->str[0]) {
 		name->presentation = PRI_PRES_ALLOWED;
 	} else {
@@ -1038,16 +1142,10 @@ static void q931_display_subcmd(struct pri *ctrl, struct q931_call *call)
 			/* Setup display text subcommand */
 			subcmd->cmd = PRI_SUBCMD_DISPLAY_TEXT;
 			subcmd->u.display.char_set = call->display.char_set;
-			if (call->display.length < sizeof(subcmd->u.display.text)) {
-				subcmd->u.display.length = call->display.length;
-			} else {
-				/* Truncate display text and leave room for a null terminator. */
-				subcmd->u.display.length = sizeof(subcmd->u.display.text) - 1;
-			}
-			memcpy(subcmd->u.display.text, call->display.text, subcmd->u.display.length);
-
-			/* Make sure display text is null terminated. */
-			subcmd->u.display.text[subcmd->u.display.length] = '\0';
+			q931_strget_gripe(ctrl, ie2str(call->display.full_ie),
+				(unsigned char *) subcmd->u.display.text, sizeof(subcmd->u.display.text),
+				call->display.text, call->display.length);
+			subcmd->u.display.length = strlen(subcmd->u.display.text);
 		}
 	}
 
@@ -1954,16 +2052,6 @@ char *pri_pres2str(int pres)
 	return code2str(pres, press, sizeof(press) / sizeof(press[0]));
 }
 
-static void q931_get_number(unsigned char *num, int maxlen, unsigned char *src, int len)
-{
-	if ((len < 0) || (len > maxlen - 1)) {
-		num[0] = 0;
-		return;
-	}
-	memcpy(num, src, len);
-	num[len] = 0;
-}
-
 static void q931_get_subaddr_specific(unsigned char *num, int maxlen, unsigned char *src, int len, char oddflag)
 {
 	/* User Specified */
@@ -2025,19 +2113,19 @@ static int receive_subaddr_helper(int full_ie, struct pri *ctrl, struct q931_par
 	/* type: 0 = NSAP, 2 = User Specified */
 	q931_subaddress->type = ((ie->data[0] & 0x70) >> 4);
 	q931_subaddress->odd_even_indicator = (ie->data[0] & 0x08) ? 1 : 0;
-	q931_get_number(q931_subaddress->data, sizeof(q931_subaddress->data),
+	q931_memget(q931_subaddress->data, sizeof(q931_subaddress->data),
 		ie->data + offset, len);
 
 	return 0;
 }
 
-static void dump_subaddr_helper(int full_ie, struct pri *ctrl, q931_ie *ie, int offset, int len, int datalen, char prefix, const char *named)
+static void dump_subaddr_helper(int full_ie, struct pri *ctrl, q931_ie *ie, int offset, int len, int datalen, char prefix)
 {
 	unsigned char cnum[256];
 
 	if (!(ie->data[0] & 0x70)) {
-		/* NSAP */
-		q931_get_number(cnum, sizeof(cnum), ie->data + offset, datalen);
+		/* NSAP  Get it as a string for dump display purposes only. */
+		q931_strget(cnum, sizeof(cnum), ie->data + offset, datalen);
 	} else {
 		/* User Specified */
 		q931_get_subaddr_specific(cnum, sizeof(cnum), ie->data + offset, datalen,
@@ -2045,8 +2133,8 @@ static void dump_subaddr_helper(int full_ie, struct pri *ctrl, q931_ie *ie, int 
 	}
 
 	pri_message(ctrl,
-		"%c %s Sub-Address (len=%2d) [ Ext: %d  Type: %s (%d)  O: %d  '%s' ]\n",
-		prefix, named, len, ie->data[0] >> 7,
+		"%c %s (len=%2d) [ Ext: %d  Type: %s (%d)  O: %d  '%s' ]\n",
+		prefix, ie2str(full_ie), len, ie->data[0] >> 7,
 		subaddrtype2str((ie->data[0] & 0x70) >> 4), (ie->data[0] & 0x70) >> 4,
 		(ie->data[0] & 0x08) >> 3, cnum);
 }
@@ -2055,23 +2143,25 @@ static void dump_called_party_number(int full_ie, struct pri *ctrl, q931_ie *ie,
 {
 	unsigned char cnum[256];
 
-	q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
+	q931_strget(cnum, sizeof(cnum), ie->data + 1, len - 3);
 	pri_message(ctrl, "%c Called Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)  '%s' ]\n",
 		prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f, cnum);
 }
 
 static void dump_called_party_subaddr(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
 {
-	dump_subaddr_helper(full_ie, ctrl, ie, 1 , len, len - 3, prefix, "Called");
+	dump_subaddr_helper(full_ie, ctrl, ie, 1, len, len - 3, prefix);
 }
 
 static void dump_calling_party_number(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
 {
 	unsigned char cnum[256];
-	if (ie->data[0] & 0x80)
-		q931_get_number(cnum, sizeof(cnum), ie->data + 1, len - 3);
-	else
-		q931_get_number(cnum, sizeof(cnum), ie->data + 2, len - 4);
+
+	if (ie->data[0] & 0x80) {
+		q931_strget(cnum, sizeof(cnum), ie->data + 1, len - 3);
+	} else {
+		q931_strget(cnum, sizeof(cnum), ie->data + 2, len - 4);
+	}
 	pri_message(ctrl, "%c Calling Number (len=%2d) [ Ext: %d  TON: %s (%d)  NPI: %s (%d)\n", prefix, len, ie->data[0] >> 7, ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07, npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
 	if (ie->data[0] & 0x80)
 		pri_message(ctrl, "%c                           Presentation: %s (%d)  '%s' ]\n", prefix, pri_pres2str(0), 0, cnum);
@@ -2081,7 +2171,7 @@ static void dump_calling_party_number(int full_ie, struct pri *ctrl, q931_ie *ie
 
 static void dump_calling_party_subaddr(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
 {
-	dump_subaddr_helper(full_ie, ctrl, ie, 1 , len, len - 3, prefix, "Calling");
+	dump_subaddr_helper(full_ie, ctrl, ie, 1, len, len - 3, prefix);
 }
 
 static void dump_calling_party_category(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
@@ -2114,7 +2204,7 @@ static void dump_redirecting_number(int full_ie, struct pri *ctrl, q931_ie *ie, 
 			break;
 		}
 	} while(!(ie->data[i++]& 0x80));
-	q931_get_number(cnum, sizeof(cnum), ie->data + i, ie->len - i);
+	q931_strget(cnum, sizeof(cnum), ie->data + i, ie->len - i);
 	pri_message(ctrl, "  '%s' ]\n", cnum);
 }
 
@@ -2140,7 +2230,7 @@ static void dump_redirection_number(int full_ie, struct pri *ctrl, q931_ie *ie, 
 			break;
 		}
 	} while (!(ie->data[i++] & 0x80));
-	q931_get_number(cnum, sizeof(cnum), ie->data + i, ie->len - i);
+	q931_strget(cnum, sizeof(cnum), ie->data + i, ie->len - i);
 	pri_message(ctrl, "  '%s' ]\n", cnum);
 }
 
@@ -2166,7 +2256,8 @@ static int receive_connected_number(int full_ie, struct pri *ctrl, q931_call *ca
 			break;
 		}
 	} while (!(ie->data[i++] & 0x80));
-	q931_get_number((unsigned char *) call->remote_id.number.str, sizeof(call->remote_id.number.str), ie->data + i, ie->len - i);
+	q931_strget_gripe(ctrl, ie2str(full_ie), (unsigned char *) call->remote_id.number.str,
+		sizeof(call->remote_id.number.str), ie->data + i, ie->len - i);
 
 	return 0;
 }
@@ -2207,7 +2298,7 @@ static void dump_connected_number(int full_ie, struct pri *ctrl, q931_ie *ie, in
 			break;
 		}
 	} while(!(ie->data[i++]& 0x80));
-	q931_get_number(cnum, sizeof(cnum), ie->data + i, ie->len - i);
+	q931_strget(cnum, sizeof(cnum), ie->data + i, ie->len - i);
 	pri_message(ctrl, "  '%s' ]\n", cnum);
 }
 
@@ -2229,7 +2320,7 @@ static int transmit_connected_subaddr(int full_ie, struct pri *ctrl, q931_call *
 
 static void dump_connected_subaddr(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
 {
-	dump_subaddr_helper(full_ie, ctrl, ie, 1 , len, len - 3, prefix, "Connected");
+	dump_subaddr_helper(full_ie, ctrl, ie, 1, len, len - 3, prefix);
 }
 
 static int receive_redirecting_number(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
@@ -2258,7 +2349,9 @@ static int receive_redirecting_number(int full_ie, struct pri *ctrl, q931_call *
 			break;
 		}
 	} while (!(ie->data[i++] & 0x80));
-	q931_get_number((unsigned char *) call->redirecting.from.number.str, sizeof(call->redirecting.from.number.str), ie->data + i, ie->len - i);
+	q931_strget_gripe(ctrl, ie2str(full_ie),
+		(unsigned char *) call->redirecting.from.number.str,
+		sizeof(call->redirecting.from.number.str), ie->data + i, ie->len - i);
 	return 0;
 }
 
@@ -2305,7 +2398,7 @@ static int transmit_redirecting_number(int full_ie, struct pri *ctrl, q931_call 
 
 static void dump_redirecting_subaddr(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
 {
-	dump_subaddr_helper(full_ie, ctrl, ie, 2, len, len - 4, prefix, "Redirecting");
+	dump_subaddr_helper(full_ie, ctrl, ie, 2, len, len - 4, prefix);
 }
 
 static int receive_redirection_number(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
@@ -2329,7 +2422,9 @@ static int receive_redirection_number(int full_ie, struct pri *ctrl, q931_call *
 			break;
 		}
 	} while (!(ie->data[i++] & 0x80));
-	q931_get_number((unsigned char *) call->redirection_number.str, sizeof(call->redirection_number.str), ie->data + i, ie->len - i);
+	q931_strget_gripe(ctrl, ie2str(full_ie),
+		(unsigned char *) call->redirection_number.str,
+		sizeof(call->redirection_number.str), ie->data + i, ie->len - i);
 	return 0;
 }
 
@@ -2402,7 +2497,7 @@ static int receive_called_party_number(int full_ie, struct pri *ctrl, q931_call 
 	case Q931_REGISTER:
 		/* Accept the number for REGISTER only because it is so similar to SETUP. */
 	case Q931_SETUP:
-		q931_get_number((unsigned char *) call->called.number.str,
+		q931_strget((unsigned char *) call->called.number.str,
 			sizeof(call->called.number.str), ie->data + 1, len - 3);
 		break;
 	case Q931_INFORMATION:
@@ -2429,8 +2524,8 @@ static int receive_called_party_number(int full_ie, struct pri *ctrl, q931_call 
 	call->called.number.valid = 1;
 	call->called.number.plan = ie->data[0] & 0x7f;
 
-	q931_get_number((unsigned char *) call->overlap_digits, sizeof(call->overlap_digits),
-		ie->data + 1, len - 3);
+	q931_strget_gripe(ctrl, ie2str(full_ie), (unsigned char *) call->overlap_digits,
+		sizeof(call->overlap_digits), ie->data + 1, len - 3);
 	return 0;
 }
 
@@ -2471,8 +2566,8 @@ static int receive_calling_party_number(int full_ie, struct pri *ctrl, q931_call
 			break;
 		}
 	} while (!(ie->data[i++] & 0x80));
-	q931_get_number((unsigned char *) number.str, sizeof(number.str), ie->data + i,
-		ie->len - i);
+	q931_strget_gripe(ctrl, ie2str(full_ie), (unsigned char *) number.str,
+		sizeof(number.str), ie->data + i, ie->len - i);
 
 	/* There can be more than one calling party number ie in the SETUP message. */
 	if (number.presentation == (PRI_PRES_ALLOWED | PRI_PRES_NETWORK_NUMBER)
@@ -2516,10 +2611,11 @@ static void dump_user_user(int full_ie, struct pri *ctrl, q931_ie *ie, int len, 
 
 
 static int receive_user_user(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
-{        
-        call->useruserprotocoldisc = ie->data[0] & 0xff;
-        if (call->useruserprotocoldisc == 4) /* IA5 */
-          q931_get_number((unsigned char *) call->useruserinfo, sizeof(call->useruserinfo), ie->data + 1, len - 3);
+{
+	call->useruserprotocoldisc = ie->data[0] & 0xff;
+	if (call->useruserprotocoldisc == 4) { /* IA5 */
+		q931_memget((unsigned char *) call->useruserinfo, sizeof(call->useruserinfo), ie->data + 1, len - 3);
+	}
 	return 0;
 }
 
@@ -2633,7 +2729,8 @@ static int receive_display(int full_ie, struct pri *ctrl, q931_call *call, int m
 		len--;
 	}
 
-	call->display.text = (char *) data;
+	call->display.text = data;
+	call->display.full_ie = full_ie;
 	call->display.length = len - 2;
 	call->display.char_set = PRI_CHAR_SET_ISO8859_1;
 	return 0;
@@ -3174,30 +3271,19 @@ static int transmit_time_date(int full_ie, struct pri *ctrl, q931_call *call, in
 
 static void dump_keypad_facility(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
 {
-	char tmp[64];
-	
-	if (ie->len == 0 || ie->len > sizeof(tmp))
-		return;
-	
-	memcpy(tmp, ie->data, ie->len);
-	tmp[ie->len] = '\0';
-	pri_message(ctrl, "%c Keypad Facility (len=%2d) [ %s ]\n", prefix, ie->len, tmp );
+	unsigned char tmp[64];
+
+	q931_strget(tmp, sizeof(tmp), ie->data, ie->len);
+	pri_message(ctrl, "%c Keypad Facility (len=%2d) [ %s ]\n", prefix, ie->len, tmp);
 }
 
 static int receive_keypad_facility(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
-	int mylen;
-
 	if (ie->len == 0)
 		return -1;
 
-	if (ie->len > (sizeof(call->keypad_digits) - 1))
-		mylen = (sizeof(call->keypad_digits) - 1);
-	else
-		mylen = ie->len;
-
-	memcpy(call->keypad_digits, ie->data, mylen);
-	call->keypad_digits[mylen] = 0;
+	q931_strget_gripe(ctrl, ie2str(full_ie), (unsigned char *) call->keypad_digits,
+		sizeof(call->keypad_digits), ie->data, ie->len);
 
 	return 0;
 }
@@ -3216,21 +3302,19 @@ static int transmit_keypad_facility(int full_ie, struct pri *ctrl, q931_call *ca
 
 static void dump_display(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
 {
-	int x, y;
-	char *buf = malloc(len + 1);
-	char tmp[80] = "";
-	if (buf) {
-		x=y=0;
-		if ((x < ie->len) && (ie->data[x] & 0x80)) {
-			sprintf(tmp, "Charset: %02x ", ie->data[x] & 0x7f);
-			++x;
-		}
-		for (y=x; x<ie->len; x++) 
-			buf[x] = ie->data[x] & 0x7f;
-		buf[x] = '\0';
-		pri_message(ctrl, "%c Display (len=%2d) %s[ %s ]\n", prefix, ie->len, tmp, &buf[y]);
-		free(buf);
+	int x;
+	unsigned char buf[2*80 + 1];
+	char tmp[20 + 1];
+
+	x = 0;
+	if (ie->len && (ie->data[x] & 0x80)) {
+		snprintf(tmp, sizeof(tmp), "Charset: %02x ", ie->data[x] & 0x7f);
+		++x;
+	} else {
+		tmp[0] = '\0';
 	}
+	q931_strget(buf, sizeof(buf), &ie->data[x], ie->len - x);
+	pri_message(ctrl, "%c Display (len=%2d) %s[ %s ]\n", prefix, ie->len, tmp, buf);
 }
 
 #define CHECK_OVERFLOW(limit) \
@@ -5121,7 +5205,8 @@ static int q931_display_text_helper(struct pri *ctrl, struct q931_call *call, co
 	case Q931_CALL_STATE_INCOMING_CALL_PROCEEDING:
 	case Q931_CALL_STATE_ACTIVE:
 	case Q931_CALL_STATE_OVERLAP_RECEIVING:
-		call->display.text = display->text;
+		call->display.text = (unsigned char *) display->text;
+		call->display.full_ie = 0;
 		call->display.length = display->length;
 		call->display.char_set = display->char_set;
 		status = send_message(ctrl, call, Q931_INFORMATION, information_display_ies);

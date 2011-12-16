@@ -625,7 +625,9 @@ struct q931_call {
 	/*! Display text ie contents. */
 	struct {
 		/*! Display ie text.  NULL if not present or consumed as remote name. */
-		const char *text;
+		const unsigned char *text;
+		/*! Full IE code of received display text */
+		int full_ie;
 		/*! Length of display text. */
 		unsigned char length;
 		/*!
