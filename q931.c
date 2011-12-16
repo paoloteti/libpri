@@ -1156,6 +1156,8 @@ static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, in
 	int pos = 0;
 	int need_extended_channel_octets;/*!< TRUE if octets 3.2 and 3.3 need to be present. */
 
+	call->restart.count = 0;
+
 	if (ie->data[0] & 0x08) {
 		call->chanflags = FLAG_EXCLUSIVE;
 	} else {
@@ -1224,32 +1226,62 @@ static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, in
 		/* More coming */
 		if ((ie->data[pos] & 0x0f) != 3) {
 			/* Channel type/mapping is not for B channel units. */
-			pri_error(ctrl, "!! Unexpected Channel Type %d\n", ie->data[1] & 0x0f);
+			pri_error(ctrl, "!! Unexpected Channel Type %d\n", ie->data[pos] & 0x0f);
 			return -1;
 		}
 		if ((ie->data[pos] & 0x60) != 0) {
-			pri_error(ctrl, "!! Invalid CCITT coding %d\n", (ie->data[1] & 0x60) >> 5);
+			pri_error(ctrl, "!! Invalid CCITT coding %d\n", (ie->data[pos] & 0x60) >> 5);
 			return -1;
 		}
 		if (ie->data[pos] & 0x10) {
-			/*
-			 * Expect Slot Map
-			 * Note that we are assuming only T1's use slot maps which is wrong
-			 * but oh well...  We would need to know what type of line we are
-			 * connected with (T1 or E1) to interpret the map correctly anyway.
-			 */
+			/* Expect Slot Map */
 			call->slotmap = 0;
 			pos++;
-			for (x=0;x<3;x++) {
+			call->slotmap_size = (ie->len - pos > 3) ? 1 : 0;
+			for (x = 0; x < (call->slotmap_size ? 4 : 3); ++x) {
 				call->slotmap <<= 8;
 				call->slotmap |= ie->data[x + pos];
+			}
+
+			if (msgtype == Q931_RESTART) {
+				int bit;
+
+				/* Convert the slotmap to a channel list for RESTART support. */
+				for (bit = 0; bit < ARRAY_LEN(call->restart.chan_no); ++bit) {
+					if (call->slotmap & (1UL << bit)) {
+						call->restart.chan_no[call->restart.count++] = bit
+							+ (call->slotmap_size ? 0 : 1);
+					}
+				}
 			}
 		} else {
 			pos++;
 			/* Only expect a particular channel */
 			call->channelno = ie->data[pos] & 0x7f;
-			if (ctrl->chan_mapping_logical && call->channelno > 15)
+			if (ctrl->chan_mapping_logical && call->channelno > 15) {
 				call->channelno++;
+			}
+
+			if (msgtype == Q931_RESTART) {
+				/* Read in channel list for RESTART support. */
+				while (call->restart.count < ARRAY_LEN(call->restart.chan_no)) {
+					int chan_no;
+	
+					chan_no = ie->data[pos] & 0x7f;
+					if (ctrl->chan_mapping_logical && chan_no > 15) {
+						++chan_no;
+					}
+					call->restart.chan_no[call->restart.count++] = chan_no;
+					if (ie->data[pos++] & 0x80) {
+						/* Channel list finished. */
+						break;
+					}
+					if (ie->len <= pos) {
+						/* No more ie contents. */
+						break;
+					}
+				}
+			}
 		}
 	}
 	return 0;
@@ -1322,17 +1354,35 @@ static int transmit_channel_id(int full_ie, struct pri *ctrl, q931_call *call, i
 		if (0 < call->channelno && call->channelno != 0xff) {
 			/* Channel number specified and preferred over slot map if we have one. */
 			++pos;
-			if (ctrl->chan_mapping_logical && call->channelno > 16) {
-				ie->data[pos++] = 0x80 | (call->channelno - 1);
+			if (msgtype == Q931_RESTART_ACKNOWLEDGE && call->restart.count) {
+				int chan_no;
+				int idx;
+
+				/* Build RESTART_ACKNOWLEDGE channel list */
+				for (idx = 0; idx < call->restart.count; ++idx) {
+					chan_no = call->restart.chan_no[idx];
+					if (ctrl->chan_mapping_logical && chan_no > 16) {
+						--chan_no;
+					}
+					if (call->restart.count <= idx + 1) {
+						/* Last channel list channel. */
+						chan_no |= 0x80;
+					}
+					ie->data[pos++] = chan_no;
+				}
 			} else {
-				ie->data[pos++] = 0x80 | call->channelno;
+				if (ctrl->chan_mapping_logical && call->channelno > 16) {
+					ie->data[pos++] = 0x80 | (call->channelno - 1);
+				} else {
+					ie->data[pos++] = 0x80 | call->channelno;
+				}
 			}
 		} else if (call->slotmap != -1) {
 			int octet;
 
 			/* We have to send a slot map */
 			ie->data[pos++] |= 0x10;
-			for (octet = 3; octet--;) {
+			for (octet = call->slotmap_size ? 4 : 3; octet--;) {
 				ie->data[pos++] = (call->slotmap >> (8 * octet)) & 0xff;
 			}
 		} else {
@@ -4240,6 +4290,7 @@ static void cleanup_and_free_call(struct q931_call *cur)
 	struct pri *ctrl;
 
 	ctrl = cur->pri;
+	pri_schedule_del(ctrl, cur->restart.timer);
 	pri_schedule_del(ctrl, cur->retranstimer);
 	pri_schedule_del(ctrl, cur->hold_timer);
 	pri_schedule_del(ctrl, cur->fake_clearing_timer);
@@ -8194,6 +8245,60 @@ static int newcall_rel_comp_cause(struct q931_call *call)
 
 /*!
  * \internal
+ * \brief Restart channel notify event for upper layer notify chain timeout.
+ *
+ * \param data Callback data pointer.
+ *
+ * \return Nothing
+ */
+static void q931_restart_notify_timeout(void *data)
+{
+	struct q931_call *call = data;
+	struct pri *ctrl = call->pri;
+
+	/* Create channel restart event to upper layer. */
+	call->channelno = call->restart.chan_no[call->restart.idx++];
+	ctrl->ev.e = PRI_EVENT_RESTART;
+	ctrl->ev.restart.channel = q931_encode_channel(call);
+	ctrl->schedev = 1;
+
+	/* Reschedule for next channel restart event needed. */
+	if (call->restart.idx < call->restart.count) {
+		call->restart.timer = pri_schedule_event(ctrl, 0, q931_restart_notify_timeout,
+			call);
+	} else {
+		/* No more restart events needed. */
+		call->restart.timer = 0;
+
+		/* Send back the Restart Acknowledge.  All channels are now restarted. */
+		if (call->slotmap != -1) {
+			/* Send slotmap format. */
+			call->channelno = -1;
+		}
+		restart_ack(ctrl, call);
+	}
+}
+
+/*!
+ * \internal
+ * \brief Setup restart channel notify events for upper layer.
+ *
+ * \param call Q.931 call leg.
+ *
+ * \return Nothing
+ */
+static void q931_restart_notify(struct q931_call *call)
+{
+	struct pri *ctrl = call->pri;
+
+	/* Start notify chain. */
+	pri_schedule_del(ctrl, call->restart.timer);
+	call->restart.idx = 0;
+	q931_restart_notify_timeout(call);
+}
+
+/*!
+ * \internal
  * \brief Process the decoded information in the Q.931 message.
  *
  * \param ctrl D channel controller.
@@ -8227,11 +8332,24 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		}
 		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_RESTART);
 		c->peercallstate = Q931_CALL_STATE_RESTART_REQUEST;
-		/* Send back the Restart Acknowledge */
-		restart_ack(ctrl, c);
-		/* Notify user of restart event */
-		ctrl->ev.e = PRI_EVENT_RESTART;
-		ctrl->ev.restart.channel = q931_encode_channel(c);
+
+		/* Notify upper layer of restart event */
+		if ((c->channelno == -1 && c->slotmap == -1) || !c->restart.count) {
+			/*
+			 * Whole link restart or channel not identified by Channel ID ie
+			 * 3.3 octets.
+			 *
+			 * Send back the Restart Acknowledge
+			 */
+			restart_ack(ctrl, c);
+
+			/* Create channel restart event to upper layer. */
+			ctrl->ev.e = PRI_EVENT_RESTART;
+			ctrl->ev.restart.channel = q931_encode_channel(c);
+		} else {
+			/* Start notify chain. */
+			q931_restart_notify(c);
+		}
 		return Q931_RES_HAVEEVENT;
 	case Q931_REGISTER:
 		q931_display_subcmd(ctrl, c);
