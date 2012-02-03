@@ -186,7 +186,7 @@ static int q921_transmit(struct pri *ctrl, q921_h *h, int len)
 	ctrl->q921_txcount++;
 	/* Just send it raw */
 	if (ctrl->debug & (PRI_DEBUG_Q921_DUMP | PRI_DEBUG_Q921_RAW))
-		q921_dump(ctrl, h, len, ctrl->debug & PRI_DEBUG_Q921_RAW, 1);
+		q921_dump(ctrl, h, len, ctrl->debug, 1);
 	/* Write an extra two bytes for the FCS */
 	res = ctrl->write_func ? ctrl->write_func(ctrl, h, len + 2) : 0;
 	if (res != (len + 2)) {
@@ -1187,7 +1187,7 @@ static void q921_dump_iqueue_info(struct q921_link *link)
 
 static void q921_dump_pri_by_h(struct pri *ctrl, char direction_tag, q921_h *h);
 
-void q921_dump(struct pri *ctrl, q921_h *h, int len, int showraw, int txrx)
+void q921_dump(struct pri *ctrl, q921_h *h, int len, int debugflags, int txrx)
 {
 	int x;
 	const char *type;
@@ -1196,9 +1196,11 @@ void q921_dump(struct pri *ctrl, q921_h *h, int len, int showraw, int txrx)
 	direction_tag = txrx ? '>' : '<';
 
 	pri_message(ctrl, "\n");
-	q921_dump_pri_by_h(ctrl, direction_tag, h);
+	if (debugflags & PRI_DEBUG_Q921_DUMP) {
+		q921_dump_pri_by_h(ctrl, direction_tag, h);
+	}
 
-	if (showraw) {
+	if (debugflags & PRI_DEBUG_Q921_RAW) {
 		char *buf = malloc(len * 3 + 1);
 		int buflen = 0;
 		if (buf) {
@@ -1209,132 +1211,134 @@ void q921_dump(struct pri *ctrl, q921_h *h, int len, int showraw, int txrx)
 		}
 	}
 
-	switch (h->h.data[0] & Q921_FRAMETYPE_MASK) {
-	case 0:
-	case 2:
-		pri_message(ctrl, "%c Informational frame:\n", direction_tag);
-		break;
-	case 1:
-		pri_message(ctrl, "%c Supervisory frame:\n", direction_tag);
-		break;
-	case 3:
-		pri_message(ctrl, "%c Unnumbered frame:\n", direction_tag);
-		break;
-	}
-	
-	pri_message(ctrl, "%c SAPI: %02d  C/R: %d EA: %d\n",
-		direction_tag,
-		h->h.sapi, 
-		h->h.c_r,
-		h->h.ea1);
-	pri_message(ctrl, "%c  TEI: %03d        EA: %d\n", 
-		direction_tag,
-		h->h.tei,
-		h->h.ea2);
-
-	switch (h->h.data[0] & Q921_FRAMETYPE_MASK) {
-	case 0:
-	case 2:
-		/* Informational frame */
-		pri_message(ctrl, "%c N(S): %03d   0: %d\n",
-			direction_tag,
-			h->i.n_s,
-			h->i.ft);
-		pri_message(ctrl, "%c N(R): %03d   P: %d\n",
-			direction_tag,
-			h->i.n_r,
-			h->i.p_f);
-		pri_message(ctrl, "%c %d bytes of data\n",
-			direction_tag,
-			len - 4);
-		break;
-	case 1:
-		/* Supervisory frame */
-		type = "???";
-		switch (h->s.ss) {
+	if (debugflags & PRI_DEBUG_Q921_DUMP) {
+		switch (h->h.data[0] & Q921_FRAMETYPE_MASK) {
 		case 0:
-			type = "RR (receive ready)";
+		case 2:
+			pri_message(ctrl, "%c Informational frame:\n", direction_tag);
 			break;
 		case 1:
-			type = "RNR (receive not ready)";
+			pri_message(ctrl, "%c Supervisory frame:\n", direction_tag);
 			break;
-		case 2:
-			type = "REJ (reject)";
+		case 3:
+			pri_message(ctrl, "%c Unnumbered frame:\n", direction_tag);
 			break;
 		}
-		pri_message(ctrl, "%c Zero: %d     S: %d 01: %d  [ %s ]\n",
+		
+		pri_message(ctrl, "%c SAPI: %02d  C/R: %d EA: %d\n",
 			direction_tag,
-			h->s.x0,
-			h->s.ss,
-			h->s.ft,
-			type);
-		pri_message(ctrl, "%c N(R): %03d P/F: %d\n",
+			h->h.sapi, 
+			h->h.c_r,
+			h->h.ea1);
+		pri_message(ctrl, "%c  TEI: %03d        EA: %d\n", 
 			direction_tag,
-			h->s.n_r,
-			h->s.p_f);
-		pri_message(ctrl, "%c %d bytes of data\n",
-			direction_tag,
-			len - 4);
-		break;
-	case 3:		
-		/* Unnumbered frame */
-		type = "???";
-		if (h->u.ft == 3) {
-			switch (h->u.m3) {
+			h->h.tei,
+			h->h.ea2);
+	
+		switch (h->h.data[0] & Q921_FRAMETYPE_MASK) {
+		case 0:
+		case 2:
+			/* Informational frame */
+			pri_message(ctrl, "%c N(S): %03d   0: %d\n",
+				direction_tag,
+				h->i.n_s,
+				h->i.ft);
+			pri_message(ctrl, "%c N(R): %03d   P: %d\n",
+				direction_tag,
+				h->i.n_r,
+				h->i.p_f);
+			pri_message(ctrl, "%c %d bytes of data\n",
+				direction_tag,
+				len - 4);
+			break;
+		case 1:
+			/* Supervisory frame */
+			type = "???";
+			switch (h->s.ss) {
 			case 0:
-				if (h->u.m2 == 3)
-					type = "DM (disconnect mode)";
-				else if (h->u.m2 == 0)
-					type = "UI (unnumbered information)";
+				type = "RR (receive ready)";
+				break;
+			case 1:
+				type = "RNR (receive not ready)";
 				break;
 			case 2:
-				if (h->u.m2 == 0)
-					type = "DISC (disconnect)";
-				break;
-			case 3:
-				if (h->u.m2 == 3)
-					type = "SABME (set asynchronous balanced mode extended)";
-				else if (h->u.m2 == 0)
-					type = "UA (unnumbered acknowledgement)";
-				break;
-			case 4:
-				if (h->u.m2 == 1)
-					type = "FRMR (frame reject)";
-				break;
-			case 5:
-				if (h->u.m2 == 3)
-					type = "XID (exchange identification note)";
-				break;
-			default:
+				type = "REJ (reject)";
 				break;
 			}
+			pri_message(ctrl, "%c Zero: %d     S: %d 01: %d  [ %s ]\n",
+				direction_tag,
+				h->s.x0,
+				h->s.ss,
+				h->s.ft,
+				type);
+			pri_message(ctrl, "%c N(R): %03d P/F: %d\n",
+				direction_tag,
+				h->s.n_r,
+				h->s.p_f);
+			pri_message(ctrl, "%c %d bytes of data\n",
+				direction_tag,
+				len - 4);
+			break;
+		case 3:		
+			/* Unnumbered frame */
+			type = "???";
+			if (h->u.ft == 3) {
+				switch (h->u.m3) {
+				case 0:
+					if (h->u.m2 == 3)
+						type = "DM (disconnect mode)";
+					else if (h->u.m2 == 0)
+						type = "UI (unnumbered information)";
+					break;
+				case 2:
+					if (h->u.m2 == 0)
+						type = "DISC (disconnect)";
+					break;
+				case 3:
+					if (h->u.m2 == 3)
+						type = "SABME (set asynchronous balanced mode extended)";
+					else if (h->u.m2 == 0)
+						type = "UA (unnumbered acknowledgement)";
+					break;
+				case 4:
+					if (h->u.m2 == 1)
+						type = "FRMR (frame reject)";
+					break;
+				case 5:
+					if (h->u.m2 == 3)
+						type = "XID (exchange identification note)";
+					break;
+				default:
+					break;
+				}
+			}
+			pri_message(ctrl, "%c   M3: %d   P/F: %d M2: %d 11: %d  [ %s ]\n",
+				direction_tag,
+				h->u.m3,
+				h->u.p_f,
+				h->u.m2,
+				h->u.ft,
+				type);
+			pri_message(ctrl, "%c %d bytes of data\n",
+				direction_tag,
+				len - 3);
+			break;
 		}
-		pri_message(ctrl, "%c   M3: %d   P/F: %d M2: %d 11: %d  [ %s ]\n",
-			direction_tag,
-			h->u.m3,
-			h->u.p_f,
-			h->u.m2,
-			h->u.ft,
-			type);
-		pri_message(ctrl, "%c %d bytes of data\n",
-			direction_tag,
-			len - 3);
-		break;
-	}
-
-	if ((h->u.ft == 3) && (h->u.m3 == 0) && (h->u.m2 == 0) && (h->u.data[0] == 0x0f)) {
-		int ri;
-		u_int8_t *action;
-
-		/* TEI management related */
-		type = q921_tei_mgmt2str(h->u.data[3]);
-		pri_message(ctrl, "%c MDL Message: %d(%s)\n", direction_tag, h->u.data[3], type);
-		ri = (h->u.data[1] << 8) | h->u.data[2];
-		pri_message(ctrl, "%c Ri: %d\n", direction_tag, ri);
-		action = &h->u.data[4];
-		for (x = len - (action - (u_int8_t *) h); 0 < x; --x, ++action) {
-			pri_message(ctrl, "%c Ai: %d E:%d\n",
-				direction_tag, (*action >> 1) & 0x7f, *action & 0x01);
+	
+		if ((h->u.ft == 3) && (h->u.m3 == 0) && (h->u.m2 == 0) && (h->u.data[0] == 0x0f)) {
+			int ri;
+			u_int8_t *action;
+	
+			/* TEI management related */
+			type = q921_tei_mgmt2str(h->u.data[3]);
+			pri_message(ctrl, "%c MDL Message: %d(%s)\n", direction_tag, h->u.data[3], type);
+			ri = (h->u.data[1] << 8) | h->u.data[2];
+			pri_message(ctrl, "%c Ri: %d\n", direction_tag, ri);
+			action = &h->u.data[4];
+			for (x = len - (action - (u_int8_t *) h); 0 < x; --x, ++action) {
+				pri_message(ctrl, "%c Ai: %d E:%d\n",
+					direction_tag, (*action >> 1) & 0x7f, *action & 0x01);
+			}
 		}
 	}
 }
@@ -3006,7 +3010,7 @@ static pri_event *__q921_receive(struct pri *ctrl, q921_h *h, int len)
 	len -= 2;
 	
 	if (ctrl->debug & (PRI_DEBUG_Q921_DUMP | PRI_DEBUG_Q921_RAW)) {
-		q921_dump(ctrl, h, len, ctrl->debug & PRI_DEBUG_Q921_RAW, 0);
+		q921_dump(ctrl, h, len, ctrl->debug, 0);
 	}
 
 	/* Check some reject conditions -- Start by rejecting improper ea's */

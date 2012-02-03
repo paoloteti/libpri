@@ -71,7 +71,7 @@ static int pri_open(char *dev)
 static void dump_packet(struct pri *pri, char *buf, int len, int txrx)
 {
 	q921_h *h = (q921_h *)buf;
-	q921_dump(pri, h, len, 1, txrx);
+	q921_dump(pri, h, len, PRI_DEBUG_ALL, txrx);
 	if (!((h->h.data[0] & Q921_FRAMETYPE_MASK) & 0x3)) {
 		q931_dump(pri, h->h.tei, (q931_h *)(h->i.data), len - 4 - 2 /* FCS */, txrx);
 	}
