@@ -432,7 +432,7 @@ void q931_party_name_init(struct q931_party_name *name)
 void q931_party_number_init(struct q931_party_number *number)
 {
 	number->valid = 0;
-	number->presentation = PRI_PRES_UNAVAILABLE | PRI_PRES_USER_NUMBER_UNSCREENED;
+	number->presentation = PRES_NUMBER_NOT_AVAILABLE;
 	number->plan = (PRI_TON_UNKNOWN << 4) | PRI_NPI_E163_E164;
 	number->str[0] = '\0';
 }
@@ -730,7 +730,7 @@ void q931_party_name_copy_to_pri(struct pri_party_name *pri_name, const struct q
 		pri_name->valid = 0;
 		pri_name->presentation = PRI_PRES_UNAVAILABLE;
 		pri_name->char_set = PRI_CHAR_SET_ISO8859_1;
-		pri_name->str[0] = 0;
+		pri_name->str[0] = '\0';
 	}
 }
 
@@ -751,9 +751,9 @@ void q931_party_number_copy_to_pri(struct pri_party_number *pri_number, const st
 		libpri_copy_string(pri_number->str, q931_number->str, sizeof(pri_number->str));
 	} else {
 		pri_number->valid = 0;
-		pri_number->presentation = PRI_PRES_UNAVAILABLE | PRI_PRES_USER_NUMBER_UNSCREENED;
+		pri_number->presentation = PRES_NUMBER_NOT_AVAILABLE;
 		pri_number->plan = (PRI_TON_UNKNOWN << 4) | PRI_NPI_E163_E164;
-		pri_number->str[0] = 0;
+		pri_number->str[0] = '\0';
 	}
 }
 
@@ -854,7 +854,8 @@ void q931_party_id_fixup(const struct pri *ctrl, struct q931_party_id *id)
 	case PRI_SWITCH_DMS100:
 	case PRI_SWITCH_ATT4ESS:
 		/* Doesn't like certain presentation types */
-		if (id->number.valid && !(id->number.presentation & 0x7c)) {
+		if (id->number.valid
+			&& (id->number.presentation & PRI_PRES_RESTRICTION) == PRI_PRES_ALLOWED) {
 			/* i.e., If presentation is allowed it must be a network number */
 			id->number.presentation = PRES_ALLOWED_NETWORK_NUMBER;
 		}
@@ -931,6 +932,9 @@ int q931_party_id_presentation(const struct q931_party_id *id)
 	/* Select the wining presentation value. */
 	if (name_priority < number_priority) {
 		number_value = name_value;
+	}
+	if (number_value == PRI_PRES_UNAVAILABLE) {
+		return PRES_NUMBER_NOT_AVAILABLE;
 	}
 
 	return number_value | number_screening;
@@ -2043,16 +2047,28 @@ static char *cpc2str(int plan)
 char *pri_pres2str(int pres)
 {
 	static struct msgtype press[] = {
-		{ PRES_ALLOWED_USER_NUMBER_NOT_SCREENED, "Presentation permitted, user number not screened" },
-		{ PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN, "Presentation permitted, user number passed network screening" },
-		{ PRES_ALLOWED_USER_NUMBER_FAILED_SCREEN, "Presentation permitted, user number failed network screening" },
-		{ PRES_ALLOWED_NETWORK_NUMBER, "Presentation allowed of network provided number" },
-		{ PRES_PROHIB_USER_NUMBER_NOT_SCREENED, "Presentation prohibited, user number not screened" },
-		{ PRES_PROHIB_USER_NUMBER_PASSED_SCREEN, "Presentation prohibited, user number passed network screening" },
-		{ PRES_PROHIB_USER_NUMBER_FAILED_SCREEN, "Presentation prohibited, user number failed network screening" },
-		{ PRES_PROHIB_NETWORK_NUMBER, "Presentation prohibited of network provided number" },
-		{ PRES_NUMBER_NOT_AVAILABLE, "Number not available" },
+		{ PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED,        "Presentation allowed, User-provided, not screened" },
+		{ PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_PASSED_SCREEN,     "Presentation allowed, User-provided, verified and passed" },
+		{ PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_FAILED_SCREEN,     "Presentation allowed, User-provided, verified and failed" },
+		{ PRI_PRES_ALLOWED | PRI_PRES_NETWORK_NUMBER,                "Presentation allowed, Network provided" },
+
+		{ PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_UNSCREENED,     "Presentation restricted, User-provided, not screened" },
+		{ PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_PASSED_SCREEN,  "Presentation restricted, User-provided, verified and passed" },
+		{ PRI_PRES_RESTRICTED | PRI_PRES_USER_NUMBER_FAILED_SCREEN,  "Presentation restricted, User-provided, verified and failed" },
+		{ PRI_PRES_RESTRICTED | PRI_PRES_NETWORK_NUMBER,             "Presentation restricted, Network provided" },
+
+		{ PRI_PRES_UNAVAILABLE | PRI_PRES_USER_NUMBER_UNSCREENED,    "Number not available, User-provided, not screened" },
+		{ PRI_PRES_UNAVAILABLE | PRI_PRES_USER_NUMBER_PASSED_SCREEN, "Number not available, User-provided, verified and passed" },
+		{ PRI_PRES_UNAVAILABLE | PRI_PRES_USER_NUMBER_FAILED_SCREEN, "Number not available, User-provided, verified and failed" },
+		{ PRI_PRES_UNAVAILABLE | PRI_PRES_NETWORK_NUMBER,            "Number not available, Network provided" },
+
+		{ PRI_PRES_RESERVED | PRI_PRES_USER_NUMBER_UNSCREENED,       "Reserved, User-provided, not screened" },
+		{ PRI_PRES_RESERVED | PRI_PRES_USER_NUMBER_PASSED_SCREEN,    "Reserved, User-provided, verified and passed" },
+		{ PRI_PRES_RESERVED | PRI_PRES_USER_NUMBER_FAILED_SCREEN,    "Reserved, User-provided, verified and failed" },
+		{ PRI_PRES_RESERVED | PRI_PRES_NETWORK_NUMBER,               "Reserved, Network provided" },
 	};
+
+	pres &= (PRI_PRES_RESTRICTION & PRI_PRES_NUMBER_TYPE);
 	return code2str(pres, press, sizeof(press) / sizeof(press[0]));
 }
 

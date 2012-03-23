@@ -973,7 +973,7 @@ void pri_copy_party_name_to_q931(struct q931_party_name *q931_name, const struct
 	q931_party_name_init(q931_name);
 	if (pri_name->valid) {
 		q931_name->valid = 1;
-		q931_name->presentation = pri_name->presentation;
+		q931_name->presentation = pri_name->presentation & PRI_PRES_RESTRICTION;
 		q931_name->char_set = pri_name->char_set;
 		libpri_copy_string(q931_name->str, pri_name->str, sizeof(q931_name->str));
 	}
@@ -992,7 +992,8 @@ void pri_copy_party_number_to_q931(struct q931_party_number *q931_number, const 
 	q931_party_number_init(q931_number);
 	if (pri_number->valid) {
 		q931_number->valid = 1;
-		q931_number->presentation = pri_number->presentation;
+		q931_number->presentation = pri_number->presentation
+			& (PRI_PRES_RESTRICTION | PRI_PRES_NUMBER_TYPE);
 		q931_number->plan = pri_number->plan;
 		libpri_copy_string(q931_number->str, pri_number->str, sizeof(q931_number->str));
 	}
@@ -1962,13 +1963,14 @@ int pri_sr_set_caller(struct pri_sr *sr, char *caller, char *callername, int cal
 	q931_party_id_init(&sr->caller);
 	if (caller) {
 		sr->caller.number.valid = 1;
-		sr->caller.number.presentation = callerpres;
+		sr->caller.number.presentation = callerpres
+			& (PRI_PRES_RESTRICTION | PRI_PRES_NUMBER_TYPE);
 		sr->caller.number.plan = callerplan;
 		libpri_copy_string(sr->caller.number.str, caller, sizeof(sr->caller.number.str));
 
 		if (callername) {
 			sr->caller.name.valid = 1;
-			sr->caller.name.presentation = callerpres;
+			sr->caller.name.presentation = callerpres & PRI_PRES_RESTRICTION;
 			sr->caller.name.char_set = PRI_CHAR_SET_ISO8859_1;
 			libpri_copy_string(sr->caller.name.str, callername,
 				sizeof(sr->caller.name.str));
@@ -1992,7 +1994,8 @@ int pri_sr_set_redirecting(struct pri_sr *sr, char *num, int plan, int pres, int
 	q931_party_redirecting_init(&sr->redirecting);
 	if (num && num[0]) {
 		sr->redirecting.from.number.valid = 1;
-		sr->redirecting.from.number.presentation = pres;
+		sr->redirecting.from.number.presentation = pres
+			& (PRI_PRES_RESTRICTION | PRI_PRES_NUMBER_TYPE);
 		sr->redirecting.from.number.plan = plan;
 		libpri_copy_string(sr->redirecting.from.number.str, num,
 			sizeof(sr->redirecting.from.number.str));

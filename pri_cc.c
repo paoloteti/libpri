@@ -2219,8 +2219,7 @@ void pri_cc_ptp_request(struct pri *ctrl, q931_call *call, int msgtype, const st
 				party_a.number.presentation =
 					PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
 			} else {
-				party_a.number.presentation =
-					PRI_PRES_UNAVAILABLE | PRI_PRES_USER_NUMBER_UNSCREENED;
+				party_a.number.presentation = PRES_NUMBER_NOT_AVAILABLE;
 			}
 		} else {
 			party_a.number.presentation =

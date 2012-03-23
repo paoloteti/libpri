@@ -632,6 +632,9 @@ void rose_copy_presented_number_screened_to_q931(struct pri *ctrl,
 		rose_copy_number_to_q931(ctrl, q931_number,
 			&rose_presented->screened.number);
 		break;
+	case 2:	/* numberNotAvailableDueToInterworking */
+		q931_number->presentation = PRES_NUMBER_NOT_AVAILABLE;
+		break;
 	default:
 		q931_number->presentation |= PRI_PRES_USER_NUMBER_UNSCREENED;
 		break;
@@ -659,6 +662,9 @@ void rose_copy_presented_number_unscreened_to_q931(struct pri *ctrl,
 	case 0:	/* presentationAllowedNumber */
 	case 3:	/* presentationRestrictedNumber */
 		rose_copy_number_to_q931(ctrl, q931_number, &rose_presented->number);
+		break;
+	case 2:	/* numberNotAvailableDueToInterworking */
+		q931_number->presentation = PRES_NUMBER_NOT_AVAILABLE;
 		break;
 	default:
 		break;
@@ -692,6 +698,9 @@ void rose_copy_presented_address_screened_to_id_q931(struct pri *ctrl,
 			&rose_presented->screened.number);
 		rose_copy_subaddress_to_q931(ctrl, &q931_address->subaddress,
 			&rose_presented->screened.subaddress);
+		break;
+	case 2:	/* numberNotAvailableDueToInterworking */
+		q931_address->number.presentation = PRES_NUMBER_NOT_AVAILABLE;
 		break;
 	default:
 		q931_address->number.presentation |= PRI_PRES_USER_NUMBER_UNSCREENED;
@@ -1871,6 +1880,7 @@ int pri_mwi_indicate_v2(struct pri *ctrl, const struct pri_party_id *mailbox,
 	}
 
 	pri_copy_party_id_to_q931(&called, mailbox);
+	q931_party_id_fixup(ctrl, &called);
 	if (rose_mwi_indicate_encode(ctrl, call, vm_id, basic_service, num_messages,
 		caller_id, timestamp, message_reference, message_status)
 		|| q931_facility_called(ctrl, call, &called)) {
@@ -4564,8 +4574,7 @@ void rose_handle_invoke(struct pri *ctrl, q931_call *call, int msgtype, q931_ie 
 				party_id.number.presentation =
 					PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
 			} else {
-				party_id.number.presentation =
-					PRI_PRES_UNAVAILABLE | PRI_PRES_USER_NUMBER_UNSCREENED;
+				party_id.number.presentation = PRES_NUMBER_NOT_AVAILABLE;
 			}
 		} else {
 			q931_party_number_init(&party_id.number);
