@@ -2068,7 +2068,7 @@ char *pri_pres2str(int pres)
 		{ PRI_PRES_RESERVED | PRI_PRES_NETWORK_NUMBER,               "Reserved, Network provided" },
 	};
 
-	pres &= (PRI_PRES_RESTRICTION & PRI_PRES_NUMBER_TYPE);
+	pres &= (PRI_PRES_RESTRICTION | PRI_PRES_NUMBER_TYPE);
 	return code2str(pres, press, sizeof(press) / sizeof(press[0]));
 }
 
