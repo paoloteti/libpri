@@ -2179,7 +2179,7 @@ enum PRI_TIMERS_AND_COUNTERS {
 	PRI_TIMER_T310,	/*!< Maximum time between receiving a CALL_PROCEEDING and receiving a ALERT/CONNECT/DISCONNECT/PROGRESS */
 	PRI_TIMER_T313,	/*!< Wait for CONNECT acknowledge, CPE side only */
 	PRI_TIMER_T314,
-	PRI_TIMER_T316,	/*!< Maximum time between transmitting a RESTART and receiving a RESTART ACK */
+	PRI_TIMER_T316,	/*!< Time to wait for a RESTART ACK before retransmitting RESTART. (Timer enabled if greater than zero.) */
 	PRI_TIMER_T317,
 	PRI_TIMER_T318,
 	PRI_TIMER_T319,
@@ -2221,6 +2221,7 @@ enum PRI_TIMERS_AND_COUNTERS {
 	PRI_TIMER_QSIG_CC_T4,	/*!< Path reservation supervision timeout. */
 
 	PRI_TIMER_T312,			/*!< Supervise broadcast SETUP message call reference retention. */
+	PRI_TIMER_N316,			/*!< Number of times to transmit RESTART before giving up if T316 enabled. */
 
 	/* Must be last in the enum list */
 	PRI_MAX_TIMERS

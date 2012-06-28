@@ -81,6 +81,7 @@ static const struct pri_timer_table pri_timer[] = {
 	{ "T313",           PRI_TIMER_T313,             PRI_ALL_SWITCHES },
 	{ "T314",           PRI_TIMER_T314,             PRI_ALL_SWITCHES },
 	{ "T316",           PRI_TIMER_T316,             PRI_ALL_SWITCHES },
+	{ "N316",           PRI_TIMER_N316,             PRI_ALL_SWITCHES },
 	{ "T317",           PRI_TIMER_T317,             PRI_ALL_SWITCHES },
 	{ "T318",           PRI_TIMER_T318,             PRI_ALL_SWITCHES },
 	{ "T319",           PRI_TIMER_T319,             PRI_ALL_SWITCHES },
@@ -184,6 +185,10 @@ static void pri_default_timers(struct pri *ctrl, int switchtype)
 	ctrl->timers[PRI_TIMER_T309] = 6 * 1000;	/* Time to wait before clearing calls in case of D-channel transient event.  Q.931 specifies 6-90 seconds */
 	ctrl->timers[PRI_TIMER_T312] = (4 + 2) * 1000;/* Supervise broadcast SETUP message call reference retention. T303 + 2 seconds */
 	ctrl->timers[PRI_TIMER_T313] = 4 * 1000;	/* Wait for CONNECT acknowledge, CPE side only */
+#if 0	/* Default disable the T316 timer otherwise the user cannot disable it. */
+	ctrl->timers[PRI_TIMER_T316] = 2 * 60 * 1000;	/* RESTART retransmit timer */
+#endif
+	ctrl->timers[PRI_TIMER_N316] = 2;			/* Send RESTART this many times before giving up. */
 
 	ctrl->timers[PRI_TIMER_TM20] = 2500;		/* Max time awaiting XID response - Q.921 Appendix IV */
 	ctrl->timers[PRI_TIMER_NM20] = 3;			/* Number of XID retransmits - Q.921 Appendix IV */
@@ -1795,7 +1800,8 @@ char *pri_dump_info_str(struct pri *ctrl)
 			enum PRI_TIMERS_AND_COUNTERS tmr;
 
 			tmr = pri_timer[idx].number;
-			if (0 <= ctrl->timers[tmr]) {
+			if (0 <= ctrl->timers[tmr]
+				|| tmr == PRI_TIMER_T316) {
 				used = pri_snprintf(buf, used, buf_size, "  %s: %d\n",
 					pri_timer[idx].name, ctrl->timers[tmr]);
 			}

@@ -4422,6 +4422,7 @@ static void cleanup_and_free_call(struct q931_call *cur)
 
 	ctrl = cur->pri;
 	pri_schedule_del(ctrl, cur->restart.timer);
+	pri_schedule_del(ctrl, cur->restart_tx.t316_timer);
 	pri_schedule_del(ctrl, cur->retranstimer);
 	pri_schedule_del(ctrl, cur->hold_timer);
 	pri_schedule_del(ctrl, cur->fake_clearing_timer);
@@ -5913,6 +5914,81 @@ int q931_release(struct pri *ctrl, q931_call *c, int cause)
 
 static int restart_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
 
+static void t316_expire(void *vcall);
+
+/*!
+ * \internal
+ * \brief Send the RESTART message to the peer.
+ *
+ * \param call Q.931 call leg
+ * \param channel Encoded channel id to use.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+static int q931_send_restart(struct q931_call *call)
+{
+	struct pri *ctrl = call->pri;
+	int channel = call->restart_tx.channel;
+
+	/* Start timer T316 if enabled. */
+	if (0 < ctrl->timers[PRI_TIMER_T316]) {
+		call->restart_tx.t316_timer =
+			pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T316], t316_expire, call);
+		--call->restart_tx.remain;
+	}
+
+	call->ri = 0;
+	call->ds1no = (channel >> 8) & 0xFF;
+	call->ds1explicit = (channel >> 16) & 0x1;
+	call->channelno = channel & 0xFF;
+	call->chanflags &= ~FLAG_PREFERRED;
+	call->chanflags |= FLAG_EXCLUSIVE;
+	UPDATE_OURCALLSTATE(ctrl, call, Q931_CALL_STATE_RESTART);
+	call->peercallstate = Q931_CALL_STATE_RESTART_REQUEST;
+	return send_message(ctrl, call, Q931_RESTART, restart_ies);
+}
+
+/*!
+ * \internal
+ * \brief T316 expired.
+ *
+ * \param vcall Q.931 call leg
+ *
+ * \return Nothing
+ */
+static void t316_expire(void *vcall)
+{
+	struct q931_call *call = vcall;
+
+	call->restart_tx.t316_timer = 0;
+
+	if (call->restart_tx.remain) {
+		/* Retransmit the RESTART */
+		q931_send_restart(call);
+	} else {
+		int channel = call->restart_tx.channel;
+
+		pri_message(call->pri,
+			"!! Peer failed to ack our RESTART request for ds1/channel:%d/%d.\n",
+			(channel >> 8) & 0xFF, channel & 0xFF);
+	}
+}
+
+/*!
+ * \internal
+ * \brief Stop timer T316.
+ *
+ * \param call Q.931 call leg
+ *
+ * \return Nothing
+ */
+static void stop_t316(struct q931_call *call)
+{
+	pri_schedule_del(call->pri, call->restart_tx.t316_timer);
+	call->restart_tx.t316_timer = 0;
+}
+
 /*!
  * \brief Send the RESTART message to the peer.
  *
@@ -5930,9 +6006,6 @@ static int restart_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
  * there might not be anything connected.  The broadcast could
  * be handled in a similar manner to the broadcast SETUP.
  *
- * \todo Need to implement T316 to protect against missing
- * RESTART_ACKNOWLEDGE and STATUS messages.
- *
  * \todo NT PTMP mode should implement some protection from
  * receiving a RESTART on channels in use by another TEI.
  *
@@ -5941,22 +6014,21 @@ static int restart_ies[] = { Q931_CHANNEL_IDENT, Q931_RESTART_INDICATOR, -1 };
  */
 int q931_restart(struct pri *ctrl, int channel)
 {
-	struct q931_call *c;
+	struct q931_call *call;
 
-	c = q931_getcall(&ctrl->link, 0 | Q931_CALL_REFERENCE_FLAG);
-	if (!c)
+	if (!channel) {
 		return -1;
-	if (!channel)
+	}
+	call = q931_getcall(&ctrl->link, 0 | Q931_CALL_REFERENCE_FLAG);
+	if (!call) {
 		return -1;
-	c->ri = 0;
-	c->ds1no = (channel & 0xff00) >> 8;
-	c->ds1explicit = (channel & 0x10000) >> 16;
-	c->channelno = channel & 0xff;
-	c->chanflags &= ~FLAG_PREFERRED;
-	c->chanflags |= FLAG_EXCLUSIVE;
-	UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_RESTART);
-	c->peercallstate = Q931_CALL_STATE_RESTART_REQUEST;
-	return send_message(ctrl, c, Q931_RESTART, restart_ies);
+	}
+
+	stop_t316(call);
+	call->restart_tx.remain = (0 < ctrl->timers[PRI_TIMER_N316])
+		? ctrl->timers[PRI_TIMER_N316] : 1;
+	call->restart_tx.channel = channel;
+	return q931_send_restart(call);
 }
 
 static int disconnect_ies[] = { Q931_CAUSE, Q931_IE_FACILITY, Q931_IE_USER_USER, -1 };
@@ -9007,6 +9079,16 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		c->peercallstate = Q931_CALL_STATE_NULL;
 		ctrl->ev.e = PRI_EVENT_RESTART_ACK;
 		ctrl->ev.restartack.channel = q931_encode_channel(c);
+		if (c->restart_tx.t316_timer
+			/*
+			 * Since the DS1 value can vary, only check the channel number.
+			 * We're only supposed to have one RESTART request outstanding
+			 * at a time anyway.
+			 */
+			&& (c->restart_tx.channel & 0xFF) == (ctrl->ev.restartack.channel & 0xFF)) {
+			/* This is the RESTART ACKNOWLEDGE we are expecting. */
+			stop_t316(c);
+		}
 		return Q931_RES_HAVEEVENT;
 	case Q931_INFORMATION:
 		/* XXX We're handling only INFORMATION messages that contain

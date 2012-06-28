@@ -652,6 +652,7 @@ struct q931_call {
 
 	unsigned int slotmap_size:1;/* TRUE if the slotmap is E1 (32 bits). */
 
+	/*! Control the RESTART reception to the upper layer. */
 	struct {
 		/*! Timer ID of RESTART notification events to upper layer. */
 		int timer;
@@ -662,6 +663,15 @@ struct q931_call {
 		/*! Channel ID list */
 		char chan_no[32];
 	} restart;
+	/*! Control the RESTART retransmissions. */
+	struct {
+		/*! T316 RESTART retransmit timer. */
+		int t316_timer;
+		/*! Number of times remaining that RESTART can be transmitted. */
+		int remain;
+		/*! Encoded RESTART channel id. */
+		int channel;
+	} restart_tx;
 };
 
 enum CC_STATES {
