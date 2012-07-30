@@ -1484,8 +1484,20 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 	int tei;
 
 	if (!BRI_NT_PTMP(ctrl) && !BRI_TE_PTMP(ctrl)) {
-		return pri_mkerror(ctrl,
-			"Received MDL/TEI managemement message, but configured for mode other than PTMP!\n");
+		/*
+		 * Some telco switches send out MDL messages even though they
+		 * are configured for PTP.  Usually they are checking for
+		 * assigned TEI's.
+		 */
+		if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
+			/*
+			 * Send out this message in debug modes since it is possible the
+			 * user has misconfigured their link for the wrong mode.
+			 */
+			pri_message(ctrl, "Not configured for PTMP.  Ignoring MDL message: %d(%s)\n",
+				h->data[3], q921_tei_mgmt2str(h->data[3]));
+		}
+		return NULL;
 	}
 
 	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
