@@ -42,7 +42,7 @@
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/types.h>
-#include <zaptel/zaptel.h>
+#include <dahdi/user.h>
 #include "libpri.h"
 #include "pri_q921.h"
 #include "pri_q931.h"
@@ -50,18 +50,18 @@
 static int pri_open(char *dev)
 {
 	int dfd;
-	struct zt_params p;
+	struct dahdi_params p;
 	
 	dfd = open(dev, O_RDWR);
 	if (dfd < 0) {
 		fprintf(stderr, "Failed to open dchannel '%s': %s\n", dev, strerror(errno));
 		return -1;
 	}
-	if (ioctl(dfd, ZT_GET_PARAMS, &p)) {
+	if (ioctl(dfd, DAHDI_GET_PARAMS, &p)) {
 		fprintf(stderr, "Unable to get parameters on '%s': %s\n", dev, strerror(errno));
 		return -1;
 	}
-	if ((p.sigtype != ZT_SIG_HDLCRAW) && (p.sigtype != ZT_SIG_HDLCFCS)) {
+	if ((p.sigtype != DAHDI_SIG_HDLCRAW) && (p.sigtype != DAHDI_SIG_HDLCFCS)) {
 		fprintf(stderr, "%s is in %d signalling, not FCS HDLC or RAW HDLC mode\n", dev, p.sigtype);
 		return -1;
 	}
@@ -94,8 +94,8 @@ static int pri_bridge(int d1, int d2)
 		max = d1;
 		if (max < d2)
 			max = d2;
-		ioctl(d1, ZT_GETEVENT, &e);
-		ioctl(d2, ZT_GETEVENT, &e);
+		ioctl(d1, DAHDI_GETEVENT, &e);
+		ioctl(d2, DAHDI_GETEVENT, &e);
 		res = select(max + 1, &fds, NULL, NULL, NULL);
 		if (res < 0) {
 			fprintf(stderr, "Select returned %d: %s\n", res, strerror(errno));
