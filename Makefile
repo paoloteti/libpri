@@ -10,15 +10,15 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. 
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #
 #
 # Uncomment if you want libpri not send PROGRESS_INDICATOR w/ALERTING
@@ -65,31 +65,7 @@ STATIC_OBJS= \
 	rose_qsig_name.o \
 	version.o
 DYNAMIC_OBJS= \
-	copy_string.lo \
-	pri.lo \
-	q921.lo \
-	prisched.lo \
-	q931.lo \
-	pri_aoc.lo \
-	pri_cc.lo \
-	pri_facility.lo \
-	asn1_primitive.lo \
-	rose.lo \
-	rose_address.lo \
-	rose_etsi_aoc.lo \
-	rose_etsi_cc.lo \
-	rose_etsi_diversion.lo \
-	rose_etsi_ect.lo \
-	rose_etsi_mwi.lo \
-	rose_other.lo \
-	rose_q931.lo \
-	rose_qsig_aoc.lo \
-	rose_qsig_cc.lo \
-	rose_qsig_ct.lo \
-	rose_qsig_diversion.lo \
-	rose_qsig_mwi.lo \
-	rose_qsig_name.lo \
-	version.lo
+	$(STATIC_OBJS)
 CFLAGS=-Wall -Werror -Wstrict-prototypes -Wmissing-prototypes -g -fPIC $(ALERTING) $(LIBPRI_OPT) $(COVERAGE_CFLAGS)
 INSTALL_PREFIX=$(DESTDIR)
 INSTALL_BASE=/usr
@@ -115,10 +91,12 @@ endif
 endif
 ifeq (${OSARCH},SunOS)
 CFLAGS += -DSOLARIS -I../zaptel-solaris
-LDCONFIG = 
+LDCONFIG =
 LDCONFIG_FLAGS = \# # Trick to comment out the period in the command below
 #INSTALL_PREFIX = /opt/asterisk  # Uncomment out to install in standard Solaris location for 3rd party code
 endif
+
+UTILITIES= pridump pritest rosetest testprilib
 
 export PRIVERSION
 
@@ -145,7 +123,7 @@ CFLAGS += -m32
 SOFLAGS += -m32
 endif
 
-all: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
+all: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY) $(UTILITIES)
 
 update:
 	@if [ -d .svn ]; then \
@@ -171,37 +149,37 @@ ifneq (${OSARCH},SunOS)
 	install -m 644 libpri.h $(INSTALL_PREFIX)$(INSTALL_BASE)/include
 	install -m 755 $(DYNAMIC_LIBRARY) $(INSTALL_PREFIX)$(libdir)
 	#if [ -x /usr/sbin/sestatus ] && ( /usr/sbin/sestatus | grep "SELinux status:" | grep -q "enabled"); then /sbin/restorecon -v $(INSTALL_PREFIX)$(libdir)/$(DYNAMIC_LIBRARY); fi
-	( cd $(INSTALL_PREFIX)$(libdir) ; ln -sf libpri.so.$(SONAME) libpri.so)
+	( cd $(INSTALL_PREFIX)$(libdir) ; ln -sf $(DYNAMIC_LIBRARY) libpri.so)
 	install -m 644 $(STATIC_LIBRARY) $(INSTALL_PREFIX)$(libdir)
 	if test $$(id -u) = 0; then $(LDCONFIG) $(LDCONFIG_FLAGS) $(INSTALL_PREFIX)$(libdir); fi
 else
 	install -f $(INSTALL_PREFIX)$(INSTALL_BASE)/include -m 644 libpri.h
 	install -f $(INSTALL_PREFIX)$(libdir) -m 755 $(DYNAMIC_LIBRARY)
-	( cd $(INSTALL_PREFIX)$(libdir) ; ln -sf libpri.so.$(SONAME) libpri.so)
+	( cd $(INSTALL_PREFIX)$(libdir) ; ln -sf $(DYNAMIC_LIBRARY) libpri.so)
 	install -f $(INSTALL_PREFIX)$(libdir) -m 644 $(STATIC_LIBRARY)
 endif
 
 uninstall:
 	@echo "Removing Libpri"
-	rm -f $(INSTALL_PREFIX)$(libdir)/libpri.so.$(SONAME)
+	rm -f $(INSTALL_PREFIX)$(libdir)/$(STATIC_LIBRARY)
 	rm -f $(INSTALL_PREFIX)$(libdir)/libpri.so
-	rm -f $(INSTALL_PREFIX)$(libdir)/libpri.a
+	rm -f $(INSTALL_PREFIX)$(libdir)/$(DYNAMIC_LIBRARY)
 	rm -f $(INSTALL_PREFIX)$(INSTALL_BASE)/include/libpri.h
 
-pritest: pritest.o
-	$(CC) -o pritest pritest.o -L. -lpri $(CFLAGS)
+pritest: pritest.o $(STATIC_LIBRARY)
+	$(CC) -o $@ $< $(STATIC_LIBRARY) $(CFLAGS)
 
 testprilib.o: testprilib.c
-	$(CC) $(CFLAGS) -D_REENTRANT -D_GNU_SOURCE -o $@ -c $<
+	$(CC) $(CFLAGS) -D_REENTRANT -D_GNU_SOURCE $(MAKE_DEPS) -c -o $@ $<
 
-testprilib: testprilib.o
-	$(CC) -o testprilib testprilib.o -L. -lpri -lpthread $(CFLAGS)
+testprilib: testprilib.o $(STATIC_LIBRARY)
+	$(CC) -o $@ $< $(STATIC_LIBRARY) -lpthread $(CFLAGS)
 
-pridump: pridump.o
-	$(CC) -o pridump pridump.o -L. -lpri $(CFLAGS)
+pridump: pridump.o $(DYNAMIC_LIBRARY)
+	$(CC) -o $@ $< -L. -lpri $(CFLAGS)
 
-rosetest: rosetest.o
-	$(CC) -o rosetest rosetest.o -L. -lpri $(CFLAGS)
+rosetest: rosetest.o $(STATIC_LIBRARY)
+	$(CC) -o $@ $< $(STATIC_LIBRARY) $(CFLAGS)
 
 MAKE_DEPS= -MD -MT $@ -MF .$(subst /,_,$@).d -MP
 
@@ -218,7 +196,7 @@ $(STATIC_LIBRARY): $(STATIC_OBJS)
 $(DYNAMIC_LIBRARY): $(DYNAMIC_OBJS)
 	$(CC) $(SOFLAGS) -o $@ $(DYNAMIC_OBJS)
 	$(LDCONFIG) $(LDCONFIG_FLAGS) .
-	ln -sf libpri.so.$(SONAME) libpri.so
+	ln -sf $(DYNAMIC_LIBRARY) libpri.so
 
 version.c: FORCE
 	@build_tools/make_version_c > $@.tmp
@@ -226,9 +204,9 @@ version.c: FORCE
 	@rm -f $@.tmp
 
 clean:
-	rm -f *.o *.so *.lo *.so.$(SONAME)
-	rm -f testprilib $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
-	rm -f pritest pridump
+	rm -f *.o *.so *.lo
+	rm -f $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
+	rm -f $(UTILITIES)
 	rm -f .*.d
 
 .PHONY:
