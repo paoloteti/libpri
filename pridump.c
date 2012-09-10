@@ -80,7 +80,7 @@ static void dump_packet(struct pri *pri, char *buf, int len, int txrx)
 }
 
 
-static int pri_bridge(int d1, int d2)
+static void pri_bridge(int d1, int d2)
 {
 	char buf[1024];
 	fd_set fds;
