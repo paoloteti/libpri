@@ -68,7 +68,10 @@ static void do_channel(int fd)
 	int i=0;
 
 	while ((res = read(fd, buf, READ_SIZE)) > 0 && (i++ < 1000)) {
-		write(fd, buf, res);
+		if (write(fd, buf, res) == -1) {
+			fprintf(stderr, "--!! Failed write: %d\n", errno);
+			break;
+		}
 	}
 }
 
