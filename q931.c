@@ -5574,8 +5574,6 @@ int q931_notify(struct pri *ctrl, q931_call *c, int channel, int info)
 #ifdef ALERTING_NO_PROGRESS
 static int call_progress_ies[] = { -1 };
 #else
-static int call_progress_with_cause_ies[] = { Q931_CAUSE, Q931_PROGRESS_INDICATOR, -1 };
-
 static int call_progress_ies[] = { Q931_PROGRESS_INDICATOR, -1 };
 #endif
 
@@ -5604,6 +5602,12 @@ int q931_call_progress(struct pri *ctrl, q931_call *c, int channel, int info)
 	c->alive = 1;
 	return send_message(ctrl, c, Q931_PROGRESS, call_progress_ies);
 }
+
+#ifdef ALERTING_NO_PROGRESS
+static int call_progress_with_cause_ies[] = { Q931_CAUSE, -1 };
+#else
+static int call_progress_with_cause_ies[] = { Q931_CAUSE, Q931_PROGRESS_INDICATOR, -1 };
+#endif
 
 int q931_call_progress_with_cause(struct pri *ctrl, q931_call *c, int channel, int info, int cause)
 {
