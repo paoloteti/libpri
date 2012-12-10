@@ -3475,38 +3475,73 @@ static char *pri_causeclass2str(int cause)
 static void dump_cause(int full_ie, struct pri *ctrl, q931_ie *ie, int len, char prefix)
 {
 	int x;
+	int cause_ind = 1;
+	int data_ind = 2;
+
 	pri_message(ctrl,
 		"%c %s (len=%2d) [ Ext: %d  Coding: %s (%d)  Spare: %d  Location: %s (%d)\n",
 		prefix, ie2str(full_ie), len, ie->data[0] >> 7,
 		coding2str((ie->data[0] & 0x60) >> 5), (ie->data[0] & 0x60) >> 5,
 		(ie->data[0] & 0x10) >> 4, loc2str(ie->data[0] & 0xf), ie->data[0] & 0xf);
+	if ((ie->data[0] & 0x80) == 0) {
+		const char *recommendation;
+
+		switch (ie->data[1] & 0x7f) {
+		case 0x00:
+			recommendation = "Q.931";
+			break;
+		case 0x03:
+			recommendation = "X.21";
+			break;
+		case 0x04:
+			recommendation = "X.25";
+			break;
+		case 0x05:
+			recommendation = "Q.1031/Q.1051";
+			break;
+		default:
+			recommendation = "Reserved";
+			break;
+		}
+		pri_message(ctrl, "%c                  Ext: %d  Recommendation: %s (%d)\n",
+			prefix, (ie->data[1] >> 7), recommendation, ie->data[1] & 0x7f);
+
+		cause_ind = 2;
+		data_ind = 3;
+	}
 	pri_message(ctrl, "%c                  Ext: %d  Cause: %s (%d), class = %s (%d) ]\n",
-		prefix, (ie->data[1] >> 7), pri_cause2str(ie->data[1] & 0x7f), ie->data[1] & 0x7f,
-		pri_causeclass2str((ie->data[1] & 0x7f) >> 4), (ie->data[1] & 0x7f) >> 4);
-	if (ie->len < 3)
+		prefix, (ie->data[cause_ind] >> 7), pri_cause2str(ie->data[cause_ind] & 0x7f), ie->data[cause_ind] & 0x7f,
+		pri_causeclass2str((ie->data[cause_ind] & 0x7f) >> 4), (ie->data[cause_ind] & 0x7f) >> 4);
+	if (ie->len <= data_ind) {
 		return;
+	}
 	/* Dump cause data in readable form */
-	switch(ie->data[1] & 0x7f) {
+	switch(ie->data[cause_ind] & 0x7f) {
 	case PRI_CAUSE_IE_NONEXIST:
-		for (x=2;x<ie->len;x++) 
+		for (x = data_ind; x < ie->len; x++) {
 			pri_message(ctrl, "%c              Cause data %d: %02x (%d, %s IE)\n", prefix, x-1, ie->data[x], ie->data[x], ie2str(ie->data[x]));
+		}
 		break;
 	case PRI_CAUSE_WRONG_CALL_STATE:
-		for (x=2;x<ie->len;x++) 
+		for (x = data_ind; x < ie->len; x++) {
 			pri_message(ctrl, "%c              Cause data %d: %02x (%d, %s message)\n", prefix, x-1, ie->data[x], ie->data[x], msg2str(ie->data[x]));
+		}
 		break;
 	case PRI_CAUSE_RECOVERY_ON_TIMER_EXPIRE:
 		pri_message(ctrl, "%c              Cause data:", prefix);
-		for (x=2;x<ie->len;x++)
+		for (x = data_ind; x < ie->len; x++) {
 			pri_message(ctrl, " %02x", ie->data[x]);
+		}
 		pri_message(ctrl, " (Timer T");
-		for (x=2;x<ie->len;x++)
+		for (x = data_ind; x < ie->len; x++) {
 			pri_message(ctrl, "%c", ((ie->data[x] >= ' ') && (ie->data[x] < 0x7f)) ? ie->data[x] : '.');
+		}
 		pri_message(ctrl, ")\n");
 		break;
 	default:
-		for (x=2;x<ie->len;x++) 
+		for (x = data_ind; x < ie->len; x++) {
 			pri_message(ctrl, "%c              Cause data %d: %02x (%d)\n", prefix, x-1, ie->data[x], ie->data[x]);
+		}
 		break;
 	}
 }
@@ -3515,7 +3550,11 @@ static int receive_cause(int full_ie, struct pri *ctrl, q931_call *call, int msg
 {
 	call->causeloc = ie->data[0] & 0xf;
 	call->causecode = (ie->data[0] & 0x60) >> 5;
-	call->cause = (ie->data[1] & 0x7f);
+	if (ie->data[0] & 0x80) {
+		call->cause = (ie->data[1] & 0x7f);
+	} else {
+		call->cause = (ie->data[2] & 0x7f);
+	}
 	return 0;
 }
 
