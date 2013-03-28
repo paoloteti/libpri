@@ -557,7 +557,7 @@ static void kick_start_link(struct q921_link *link)
 		break;
 	case Q921_ASSIGN_AWAITING_TEI:
 		if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
-			pri_message(ctrl, "Kick starting link when get TEI.\n");
+			pri_message(ctrl, "Kick starting link when awaiting TEI.\n");
 		}
 		q921_setstate(link, Q921_ESTABLISH_AWAITING_TEI);
 		break;
@@ -586,6 +586,8 @@ static void restart_timer_expire(void *vlink)
 	link->restart_timer = 0;
 
 	switch (link->state) {
+	case Q921_TEI_UNASSIGNED:
+	case Q921_ASSIGN_AWAITING_TEI:
 	case Q921_TEI_ASSIGNED:
 		/* Try to bring layer 2 up. */
 		kick_start_link(link);
@@ -1911,7 +1913,9 @@ static void q921_mdl_remove(struct q921_link *link)
 
 	switch (link->state) {
 	case Q921_TEI_ASSIGNED:
-		restart_timer_stop(link);
+		if (mdl_free_me) {
+			restart_timer_stop(link);
+		}
 		/* XXX: deviation! Since we don't have a UI queue, we just discard our I-queue */
 		q921_discard_iqueue(link);
 		q921_setstate(link, Q921_TEI_UNASSIGNED);
