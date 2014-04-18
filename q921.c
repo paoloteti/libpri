@@ -45,13 +45,19 @@
  */
 //#define RANDOM_DROPS	1
 
-#define Q921_INIT(link, hf) do { \
-	memset(&(hf),0,sizeof(hf)); \
-	(hf).h.sapi = (link)->sapi; \
-	(hf).h.ea1 = 0; \
-	(hf).h.ea2 = 1; \
-	(hf).h.tei = (link)->tei; \
-} while (0)
+#define Q921_INIT(fr, l_sapi, l_tei) \
+	do { \
+		(fr)->h.sapi = l_sapi; \
+		(fr)->h.ea1 = 0; \
+		(fr)->h.ea2 = 1; \
+		(fr)->h.tei = l_tei; \
+	} while (0)
+
+#define Q921_CLEAR_INIT(fr, l_sapi, l_tei) \
+	do { \
+		memset((fr), 0, sizeof(*(fr))); \
+		Q921_INIT((fr), (l_sapi), (l_tei)); \
+	} while (0)
 
 static void q921_dump_pri(struct q921_link *link, char direction_tag);
 static void q921_establish_data_link(struct q921_link *link);
@@ -196,17 +202,14 @@ static int q921_transmit(struct pri *ctrl, q921_h *h, int len)
 	return 0;
 }
 
-static void q921_send_tei(struct pri *ctrl, enum q921_tei_identity message, int ri, int ai, int iscommand)
+static void q921_mdl_send(struct pri *ctrl, enum q921_tei_identity message, int ri, int ai, int iscommand)
 {
 	q921_u *f;
-	struct q921_link *link;
-
-	link = &ctrl->link;
 
 	if (!(f = calloc(1, sizeof(*f) + 5)))
 		return;
 
-	Q921_INIT(link, *f);
+	Q921_INIT(f, Q921_SAPI_LAYER2_MANAGEMENT, Q921_TEI_GROUP);
 	f->h.c_r = (ctrl->localtype == PRI_NETWORK) ? iscommand : !iscommand;
 	f->ft = Q921_FRAMETYPE_U;
 	f->data[0] = 0x0f;	/* Management entity */
@@ -216,7 +219,7 @@ static void q921_send_tei(struct pri *ctrl, enum q921_tei_identity message, int 
 	f->data[4] = (ai << 1) | 1;
 	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
 		pri_message(ctrl,
-			"Sending TEI management message %d(%s), TEI=%d\n",
+			"Sending MDL message: %d(%s), TEI=%d\n",
 			message, q921_tei_mgmt2str(message), ai);
 	}
 	q921_transmit(ctrl, (q921_h *)f, 8);
@@ -265,7 +268,7 @@ static void t202_expire(void *vlink)
 
 	/* Send TEI request */
 	link->ri = random() % 65535;
-	q921_send_tei(ctrl, Q921_TEI_IDENTITY_REQUEST, link->ri, Q921_TEI_GROUP, 1);
+	q921_mdl_send(ctrl, Q921_TEI_IDENTITY_REQUEST, link->ri, Q921_TEI_GROUP, 1);
 }
 
 static void q921_tei_request(struct q921_link *link)
@@ -280,8 +283,8 @@ static void q921_tei_remove(struct pri *ctrl, int tei)
 	 * Q.921 Section 5.3.2 says we should send the remove message
 	 * twice, in case of message loss.
 	 */
-	q921_send_tei(ctrl, Q921_TEI_IDENTITY_REMOVE, 0, tei, 1);
-	q921_send_tei(ctrl, Q921_TEI_IDENTITY_REMOVE, 0, tei, 1);
+	q921_mdl_send(ctrl, Q921_TEI_IDENTITY_REMOVE, 0, tei, 1);
+	q921_mdl_send(ctrl, Q921_TEI_IDENTITY_REMOVE, 0, tei, 1);
 }
 
 static void q921_send_dm(struct q921_link *link, int fbit)
@@ -291,7 +294,7 @@ static void q921_send_dm(struct q921_link *link, int fbit)
 
 	ctrl = link->ctrl;
 
-	Q921_INIT(link, h);
+	Q921_CLEAR_INIT(&h, link->sapi, link->tei);
 	h.u.m3 = 0;	/* M3 = 0 */
 	h.u.m2 = 3;	/* M2 = 3 */
 	h.u.p_f = fbit;	/* Final set appropriately */
@@ -320,7 +323,7 @@ static void q921_send_disc(struct q921_link *link, int pbit)
 
 	ctrl = link->ctrl;
 
-	Q921_INIT(link, h);
+	Q921_CLEAR_INIT(&h, link->sapi, link->tei);
 	h.u.m3 = 2;	/* M3 = 2 */
 	h.u.m2 = 0;	/* M2 = 0 */
 	h.u.p_f = pbit;	/* Poll set appropriately */
@@ -349,7 +352,7 @@ static void q921_send_ua(struct q921_link *link, int fbit)
 
 	ctrl = link->ctrl;
 
-	Q921_INIT(link, h);
+	Q921_CLEAR_INIT(&h, link->sapi, link->tei);
 	h.u.m3 = 3;		/* M3 = 3 */
 	h.u.m2 = 0;		/* M2 = 0 */
 	h.u.p_f = fbit;	/* Final set appropriately */
@@ -378,7 +381,7 @@ static void q921_send_sabme(struct q921_link *link)
 
 	ctrl = link->ctrl;
 
-	Q921_INIT(link, h);
+	Q921_CLEAR_INIT(&h, link->sapi, link->tei);
 	h.u.m3 = 3;	/* M3 = 3 */
 	h.u.m2 = 3;	/* M2 = 3 */
 	h.u.p_f = 1;	/* Poll bit set */
@@ -809,7 +812,7 @@ static void q921_reject(struct q921_link *link, int pf)
 
 	ctrl = link->ctrl;
 
-	Q921_INIT(link, h);
+	Q921_CLEAR_INIT(&h, link->sapi, link->tei);
 	h.s.x0 = 0;	/* Always 0 */
 	h.s.ss = 2;	/* Reject */
 	h.s.ft = 1;	/* Frametype (01) */
@@ -839,7 +842,7 @@ static void q921_rr(struct q921_link *link, int pbit, int cmd)
 
 	ctrl = link->ctrl;
 
-	Q921_INIT(link, h);
+	Q921_CLEAR_INIT(&h, link->sapi, link->tei);
 	h.s.x0 = 0;	/* Always 0 */
 	h.s.ss = 0; /* Receive Ready */
 	h.s.ft = 1;	/* Frametype (01) */
@@ -1066,7 +1069,7 @@ int q921_transmit_iframe(struct q921_link *link, void *buf, int len, int cr)
 
 		f = calloc(1, sizeof(struct q921_frame) + len + 2);
 		if (f) {
-			Q921_INIT(link, f->h);
+			Q921_INIT(&f->h, link->sapi, link->tei);
 			switch (ctrl->localtype) {
 			case PRI_NETWORK:
 				if (cr)
@@ -1396,12 +1399,6 @@ static void t201_expire(void *vctrl)
 
 	ctrl = vctrl;
 
-	if (!ctrl->link.next) {
-		/* No TEI links remain. */
-		ctrl->t201_timer = 0;
-		return;
-	}
-
 	/* Start the TEI check timer. */
 	ctrl->t201_timer =
 		pri_schedule_event(ctrl, ctrl->timers[PRI_TIMER_T201], t201_expire, ctrl);
@@ -1462,7 +1459,7 @@ static void t201_expire(void *vctrl)
 			}
 		}
 	}
-	q921_send_tei(ctrl, Q921_TEI_IDENTITY_CHECK_REQUEST, 0, Q921_TEI_GROUP, 1);
+	q921_mdl_send(ctrl, Q921_TEI_IDENTITY_CHECK_REQUEST, 0, Q921_TEI_GROUP, 1);
 }
 
 static void q921_tei_check(struct pri *ctrl)
@@ -1475,7 +1472,19 @@ static void q921_tei_check(struct pri *ctrl)
 	t201_expire(ctrl);
 }
 
-static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
+static void q921_mdl_ignore(struct pri *ctrl, q921_u *h, const char *reason)
+{
+	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
+		/*
+		 * Send out this message in debug modes since it is possible the
+		 * user has misconfigured their link for the wrong mode.
+		 */
+		pri_message(ctrl, "Ignoring MDL message: %d(%s)  %s\n",
+			h->data[3], q921_tei_mgmt2str(h->data[3]), reason);
+	}
+}
+
+static pri_event *q921_mdl_receive(struct pri *ctrl, q921_u *h, int len)
 {
 	int ri;
 	struct q921_link *sub;
@@ -1485,32 +1494,13 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 	int count;
 	int tei;
 
-	if (!BRI_NT_PTMP(ctrl) && !BRI_TE_PTMP(ctrl)) {
-		/*
-		 * Some telco switches send out MDL messages even though they
-		 * are configured for PTP.  Usually they are checking for
-		 * assigned TEI's.
-		 */
-		if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
-			/*
-			 * Send out this message in debug modes since it is possible the
-			 * user has misconfigured their link for the wrong mode.
-			 */
-			pri_message(ctrl, "Not configured for PTMP.  Ignoring MDL message: %d(%s)\n",
-				h->data[3], q921_tei_mgmt2str(h->data[3]));
-		}
-		return NULL;
-	}
-
-	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
-		pri_message(ctrl, "Received MDL message\n");
-	}
 	if (len <= &h->data[0] - (u_int8_t *) h) {
-		pri_error(ctrl, "Received short frame\n");
+		pri_error(ctrl, "Received short MDL frame\n");
 		return NULL;
 	}
 	if (h->data[0] != 0x0f) {
-		pri_error(ctrl, "Received MDL with unsupported management entity %02x\n", h->data[0]);
+		pri_error(ctrl, "Received MDL with unsupported management entity %02x\n",
+			h->data[0]);
 		return NULL;
 	}
 	if (len <= &h->data[4] - (u_int8_t *) h) {
@@ -1519,8 +1509,20 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 	}
 	if (h->data[3] != Q921_TEI_IDENTITY_CHECK_RESPONSE
 		&& !(h->data[4] & 0x01)) {
-		pri_error(ctrl, "Received %d(%s) with Ai E bit not set.\n", h->data[3],
-			q921_tei_mgmt2str(h->data[3]));
+		pri_error(ctrl, "Received MDL message: %d(%s) with Ai E bit not set.\n",
+			h->data[3], q921_tei_mgmt2str(h->data[3]));
+		return NULL;
+	}
+	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
+		pri_message(ctrl, "Received MDL message: %d(%s)\n",
+			h->data[3], q921_tei_mgmt2str(h->data[3]));
+	}
+	if (PTP_MODE(ctrl) && NT_MODE(ctrl)) {
+		/*
+		 * We are not managing automatic TEI's in this mode so we can
+		 * ignore MDL messages from the CPE.
+		 */
+		q921_mdl_ignore(ctrl, h, "We are in NT-PTP mode.");
 		return NULL;
 	}
 	ri = (h->data[1] << 8) | h->data[2];
@@ -1529,13 +1531,14 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 	switch (h->data[3]) {
 	case Q921_TEI_IDENTITY_REQUEST:
 		if (!BRI_NT_PTMP(ctrl)) {
+			q921_mdl_ignore(ctrl, h, "We are not in NT-PTMP mode.");
 			return NULL;
 		}
 
 		if (tei != Q921_TEI_GROUP) {
 			pri_error(ctrl, "Received %s with invalid TEI %d\n",
 				q921_tei_mgmt2str(Q921_TEI_IDENTITY_REQUEST), tei);
-			q921_send_tei(ctrl, Q921_TEI_IDENTITY_DENIED, ri, tei, 1);
+			q921_mdl_send(ctrl, Q921_TEI_IDENTITY_DENIED, ri, tei, 1);
 			return NULL;
 		}
 
@@ -1550,7 +1553,7 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 						break;
 					}
 					pri_error(ctrl, "TEI pool exhausted.  Reclaiming dead TEIs.\n");
-					q921_send_tei(ctrl, Q921_TEI_IDENTITY_DENIED, ri, Q921_TEI_GROUP, 1);
+					q921_mdl_send(ctrl, Q921_TEI_IDENTITY_DENIED, ri, Q921_TEI_GROUP, 1);
 					q921_tei_check(ctrl);
 					return NULL;
 				}
@@ -1567,7 +1570,7 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 		}
 		sub->next = link;
 		q921_setstate(link, Q921_TEI_ASSIGNED);
-		q921_send_tei(ctrl, Q921_TEI_IDENTITY_ASSIGNED, ri, tei, 1);
+		q921_mdl_send(ctrl, Q921_TEI_IDENTITY_ASSIGNED, ri, tei, 1);
 
 		count = 0;
 		for (sub = ctrl->link.next; sub; sub = sub->next) {
@@ -1595,6 +1598,7 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 		break;
 	case Q921_TEI_IDENTITY_CHECK_RESPONSE:
 		if (!BRI_NT_PTMP(ctrl)) {
+			/* Silently ignore the message since we never asked for the check. */
 			return NULL;
 		}
 
@@ -1642,6 +1646,7 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 		break;
 	case Q921_TEI_IDENTITY_VERIFY:
 		if (!BRI_NT_PTMP(ctrl)) {
+			q921_mdl_ignore(ctrl, h, "We are not in NT-PTMP mode.");
 			return NULL;
 		}
 		if (tei == Q921_TEI_GROUP) {
@@ -1652,11 +1657,20 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 		q921_tei_check(ctrl);
 		break;
 	case Q921_TEI_IDENTITY_ASSIGNED:
+		if (NT_MODE(ctrl)) {
+			/* We should not be receiving this message. */
+			q921_mdl_ignore(ctrl, h, "We are the network.");
+			return NULL;
+		}
 		if (!BRI_TE_PTMP(ctrl)) {
+			/*
+			 * Silently ignore the message.  It must not be for us
+			 * since we will never ask for one.
+			 */
 			return NULL;
 		}
 
-		/* Assuming we're operating on the specific TEI link here */
+		/* We're operating on the specific TEI link here */
 		link = ctrl->link.next;
 		
 		switch (link->state) {
@@ -1726,29 +1740,52 @@ static pri_event *q921_receive_MDL(struct pri *ctrl, q921_u *h, int len)
 		}
 		break;
 	case Q921_TEI_IDENTITY_CHECK_REQUEST:
-		if (!BRI_TE_PTMP(ctrl)) {
+		if (NT_MODE(ctrl)) {
+			/* We should not be receiving this message. */
+			q921_mdl_ignore(ctrl, h, "We are the network.");
 			return NULL;
 		}
 
-		/* Assuming we're operating on the specific TEI link here */
-		link = ctrl->link.next;
+		if (PTP_MODE(ctrl)) {
+			/*
+			 * Some telco switches/devices get very unhappy if we don't
+			 * respond to the TEI check request with our permanently
+			 * assigned TEI.
+			 */
+			link = &ctrl->link;
+		} else if (BRI_TE_PTMP(ctrl)) {
+			/* We're operating on the specific TEI link here */
+			link = ctrl->link.next;
 
-		if (link->state < Q921_TEI_ASSIGNED) {
-			/* We do not have a TEI. */
+			if (link->state < Q921_TEI_ASSIGNED) {
+				/* We do not have a TEI. */
+				return NULL;
+			}
+		} else {
+			/* Should never get here. */
 			return NULL;
 		}
 
 		/* If it's addressed to the group TEI or to our TEI specifically, we respond */
 		if (tei == Q921_TEI_GROUP || tei == link->tei) {
-			q921_send_tei(ctrl, Q921_TEI_IDENTITY_CHECK_RESPONSE, random() % 65535, link->tei, 1);
+			q921_mdl_send(ctrl, Q921_TEI_IDENTITY_CHECK_RESPONSE, random() % 65535, link->tei, 1);
 		}
 		break;
 	case Q921_TEI_IDENTITY_REMOVE:
+		if (NT_MODE(ctrl)) {
+			/* We should not be receiving this message. */
+			q921_mdl_ignore(ctrl, h, "We are the network.");
+			return NULL;
+		}
 		if (!BRI_TE_PTMP(ctrl)) {
+			/*
+			 * Silently ignore the message.  If we are TE-PTP our
+			 * TEI is permanently assigned and cannot be removed.
+			 */
 			return NULL;
 		}
 
-		/* Assuming we're operating on the specific TEI link here */
+		/* We're operating on the specific TEI link here */
 		link = ctrl->link.next;
 
 		if (link->state < Q921_TEI_ASSIGNED) {
@@ -2991,27 +3028,32 @@ static pri_event *__q921_receive_qualified(struct q921_link *link, q921_h *h, in
 
 static pri_event *q921_handle_unmatched_frame(struct pri *ctrl, q921_h *h, int len)
 {
-	if (h->h.tei < 64) {
-		pri_error(ctrl, "Do not support manual TEI range. Discarding\n");
+	if (!BRI_NT_PTMP(ctrl)) {
+		return NULL;
+	}
+
+	if (h->h.tei < Q921_TEI_AUTO_FIRST) {
+		if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
+			pri_message(ctrl, "Manual TEI range is not supported in NT-PTMP mode. Discarding\n");
+		}
 		return NULL;
 	}
 
 	if (h->h.sapi != Q921_SAPI_CALL_CTRL) {
-		pri_error(ctrl, "Message with SAPI other than CALL CTRL is discarded\n");
+		if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
+			pri_message(ctrl, "Message with SAPI other than CALL CTRL is discarded\n");
+		}
 		return NULL;
 	}
 
-	/* If we're NT-PTMP, this means an unrecognized TEI that we'll kill */
-	if (BRI_NT_PTMP(ctrl)) {
-		if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
-			pri_message(ctrl,
-				"Could not find a layer 2 link for received frame with SAPI/TEI of %d/%d.\n",
-				h->h.sapi, h->h.tei);
-			pri_message(ctrl, "Sending TEI release, in order to re-establish TEI state\n");
-		}
-	
-		q921_tei_remove(ctrl, h->h.tei);
+	/* This means an unrecognized TEI that we'll kill */
+	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
+		pri_message(ctrl,
+			"Could not find a layer 2 link for received frame with SAPI/TEI of %d/%d.\n",
+			h->h.sapi, h->h.tei);
+		pri_message(ctrl, "Sending TEI release, in order to re-establish TEI state\n");
 	}
+	q921_tei_remove(ctrl, h->h.tei);
 
 	return NULL;
 }
@@ -3035,7 +3077,7 @@ static pri_event *__q921_receive(struct pri *ctrl, q921_h *h, int len)
 	}
 
 	if (h->h.sapi == Q921_SAPI_LAYER2_MANAGEMENT) {
-		return q921_receive_MDL(ctrl, &h->u, len);
+		return q921_mdl_receive(ctrl, &h->u, len);
 	}
 
 	if (h->h.tei == Q921_TEI_GROUP && h->h.sapi != Q921_SAPI_CALL_CTRL) {
