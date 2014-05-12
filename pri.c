@@ -939,7 +939,15 @@ int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisd
 	if (!pri || !pri_is_call_valid(pri, call)) {
 		return -1;
 	}
-	return q931_setup_ack(pri, call, channel, nonisdn);
+	return q931_setup_ack(pri, call, channel, nonisdn, 0);
+}
+
+int pri_setup_ack(struct pri *ctrl, q931_call *call, int channel, int nonisdn, int inband)
+{
+	if (!ctrl || !pri_is_call_valid(ctrl, call)) {
+		return -1;
+	}
+	return q931_setup_ack(ctrl, call, channel, nonisdn, inband);
 }
 
 int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn)

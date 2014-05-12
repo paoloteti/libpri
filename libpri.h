@@ -1213,6 +1213,7 @@ typedef struct pri_event_setup_ack {
 	int channel;
 	q931_call *call;
 	struct pri_subcommands *subcmds;
+	int progressmask;
 } pri_event_setup_ack;
 
 typedef struct pri_event_notify {
@@ -1408,8 +1409,17 @@ const char *pri_facility_error2str(int facility_error_code);
  */
 const char *pri_facility_reject2str(int facility_reject_code);
 
-/* Acknowledge a call and place it on the given channel.  Set info to non-zero if there
-   is in-band data available on the channel */
+/*!
+ * \brief Send the ALERTING message.
+ *
+ * \param pri D channel controller.
+ * \param call Q.931 call leg.
+ * \param channel Encoded channel id to use.  If zero do not change channel id.
+ * \param info Nonzero to include a progress ie indicating inband audio available (ie ringback).
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
 int pri_acknowledge(struct pri *pri, q931_call *call, int channel, int info);
 
 /* Send a digit in overlap mode */
@@ -1419,12 +1429,44 @@ int pri_information(struct pri *pri, q931_call *call, char digit);
 /* Send a keypad facility string of digits */
 int pri_keypad_facility(struct pri *pri, q931_call *call, const char *digits);
 
-/* Answer the incomplete(call without called number) call on the given channel.
-   Set non-isdn to non-zero if you are not connecting to ISDN equipment */
+/*!
+ * \brief Send the SETUP_ACKNOWLEDGE message.
+ *
+ * \param pri D channel controller.
+ * \param call Q.931 call leg.
+ * \param channel Encoded channel id to use.  If zero do not change channel id.
+ * \param nonisdn Nonzero to include a progress ie indicating non-end-to-end-ISDN.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
 int pri_need_more_info(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
-/* Answer(CONNECT) the call on the given channel.
-   Set non-isdn to non-zero if you are not connecting to ISDN equipment */
+/*!
+ * \brief Send the SETUP_ACKNOWLEDGE message.
+ *
+ * \param ctrl D channel controller.
+ * \param call Q.931 call leg.
+ * \param channel Encoded channel id to use.  If zero do not change channel id.
+ * \param nonisdn Nonzero to include a progress ie indicating non-end-to-end-ISDN.
+ * \param inband Nonzero to include a progress ie indicating inband audio available (ie dialtone).
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
+int pri_setup_ack(struct pri *ctrl, q931_call *call, int channel, int nonisdn, int inband);
+
+/*!
+ * \brief Send the CONNECT message.
+ *
+ * \param pri D channel controller.
+ * \param call Q.931 call leg.
+ * \param channel Encoded channel id to use.  If zero do not change channel id.
+ * \param nonisdn Nonzero to include a progress ie indicating non-end-to-end-ISDN.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
 int pri_answer(struct pri *pri, q931_call *call, int channel, int nonisdn);
 
 /*!
@@ -1692,7 +1734,17 @@ int pri_progress(struct pri *pri, q931_call *c, int channel, int info);
 int pri_progress_with_cause(struct pri *pri, q931_call *c, int channel, int info, int cause);
 
 #define PRI_PROCEEDING_FULL
-/* Send call proceeding */
+/*!
+ * \brief Send the PROCEEDING message.
+ *
+ * \param pri D channel controller.
+ * \param c Q.931 call leg.
+ * \param channel Encoded channel id to use.  If zero do not change channel id.
+ * \param info Nonzero to include a progress ie indicating inband audio available.
+ *
+ * \retval 0 on success.
+ * \retval -1 on error.
+ */
 int pri_proceeding(struct pri *pri, q931_call *c, int channel, int info);
 
 /* Enable inband progress when a DISCONNECT is received */

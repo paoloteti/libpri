@@ -2807,7 +2807,8 @@ static int receive_progress_indicator(int full_ie, struct pri *ctrl, q931_call *
 {
 	call->progloc = ie->data[0] & 0xf;
 	call->progcode = (ie->data[0] & 0x60) >> 5;
-	switch (call->progress = (ie->data[1] & 0x7f)) {
+	call->progress = (ie->data[1] & 0x7f);
+	switch (call->progress) {
 	case Q931_PROG_CALL_NOT_E2E_ISDN:
 		call->progressmask |= PRI_PROG_CALL_NOT_E2E_ISDN;
 		break;
@@ -3084,7 +3085,9 @@ static void q931_apdu_msg_expire(struct pri *ctrl, struct q931_call *call, int m
 
 static int transmit_progress_indicator(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len, int order)
 {
-	int code, mask;
+	int code;
+	int mask;
+
 	/* Can't send progress indicator on GR-303 -- EVER! */
 	if (ctrl->link.next && !ctrl->bri)
 		return 0;
@@ -5755,9 +5758,14 @@ int q931_alerting(struct pri *ctrl, q931_call *c, int channel, int info)
 	return send_message(ctrl, c, Q931_ALERTING, alerting_ies);
 }
 
-static int setup_ack_ies[] = { Q931_CHANNEL_IDENT, Q931_IE_FACILITY, Q931_PROGRESS_INDICATOR, -1 };
+static int setup_ack_ies[] = {
+	Q931_CHANNEL_IDENT,
+	Q931_IE_FACILITY,
+	Q931_PROGRESS_INDICATOR,
+	-1
+};
  
-int q931_setup_ack(struct pri *ctrl, q931_call *c, int channel, int nonisdn)
+int q931_setup_ack(struct pri *ctrl, q931_call *c, int channel, int nonisdn, int inband)
 {
 	if (c->ourcallstate == Q931_CALL_STATE_CALL_INDEPENDENT_SERVICE) {
 		/* Cannot send this message when in this state */
@@ -5770,12 +5778,20 @@ int q931_setup_ack(struct pri *ctrl, q931_call *c, int channel, int nonisdn)
 	}
 	c->chanflags &= ~FLAG_PREFERRED;
 	c->chanflags |= FLAG_EXCLUSIVE;
+
+	c->progressmask = 0;
 	if (nonisdn && (ctrl->switchtype != PRI_SWITCH_DMS100)) {
-		c->progloc  = LOC_PRIV_NET_LOCAL_USER;
+		c->progloc = LOC_PRIV_NET_LOCAL_USER;
 		c->progcode = CODE_CCITT;
-		c->progressmask = PRI_PROG_CALLED_NOT_ISDN;
-	} else
-		c->progressmask = 0;
+		c->progressmask |= PRI_PROG_CALLED_NOT_ISDN;
+	}
+	if (inband) {
+		/* Inband audio is present (i.e. dialtone) */
+		c->progloc = LOC_PRIV_NET_LOCAL_USER;
+		c->progcode = CODE_CCITT;
+		c->progressmask |= PRI_PROG_INBAND_AVAILABLE;
+	}
+
 	UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_OVERLAP_RECEIVING);
 	c->peercallstate = Q931_CALL_STATE_OVERLAP_SENDING;
 	c->alive = 1;
@@ -5876,7 +5892,7 @@ int q931_connect(struct pri *ctrl, q931_call *c, int channel, int nonisdn)
 	c->chanflags &= ~FLAG_PREFERRED;
 	c->chanflags |= FLAG_EXCLUSIVE;
 	if (nonisdn && (ctrl->switchtype != PRI_SWITCH_DMS100)) {
-		c->progloc  = LOC_PRIV_NET_LOCAL_USER;
+		c->progloc = LOC_PRIV_NET_LOCAL_USER;
 		c->progcode = CODE_CCITT;
 		c->progressmask = PRI_PROG_CALLED_NOT_ISDN;
 	} else
@@ -7243,6 +7259,7 @@ static int prepare_to_handle_q931_message(struct pri *ctrl, q931_mh *mh, q931_ca
 		c->useruserinfo[0] = '\0';
 		c->cause = -1;
 		/* Fall through */
+	case Q931_SETUP_ACKNOWLEDGE:
 	case Q931_CALL_PROCEEDING:
 		c->progress = -1;
 		c->progressmask = 0;
@@ -7288,8 +7305,6 @@ static int prepare_to_handle_q931_message(struct pri *ctrl, q931_mh *mh, q931_ca
 		c->overlap_digits[0] = '\0';
 		break;
 	case Q931_STATUS_ENQUIRY:
-		break;
-	case Q931_SETUP_ACKNOWLEDGE:
 		break;
 	case Q931_NOTIFY:
 		c->notify = -1;
@@ -9199,6 +9214,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		ctrl->ev.setup_ack.subcmds = &ctrl->subcmds;
 		ctrl->ev.setup_ack.channel = q931_encode_channel(c);
 		ctrl->ev.setup_ack.call = c->master_call;
+		ctrl->ev.setup_ack.progressmask = c->progressmask;
 
 		for (cur = c->apdus; cur; cur = cur->next) {
 			if (!cur->sent && cur->message == Q931_FACILITY) {
