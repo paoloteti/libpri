@@ -176,7 +176,7 @@ static void pri_default_timers(struct pri *ctrl, int switchtype)
 
 	ctrl->timers[PRI_TIMER_T200] = 1000;		/* Time between SABME's */
 	ctrl->timers[PRI_TIMER_T201] = ctrl->timers[PRI_TIMER_T200];/* Time between TEI Identity Checks (Default same as T200) */
-	ctrl->timers[PRI_TIMER_T202] = 10 * 1000;	/* Min time between transmission of TEI Identity request messages */
+	ctrl->timers[PRI_TIMER_T202] = 2 * 1000;	/* Min time between transmission of TEI Identity request messages */
 	ctrl->timers[PRI_TIMER_T203] = 10 * 1000;	/* Max time without exchanging packets */
 
 	ctrl->timers[PRI_TIMER_T303] = 4 * 1000;	/* Length between SETUP retransmissions and timeout */
