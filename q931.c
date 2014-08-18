@@ -9170,7 +9170,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			q931_release_complete(ctrl, c, newcall_rel_comp_cause(c));
 			break;
 		}
-		if (c->ourcallstate != Q931_CALL_STATE_OVERLAP_RECEIVING) {
+		if (strlen(c->keypad_digits)) {
 			ctrl->ev.e = PRI_EVENT_KEYPAD_DIGIT;
 			ctrl->ev.digit.subcmds = &ctrl->subcmds;
 			ctrl->ev.digit.call = c->master_call;
