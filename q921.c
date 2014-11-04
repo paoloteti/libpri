@@ -313,7 +313,7 @@ static void q921_send_dm(struct q921_link *link, int fbit)
 	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
 		pri_message(ctrl, "TEI=%d Sending DM\n", link->tei);
 	}
-	q921_transmit(ctrl, &h, 4);
+	q921_transmit(ctrl, &h, 3);
 }
 
 static void q921_send_disc(struct q921_link *link, int pbit)
@@ -342,7 +342,7 @@ static void q921_send_disc(struct q921_link *link, int pbit)
 	if (ctrl->debug & PRI_DEBUG_Q921_STATE) {
 		pri_message(ctrl, "TEI=%d Sending DISC\n", link->tei);
 	}
-	q921_transmit(ctrl, &h, 4);
+	q921_transmit(ctrl, &h, 3);
 }
 
 static void q921_send_ua(struct q921_link *link, int fbit)
