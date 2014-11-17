@@ -8696,6 +8696,15 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			q931_release_complete(ctrl, c, newcall_rel_comp_cause(c));
 			break;
 		}
+		switch (c->ourcallstate) {
+		default:
+			q931_status(ctrl, c, PRI_CAUSE_WRONG_CALL_STATE);
+			return 0;
+		case Q931_CALL_STATE_CALL_INITIATED:
+		case Q931_CALL_STATE_OVERLAP_SENDING:
+		case Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING:
+			break;
+		}
 		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_CALL_DELIVERED);
 		c->peercallstate = Q931_CALL_STATE_CALL_RECEIVED;
 		ctrl->ev.e = PRI_EVENT_RINGING;
@@ -8866,11 +8875,8 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		}
 		switch (c->ourcallstate) {
 		default:
-			if (ctrl->localtype == PRI_NETWORK || ctrl->switchtype == PRI_SWITCH_QSIG) {
-				q931_status(ctrl, c, PRI_CAUSE_WRONG_MESSAGE);
-				break;
-			}
-			/* Fall through */
+			q931_status(ctrl, c, PRI_CAUSE_WRONG_CALL_STATE);
+			return 0;
 		case Q931_CALL_STATE_CONNECT_REQUEST:
 		case Q931_CALL_STATE_ACTIVE:
 			UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_ACTIVE);
@@ -9206,6 +9212,13 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		stop_t303(c->master_call);
 		if (c->newcall) {
 			q931_release_complete(ctrl, c, newcall_rel_comp_cause(c));
+			break;
+		}
+		switch (c->ourcallstate) {
+		default:
+			q931_status(ctrl, c, PRI_CAUSE_WRONG_CALL_STATE);
+			return 0;
+		case Q931_CALL_STATE_CALL_INITIATED:
 			break;
 		}
 		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_OVERLAP_SENDING);
