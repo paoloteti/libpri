@@ -2681,10 +2681,33 @@ static void dump_change_status(int full_ie, struct pri *ctrl, q931_ie *ie, int l
 		pri_message(ctrl, " %02x", ie->data[x] & 0x7f);
 	}
 	pri_message(ctrl, " ]\n");
+
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_NI2:
+	case PRI_SWITCH_DMS100:
+	case PRI_SWITCH_LUCENT5E:
+	case PRI_SWITCH_ATT4ESS:
+		break;
+	default:
+		/* ie not supported by this switch type */
+		pri_message(ctrl, "%c   %s is treated as unknown by current switch type.\n",
+			prefix, ie2str(full_ie));
+		break;
+	}
 }
 
 static int receive_change_status(int full_ie, struct pri *ctrl, q931_call *call, int msgtype, q931_ie *ie, int len)
 {
+	switch (ctrl->switchtype) {
+	case PRI_SWITCH_NI2:
+	case PRI_SWITCH_DMS100:
+	case PRI_SWITCH_LUCENT5E:
+	case PRI_SWITCH_ATT4ESS:
+		break;
+	default:
+		/* ie not supported by this switch type */
+		return -1;
+	}
 	call->changestatus = ie->data[0] & 0x0f;
 	return 0;
 }
@@ -3955,8 +3978,11 @@ static int transmit_reverse_charging_indication(int full_ie, struct pri *ctrl, q
 }
 
 static struct ie ies[] = {
+	/* Codeset 0 - Comprehension required ie's with varying support. */
+	{ 1, Q931_IE_SEGMENTED_MSG, "Segmented Message" }, /* Not supported.  Just ie name is available for message decode. */
+	{ 1, Q931_IE_CHANGE_STATUS, "Change Status Information", dump_change_status, receive_change_status, transmit_change_status },
+
 	/* Codeset 0 - Common */
-	{ 1, NATIONAL_CHANGE_STATUS, "Change Status Information", dump_change_status, receive_change_status, transmit_change_status },
 	{ 0, Q931_LOCKING_SHIFT, "Locking Shift", dump_shift },
 	{ 0, Q931_BEARER_CAPABILITY, "Bearer Capability", dump_bearer_capability, receive_bearer_capability, transmit_bearer_capability },
 	{ 0, Q931_CAUSE, "Cause", dump_cause, receive_cause, transmit_cause },
@@ -3988,7 +4014,6 @@ static struct ie ies[] = {
 	{ 1, Q931_IE_FEATURE_ACTIVATE, "Feature Activation" },
 	{ 1, Q931_IE_INFO_REQUEST, "Feature Request" },
 	{ 1, Q931_IE_FEATURE_IND, "Feature Indication" },
-	{ 1, Q931_IE_SEGMENTED_MSG, "Segmented Message" },
 	{ 1, Q931_IE_CALL_IDENTITY, "Call Identity", dump_call_identity },
 	{ 1, Q931_IE_ENDPOINT_ID, "Endpoint Identification" },
 	{ 1, Q931_IE_NOTIFY_IND, "Notification Indicator", dump_notify, receive_notify, transmit_notify },
@@ -4000,7 +4025,6 @@ static struct ie ies[] = {
 	{ 1, Q931_IE_USER_USER, "User-User Information", dump_user_user, receive_user_user, transmit_user_user },
 	{ 1, Q931_IE_ESCAPE_FOR_EXT, "Escape for Extension" },
 	{ 1, Q931_IE_CALL_STATUS, "Call Status" },
-	{ 1, Q931_IE_CHANGE_STATUS, "Change Status Information", dump_change_status, receive_change_status, transmit_change_status },
 	{ 1, Q931_IE_CONNECTED_ADDR, "Connected Address", dump_connected_number, receive_connected_number, transmit_connected_number },
 	{ 1, Q931_IE_CONNECTED_NUM, "Connected Number", dump_connected_number, receive_connected_number, transmit_connected_number },
 	{ 1, Q931_IE_CONNECTED_SUBADDR, "Connected Subaddress", dump_connected_subaddr, receive_connected_subaddr, transmit_connected_subaddr },
@@ -4792,7 +4816,7 @@ static int add_ie(struct pri *ctrl, q931_call *call, int msgtype, int ie, q931_i
 				}
 				return total_res;
 			} else {
-				pri_error(ctrl, "!! Don't know how to add an IE %s (%d)\n", ie2str(ie), ie);
+				pri_error(ctrl, "!! Don't know how to add IE %d (%s)\n", ie, ie2str(ie));
 				return -1;
 			}
 		}

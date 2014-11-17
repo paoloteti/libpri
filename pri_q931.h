@@ -138,9 +138,6 @@ typedef struct q931_ie {
 #define SERVICE_CHANGE_STATUS_REQCONTINUITYCHECK  3  /* not supported */
 #define SERVICE_CHANGE_STATUS_SHUTDOWN            4  /* not supported */
 
-/* Special codeset 0 IE */
-#define	NATIONAL_CHANGE_STATUS		0x1
-
 /* Q.931 / National ISDN Information Elements */
 #define Q931_LOCKING_SHIFT			0x90
 #define Q931_NON_LOCKING_SHIFT		0x98
