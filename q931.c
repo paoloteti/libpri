@@ -5637,11 +5637,12 @@ int q931_notify(struct pri *ctrl, q931_call *c, int channel, int info)
 	return q931_notify_redirection(ctrl, c, info, NULL, NULL);
 }
 
-#ifdef ALERTING_NO_PROGRESS
-static int call_progress_ies[] = { -1 };
-#else
-static int call_progress_ies[] = { Q931_PROGRESS_INDICATOR, -1 };
+static int call_progress_ies[] = {
+#ifndef ALERTING_NO_PROGRESS
+	Q931_PROGRESS_INDICATOR,
 #endif
+	-1
+};
 
 int q931_call_progress(struct pri *ctrl, q931_call *c, int channel, int info)
 {
@@ -5669,11 +5670,13 @@ int q931_call_progress(struct pri *ctrl, q931_call *c, int channel, int info)
 	return send_message(ctrl, c, Q931_PROGRESS, call_progress_ies);
 }
 
-#ifdef ALERTING_NO_PROGRESS
-static int call_progress_with_cause_ies[] = { Q931_CAUSE, -1 };
-#else
-static int call_progress_with_cause_ies[] = { Q931_CAUSE, Q931_PROGRESS_INDICATOR, -1 };
+static int call_progress_with_cause_ies[] = {
+	Q931_CAUSE,
+#ifndef ALERTING_NO_PROGRESS
+	Q931_PROGRESS_INDICATOR,
 #endif
+	-1
+};
 
 int q931_call_progress_with_cause(struct pri *ctrl, q931_call *c, int channel, int info, int cause)
 {
@@ -5705,11 +5708,13 @@ int q931_call_progress_with_cause(struct pri *ctrl, q931_call *c, int channel, i
 	return send_message(ctrl, c, Q931_PROGRESS, call_progress_with_cause_ies);
 }
 
-#ifdef ALERTING_NO_PROGRESS
-static int call_proceeding_ies[] = { Q931_CHANNEL_IDENT, -1 };
-#else
-static int call_proceeding_ies[] = { Q931_CHANNEL_IDENT, Q931_PROGRESS_INDICATOR, -1 };
+static int call_proceeding_ies[] = {
+	Q931_CHANNEL_IDENT,
+#ifndef ALERTING_NO_PROGRESS
+	Q931_PROGRESS_INDICATOR,
 #endif
+	-1
+};
 
 int q931_call_proceeding(struct pri *ctrl, q931_call *c, int channel, int info)
 {
@@ -5740,11 +5745,15 @@ int q931_call_proceeding(struct pri *ctrl, q931_call *c, int channel, int info)
 	c->alive = 1;
 	return send_message(ctrl, c, Q931_CALL_PROCEEDING, call_proceeding_ies);
 }
+
+static int alerting_ies[] = {
+	Q931_IE_FACILITY,
 #ifndef ALERTING_NO_PROGRESS
-static int alerting_ies[] = { Q931_IE_FACILITY, Q931_PROGRESS_INDICATOR, Q931_IE_USER_USER, -1 };
-#else
-static int alerting_ies[] = { Q931_IE_FACILITY, -1 };
+	Q931_PROGRESS_INDICATOR,
 #endif
+	Q931_IE_USER_USER,
+	-1
+};
 
 int q931_alerting(struct pri *ctrl, q931_call *c, int channel, int info)
 {
