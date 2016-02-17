@@ -647,10 +647,13 @@ struct q931_call {
 		unsigned char char_set;
 	} display;
 
-	/* AOC charge requesting on Setup */
+	/*! AOC charge requesting on Setup */
 	int aoc_charging_request;
 
-	unsigned int slotmap_size:1;/* TRUE if the slotmap is E1 (32 bits). */
+	/*! TRUE if the slotmap is E1 (32 bits). */
+	unsigned int slotmap_size:1;
+	/*! TRUE if need to see the channel id ie in first response to SETUP. */
+	unsigned int channel_id_ie_mandatory:1;
 
 	/*! Control the RESTART reception to the upper layer. */
 	struct {

@@ -40,6 +40,12 @@
 #include <stdio.h>
 #include <limits.h>
 
+enum mandatory_ie_status {
+	MAND_STATUS_OK,
+	MAND_STATUS_CONTENT_ERROR,
+	MAND_STATUS_MISSING,
+};
+
 #define MAX_MAND_IES 10
 
 struct msgtype {
@@ -50,13 +56,27 @@ struct msgtype {
 
 static struct msgtype msgs[] = {
 	/* Call establishment messages */
-	{ Q931_ALERTING, "ALERTING" },
-	{ Q931_CALL_PROCEEDING, "CALL PROCEEDING" },
-	{ Q931_CONNECT, "CONNECT" },
+	{ Q931_ALERTING, "ALERTING", { Q931_CHANNEL_IDENT } },
+	{ Q931_CALL_PROCEEDING, "CALL PROCEEDING", { Q931_CHANNEL_IDENT } },
+	{ Q931_CONNECT, "CONNECT", { Q931_CHANNEL_IDENT } },
 	{ Q931_CONNECT_ACKNOWLEDGE, "CONNECT ACKNOWLEDGE" },
+	/*
+	 * Very early in libpri SVN history (SVN -r154) a change was explicitly
+	 * made to not care about a missing Progress Indicator ie.  There is no
+	 * explanation in the commit message why this was done even though
+	 * Q.931 and ECMA-143 clearly show that the ie is mandatory for a
+	 * PROGRESS message.
+	 *
+	 * Hazzarding a guess, I think it was because of the
+	 * ALERTING_NO_PROGRESS support for Mitel switches.  (SVN -r44)
+	 */
+#ifdef ALERTING_NO_PROGRESS
+	{ Q931_PROGRESS, "PROGRESS" },
+#else
 	{ Q931_PROGRESS, "PROGRESS", { Q931_PROGRESS_INDICATOR } },
+#endif
 	{ Q931_SETUP, "SETUP", { Q931_BEARER_CAPABILITY, Q931_CHANNEL_IDENT } },
-	{ Q931_SETUP_ACKNOWLEDGE, "SETUP ACKNOWLEDGE" },
+	{ Q931_SETUP_ACKNOWLEDGE, "SETUP ACKNOWLEDGE", { Q931_CHANNEL_IDENT } },
 	
 	/* Call disestablishment messages */
 	{ Q931_DISCONNECT, "DISCONNECT", { Q931_CAUSE } },
@@ -93,7 +113,7 @@ static struct msgtype msgs[] = {
 	{ Q931_ANY_MESSAGE, "ANY MESSAGE" },
 };
 
-static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct q931_call *c, int missingmand);
+static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct q931_call *c, enum mandatory_ie_status mand_status);
 static void nt_ptmp_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct q931_call *c, int *allow_event, int *allow_posthandle);
 
 struct msgtype att_maintenance_msgs[] = {
@@ -1258,6 +1278,14 @@ static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, in
 	int pos = 0;
 	int need_extended_channel_octets;/*!< TRUE if octets 3.2 and 3.3 need to be present. */
 
+	call->channel_id_ie_mandatory = 0;
+
+	if (ie->len < 1) {
+		/* Must have at least one payload octet. */
+		pri_error(ctrl, "!! Channel Identification ie too short\n");
+		return -1;
+	}
+
 	call->restart.count = 0;
 
 	if (ie->data[0] & 0x08) {
@@ -1308,10 +1336,24 @@ static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, in
 
 	pos++;
 	if (ie->data[0] & 0x40) {
-		/* DS1 specified -- stop here */
-		call->ds1no = ie->data[1] & 0x7f;
+		/* Explicitly defined DS1 (One or more 3.1 octets expected) */
+		if (ctrl->switchtype == PRI_SWITCH_QSIG) {
+			pri_error(ctrl, "!! Q.SIG does not support Channel Identification octet 3.1\n");
+			return -1;
+		}
+		if (ie->len <= pos) {
+			pri_error(ctrl, "!! Missing expected Channel Identification octet 3.1\n");
+			return -1;
+		}
+
+		/* Extract explicit DS1 reference. */
+		call->ds1no = ie->data[pos] & 0x7f;
 		call->ds1explicit = 1;
-		pos++;
+
+		/* Advance to 3.2 octet if present. */
+		do {
+			++pos;
+		} while (pos < ie->len && !(ie->data[pos - 1] & 0x80));
 	} else {
 		call->ds1explicit = 0;
 	}
@@ -1324,8 +1366,12 @@ static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, in
 		return 0;
 	}
 
-	if (need_extended_channel_octets && pos + 2 < len) {
-		/* More coming */
+	if (need_extended_channel_octets && pos + 2 <= ie->len) {
+		/*
+		 * Octet 3.2 and at least one octet 3.3 are present.
+		 *
+		 * Process octet 3.2
+		 */
 		if ((ie->data[pos] & 0x0f) != 3) {
 			/* Channel type/mapping is not for B channel units. */
 			pri_error(ctrl, "!! Unexpected Channel Type %d\n", ie->data[pos] & 0x0f);
@@ -1335,14 +1381,25 @@ static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, in
 			pri_error(ctrl, "!! Invalid CCITT coding %d\n", (ie->data[pos] & 0x60) >> 5);
 			return -1;
 		}
-		if (ie->data[pos] & 0x10) {
-			/* Expect Slot Map */
+		if (ie->data[pos++] & 0x10) {
+			/* Process 3.3 octets as a Slot Map */
 			call->slotmap = 0;
-			pos++;
 			call->slotmap_size = (ie->len - pos > 3) ? 1 : 0;
-			for (x = 0; x < (call->slotmap_size ? 4 : 3); ++x) {
+
+			/*
+			 * We will be tolerant of partial slot maps that do not
+			 * specify the upper channels.  We will assume they
+			 * are not requested.
+			 *
+			 * We will only read up to 24 or 32 bit channel maps.
+			 */
+			for (x = call->slotmap_size ? 4 : 3; x--;) {
 				call->slotmap <<= 8;
-				call->slotmap |= ie->data[x + pos];
+				call->slotmap |= ie->data[pos++];
+				if (ie->len <= pos) {
+					/* No more ie contents. */
+					break;
+				}
 			}
 
 			if (msgtype == Q931_RESTART) {
@@ -1357,8 +1414,11 @@ static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, in
 				}
 			}
 		} else {
-			pos++;
-			/* Only expect a particular channel */
+			/*
+			 * Process 3.3 octets as either a single channel or a channel list
+			 *
+			 * Get single channel
+			 */
 			call->channelno = ie->data[pos] & 0x7f;
 			if (ctrl->chan_mapping_logical && call->channelno > 15) {
 				call->channelno++;
@@ -1385,6 +1445,9 @@ static int receive_channel_id(int full_ie, struct pri *ctrl, q931_call *call, in
 				}
 			}
 		}
+	} else if (need_extended_channel_octets) {
+		pri_error(ctrl, "!! Missing expected Channel Identification octets 3.2 or 3.3\n");
+		return -1;
 	}
 	return 0;
 }
@@ -1518,21 +1581,29 @@ static void dump_channel_id(int full_ie, struct pri *ctrl, q931_ie *ie, int len,
 		(ie->data[0] & 0x08) ? "Exclusive" : "Preferred",
 		(ie->data[0] & 0x04) ? 1 : 0);
 	pri_message(ctrl, "%c                       ChanSel: %s\n",
-		prefix, msg_chan_sel[(ie->data[0] & 0x03) | ((ie->data[0] >> 3) & 0x04)]);
+		prefix, msg_chan_sel[(ie->data[0] & 0x03) | ((ie->data[0] & 0x20) >> 3)]);
 	pos = 1;
 	len -= 2;
 	if (ie->data[0] & 0x40) {
-		/* Explicitly defined DS1 */
-		do {
-			pri_message(ctrl, "%c                       Ext: %d  DS1 Identifier: %d  \n",
-				prefix, (ie->data[pos] & 0x80) >> 7, ie->data[pos] & 0x7f);
-			++pos;
-		} while (!(ie->data[pos - 1] & 0x80) && pos < len);
+		/* Explicitly defined DS1 (One or more 3.1 octets expected) */
+		if (ctrl->switchtype == PRI_SWITCH_QSIG) {
+			pri_message(ctrl, "%c                       Octet 3.1 specified when Q.SIG!\n",
+				prefix);
+		}
+		if (pos < len) {
+			do {
+				pri_message(ctrl, "%c                       Ext: %d  DS1 Identifier: %d\n",
+					prefix, (ie->data[pos] & 0x80) >> 7, ie->data[pos] & 0x7f);
+				++pos;
+			} while (!(ie->data[pos - 1] & 0x80) && pos < len);
+		} else {
+			pri_message(ctrl, "%c                       Octet 3.1 is missing!\n", prefix);
+		}
 	} else {
 		/* Implicitly defined DS1 */
 	}
 	if (pos < len) {
-		/* Still more information here */
+		/* Octet 3.2 present */
 		pri_message(ctrl,
 			"%c                       Ext: %d  Coding: %d  %s Specified  Channel Type: %d\n",
 			prefix, (ie->data[pos] & 0x80) >> 7, (ie->data[pos] & 60) >> 5,
@@ -1540,6 +1611,7 @@ static void dump_channel_id(int full_ie, struct pri *ctrl, q931_ie *ie, int len,
 		++pos;
 	}
 	if (pos < len) {
+		/* One or more 3.3 octets present */
 		if (!(ie->data[pos - 1] & 0x10)) {
 			/* Number specified */
 			do {
@@ -2864,7 +2936,7 @@ static int receive_progress_indicator(int full_ie, struct pri *ctrl, q931_call *
 		break;
 	default:
 		pri_error(ctrl, "XXX Invalid Progress indicator value received: %02x\n",(ie->data[1] & 0x7f));
-		break;
+		return -1;
 	}
 	return 0;
 }
@@ -6316,6 +6388,9 @@ int q931_setup(struct pri *ctrl, q931_call *c, struct pri_sr *req)
 			c->chanflags = FLAG_PREFERRED;
 		}
 	}
+	if (ctrl->localtype == PRI_CPE) {
+		c->channel_id_ie_mandatory = 1;
+	}
 
 	c->slotmap = -1;
 	c->nonisdn = req->nonisdn;
@@ -7510,12 +7585,13 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 	int res;
 	int r;
 	int mandies[MAX_MAND_IES];
-	int missingmand;
+	int is_mandatory;
 	int codeset, cur_codeset;
 	int last_ie[8];
 	int cref;
 	int allow_event;
 	int allow_posthandle;
+	enum mandatory_ie_status mand_status;
 
 	ctrl = link->ctrl;
 	memset(last_ie, 0, sizeof(last_ie));
@@ -7595,7 +7671,7 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 	q931_clr_subcommands(ctrl);
 	q931_display_clear(c);
 
-	/* Handle IEs */
+	/* Determine which ies are mandatory for this message. */
 	memset(mandies, 0, sizeof(mandies));
 	for (x = 0; x < ARRAY_LEN(msgs); ++x)  {
 		if (msgs[x].msgnum == mh->msg) {
@@ -7603,6 +7679,25 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 			break;
 		}
 	}
+	for (x = 0; x < ARRAY_LEN(mandies); ++x) {
+		if (mandies[x]) {
+			/* Check mandatory channel identification ie exceptions */
+			if (mandies[x] != Q931_CHANNEL_IDENT
+				/* Always mandatory for RESUME_ACKNOWLEDGE */
+				|| mh->msg == Q931_RESUME_ACKNOWLEDGE
+				/* Mandatory in Net -> CPE direction for SETUP */
+				|| (mh->msg == Q931_SETUP && ctrl->localtype == PRI_CPE)
+				/* Mandatory for first SETUP response message in Net -> CPE direction. */
+				|| c->channel_id_ie_mandatory) {
+				/* ie is mandatory for this message */
+				continue;
+			}
+			/* ie is not mandatory for this message */
+			mandies[x] = 0;
+		}
+	}
+	mand_status = MAND_STATUS_OK;
+
 	/* Do real IE processing */
 	len -= (h->crlen + 3);
 	codeset = cur_codeset = 0;
@@ -7619,10 +7714,16 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 			q931_display_clear(c);
 			return -1;
 		}
+
+		/* Check if processing a mandatory ie. */
+		is_mandatory = 0;
 		for (y = 0; y < ARRAY_LEN(mandies); ++y) {
-			if (mandies[y] == Q931_FULL_IE(cur_codeset, ie->ie))
+			if (mandies[y] == Q931_FULL_IE(cur_codeset, ie->ie)) {
 				mandies[y] = 0;
+				is_mandatory = 1;
+			}
 		}
+
 		/* Special processing for codeset shifts */
 		switch (ie->ie & 0xf8) {
 		case Q931_LOCKING_SHIFT:
@@ -7665,6 +7766,15 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 				/* Fall through */
 			default:
 				y = q931_handle_ie(cur_codeset, ctrl, c, mh->msg, ie);
+				if (y < 0 && is_mandatory) {
+					/* Error processing mandatory ie. */
+					mand_status = MAND_STATUS_CONTENT_ERROR;
+					pri_error(ctrl, "%s: Error in mandatory IE %d (cs%d, %s)\n",
+						msg2str(mh->msg),
+						ie->ie,
+						cur_codeset,
+						ie2str(Q931_FULL_IE(codeset, ie->ie)));
+				}
 				/* XXX Applicable to codeset 0 only? XXX */
 				if (!cur_codeset && !(ie->ie & 0xf0) && (y < 0)) {
 					/*
@@ -7681,19 +7791,21 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 			break;
 		}
 	}
-	missingmand = 0;
+
+	/* Check for missing mandatory ies. */
 	for (x = 0; x < ARRAY_LEN(mandies); ++x) {
 		if (mandies[x]) {
-			/* check if there is no channel identification when we're configured as network -> that's not an error */
-			if (((ctrl->localtype != PRI_NETWORK) || (mh->msg != Q931_SETUP) || (mandies[x] != Q931_CHANNEL_IDENT)) &&
-			     ((mh->msg != Q931_PROGRESS) || (mandies[x] != Q931_PROGRESS_INDICATOR))) {
-				pri_error(ctrl, "XXX Missing handling for mandatory IE %d (cs%d, %s) XXX\n", Q931_IE_IE(mandies[x]), Q931_IE_CODESET(mandies[x]), ie2str(mandies[x]));
-				missingmand++;
-			}
+			/* This mandatory ie was not processed. */
+			mand_status = MAND_STATUS_MISSING;
+			pri_error(ctrl, "%s: Missing mandatory IE %d (cs%d, %s)\n",
+				msg2str(mh->msg),
+				Q931_IE_IE(mandies[x]),
+				Q931_IE_CODESET(mandies[x]),
+				ie2str(mandies[x]));
 		}
 	}
 
-	if (!missingmand) {
+	if (mand_status == MAND_STATUS_OK) {
 		switch (mh->msg) {
 		case Q931_SETUP:
 		case Q931_CONNECT:
@@ -7729,7 +7841,7 @@ int q931_receive(struct q921_link *link, q931_h *h, int len)
 		}
 
 		if (allow_posthandle) {
-			res = post_handle_q931_message(ctrl, mh, c, missingmand);
+			res = post_handle_q931_message(ctrl, mh, c, mand_status);
 			if (res == Q931_RES_HAVEEVENT && !allow_event) {
 				res = 0;
 			}
@@ -8599,7 +8711,7 @@ static void q931_restart_notify(struct q931_call *call)
  * \param ctrl D channel controller.
  * \param mh Q.931 message header.
  * \param c Q.931 call leg.
- * \param missingmand Number of missing mandatory ie's.
+ * \param mand_status Mandatory ie status
  *
  * \note
  * When this function returns c may be destroyed so you can no
@@ -8609,19 +8721,32 @@ static void q931_restart_notify(struct q931_call *call)
  * \retval Q931_RES_HAVEEVENT if have an event.
  * \retval -1 on error.
  */
-static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct q931_call *c, int missingmand)
+static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct q931_call *c, enum mandatory_ie_status mand_status)
 {
 	int res;
 	int changed;
+	int mand_cause;
 	struct apdu_event *cur = NULL;
 	struct pri_subcommand *subcmd;
 	struct q931_call *master_call;
 
+	mand_cause = 0;
+	switch (mand_status) {
+	case MAND_STATUS_OK:
+		break;
+	case MAND_STATUS_CONTENT_ERROR:
+		mand_cause = PRI_CAUSE_INVALID_IE_CONTENTS;
+		break;
+	case MAND_STATUS_MISSING:
+		mand_cause = PRI_CAUSE_MANDATORY_IE_MISSING;
+		break;
+	}
+
 	switch(mh->msg) {
 	case Q931_RESTART:
 		q931_display_subcmd(ctrl, c);
-		if (missingmand) {
-			q931_status(ctrl, c, PRI_CAUSE_MANDATORY_IE_MISSING);
+		if (mand_status != MAND_STATUS_OK) {
+			q931_status(ctrl, c, mand_cause);
 			pri_destroycall(ctrl, c);
 			break;
 		}
@@ -8679,9 +8804,8 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		return Q931_RES_HAVEEVENT;
 	case Q931_SETUP:
 		q931_display_subcmd(ctrl, c);
-
-		if (missingmand) {
-			q931_release_complete(ctrl, c, PRI_CAUSE_MANDATORY_IE_MISSING);
+		if (mand_status != MAND_STATUS_OK) {
+			q931_release_complete(ctrl, c, mand_cause);
 			break;
 		}
 		/* Must be new call */
@@ -8724,6 +8848,10 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		return Q931_RES_HAVEEVENT;
 	case Q931_ALERTING:
 		q931_display_subcmd(ctrl, c);
+		if (mand_status != MAND_STATUS_OK) {
+			q931_status(ctrl, c, mand_cause);
+			break;
+		}
 		stop_t303(c->master_call);
 		if (c->newcall) {
 			q931_release_complete(ctrl, c, newcall_rel_comp_cause(c));
@@ -8769,6 +8897,10 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		return Q931_RES_HAVEEVENT;
 	case Q931_CONNECT:
 		q931_display_subcmd(ctrl, c);
+		if (mand_status != MAND_STATUS_OK) {
+			q931_status(ctrl, c, mand_cause);
+			break;
+		}
 		stop_t303(c->master_call);
 		if (c->newcall) {
 			q931_release_complete(ctrl, c, newcall_rel_comp_cause(c));
@@ -8847,16 +8979,15 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		}
 		break;
 	case Q931_PROGRESS:
-		if (missingmand) {
-			q931_status(ctrl, c, PRI_CAUSE_MANDATORY_IE_MISSING);
-			pri_destroycall(ctrl, c);
-			break;
-		}
 		ctrl->ev.e = PRI_EVENT_PROGRESS;
 		ctrl->ev.proceeding.cause = c->cause;
 		/* Fall through */
 	case Q931_CALL_PROCEEDING:
 		q931_display_subcmd(ctrl, c);
+		if (mand_status != MAND_STATUS_OK) {
+			q931_status(ctrl, c, mand_cause);
+			break;
+		}
 		stop_t303(c->master_call);
 		ctrl->ev.proceeding.subcmds = &ctrl->subcmds;
 		if (c->newcall) {
@@ -8926,9 +9057,8 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		break;
 	case Q931_STATUS:
 		q931_display_subcmd(ctrl, c);
-		if (missingmand) {
-			q931_status(ctrl, c, PRI_CAUSE_MANDATORY_IE_MISSING);
-			pri_destroycall(ctrl, c);
+		if (mand_status != MAND_STATUS_OK) {
+			q931_status(ctrl, c, mand_cause);
 			break;
 		}
 		if (c->newcall) {
@@ -9034,9 +9164,9 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 	case Q931_RELEASE:
 		q931_display_subcmd(ctrl, c);
 		c->hangupinitiated = 1;
-		if (missingmand) {
-			/* Force cause to be mandatory IE missing */
-			c->cause = PRI_CAUSE_MANDATORY_IE_MISSING;
+		if (mand_status != MAND_STATUS_OK) {
+			/* Force mandatory ie cause */
+			c->cause = mand_cause;
 		}
 
 		/*
@@ -9080,9 +9210,9 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 	case Q931_DISCONNECT:
 		q931_display_subcmd(ctrl, c);
 		c->hangupinitiated = 1;
-		if (missingmand) {
+		if (mand_status != MAND_STATUS_OK) {
 			/* Still let user call release */
-			c->cause = PRI_CAUSE_MANDATORY_IE_MISSING;
+			c->cause = mand_cause;
 		}
 		if (c->newcall) {
 			q931_release_complete(ctrl, c, newcall_rel_comp_cause(c));
@@ -9242,6 +9372,10 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		break;
 	case Q931_SETUP_ACKNOWLEDGE:
 		q931_display_subcmd(ctrl, c);
+		if (mand_status != MAND_STATUS_OK) {
+			q931_status(ctrl, c, mand_cause);
+			break;
+		}
 		stop_t303(c->master_call);
 		if (c->newcall) {
 			q931_release_complete(ctrl, c, newcall_rel_comp_cause(c));
@@ -9467,9 +9601,9 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 		master_call = c->master_call;
 		switch (master_call->hold_state) {
 		case Q931_HOLD_STATE_HOLD_REQ:
-			if (missingmand) {
+			if (mand_status != MAND_STATUS_OK) {
 				/* Still, let hold rejection continue. */
-				c->cause = PRI_CAUSE_MANDATORY_IE_MISSING;
+				c->cause = mand_cause;
 			}
 			ctrl->ev.e = PRI_EVENT_HOLD_REJ;
 			ctrl->ev.hold_rej.channel = q931_encode_channel(c);
@@ -9591,9 +9725,9 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			pri_schedule_del(ctrl, master_call->hold_timer);
 			master_call->hold_timer = 0;
 
-			if (missingmand) {
+			if (mand_status != MAND_STATUS_OK) {
 				/* Still, let retrive rejection continue. */
-				c->cause = PRI_CAUSE_MANDATORY_IE_MISSING;
+				c->cause = mand_cause;
 			}
 			ctrl->ev.e = PRI_EVENT_RETRIEVE_REJ;
 			ctrl->ev.retrieve_rej.channel = q931_encode_channel(c);
