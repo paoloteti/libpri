@@ -1,0 +1,12 @@
+*.o
+*.o.d
+*.lo
+*.so
+*.a
+libpri.so.*
+pridump
+pritest
+rosetest
+testprilib
+version.c
+
