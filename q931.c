@@ -7381,6 +7381,8 @@ static int prepare_to_handle_q931_message(struct pri *ctrl, q931_mh *mh, q931_ca
 		c->cause = -1;
 		c->causecode = -1;
 		c->causeloc = -1;
+		c->progress = -1;
+		c->progressmask = 0;
 		c->aoc_units = -1;
 		pri_schedule_del(ctrl, c->retranstimer);
 		c->retranstimer = 0;
