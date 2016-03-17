@@ -8726,6 +8726,7 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 	int res;
 	int changed;
 	int mand_cause;
+	enum Q931_CALL_STATE ourcallstate_orig;
 	struct apdu_event *cur = NULL;
 	struct pri_subcommand *subcmd;
 	struct q931_call *master_call;
@@ -9265,14 +9266,46 @@ static int post_handle_q931_message(struct pri *ctrl, struct q931_mh *mh, struct
 			}
 		}
 
+		ourcallstate_orig = c->ourcallstate;
 		UPDATE_OURCALLSTATE(ctrl, c, Q931_CALL_STATE_DISCONNECT_INDICATION);
 		c->peercallstate = Q931_CALL_STATE_DISCONNECT_REQUEST;
 		c->sendhangupack = 1;
 
 		/* wait for a RELEASE so that sufficient time has passed
 		   for the inband audio to be heard */
-		if (ctrl->acceptinbanddisconnect && (c->progressmask & PRI_PROG_INBAND_AVAILABLE))
+		if (ctrl->acceptinbanddisconnect
+			&& (c->progressmask & PRI_PROG_INBAND_AVAILABLE)) {
+			switch (ourcallstate_orig) {
+			case Q931_CALL_STATE_CALL_INITIATED:
+			case Q931_CALL_STATE_OVERLAP_SENDING:
+			case Q931_CALL_STATE_OUTGOING_CALL_PROCEEDING:
+			case Q931_CALL_STATE_CALL_DELIVERED:
+				/*
+				 * Open the media path if it isn't already open so
+				 * the user can hear the inband audio.
+				 */
+				if (ctrl->debug & PRI_DEBUG_Q931_STATE) {
+					pri_message(ctrl, "Report the DISCONNECT as a PROGRESS instead.\n");
+				}
+				ctrl->ev.e = PRI_EVENT_PROGRESS;
+				ctrl->ev.proceeding.cause = c->cause;
+				ctrl->ev.proceeding.subcmds = &ctrl->subcmds;
+				ctrl->ev.proceeding.channel = q931_encode_channel(c);
+				ctrl->ev.proceeding.progress = c->progress;
+				ctrl->ev.proceeding.progressmask = c->progressmask;
+				ctrl->ev.proceeding.cref = c->cr;
+				ctrl->ev.proceeding.call = c->master_call;
+				return Q931_RES_HAVEEVENT;
+			default:
+				break;
+			}
+			/*
+			 * Suppress reporting DISCONNECT to the upper layer.  The
+			 * media path should already be open and we cannot report
+			 * a PROGRESS at this time anyway.
+			 */
 			break;
+		}
 
 		/* Return such an event */
 		ctrl->ev.e = PRI_EVENT_HANGUP_REQ;
