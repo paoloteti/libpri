@@ -1,0 +1,141 @@
+                                Release Summary
+
+                                  libpri-1.5.0
+
+                                Date: 2016-03-25
+
+                           <asteriskteam@digium.com>
+
+     ----------------------------------------------------------------------
+
+                               Table of Contents
+
+    1. Summary
+    2. Contributors
+    3. Closed Issues
+    4. Other Changes
+    5. Diffstat
+
+     ----------------------------------------------------------------------
+
+                                    Summary
+
+                                 [Back to Top]
+
+   This release is a point release of an existing major version. The changes
+   included were made to address problems that have been identified in this
+   release series, or are minor, backwards compatible new features or
+   improvements. Users should be able to safely upgrade to this version if
+   this release series is already in use. Users considering upgrading from a
+   previous version are strongly encouraged to review the UPGRADE.txt
+   document as well as the CHANGES document for information about upgrading
+   to this release series.
+
+   The data in this summary reflects changes that have been made since the
+   previous release, libpri-1.4.15.
+
+     ----------------------------------------------------------------------
+
+                                  Contributors
+
+                                 [Back to Top]
+
+   This table lists the people who have submitted code, those that have
+   tested patches, as well as those that reported issues on the issue tracker
+   that were resolved in this release. For coders, the number is how many of
+   their patches (of any size) were committed into this release. For testers,
+   the number is the number of times their name was listed as assisting with
+   testing a patch. Finally, for reporters, the number is the number of
+   issues that they reported that were affected by commits that went into
+   this release.
+
+   Coders                   Testers                  Reporters                
+   8 Richard Mudgett                                 2 Alexandr Dranchuk      
+   2 Kevin Harwell                                   2 Richard Mudgett        
+   1 Gerald Schnabel                                 2 Alexandr Dranchuk      
+   1 Kevin Harwell                                   1 Gerald Schnabel        
+                                                     1 Gerald Schnabel        
+                                                     1 Alec Davis             
+                                                     1 James Wilson           
+
+     ----------------------------------------------------------------------
+
+                                 Closed Issues
+
+                                 [Back to Top]
+
+   This is a list of all issues from the issue tracker that were closed by
+   changes that went into this release.
+
+  Bug
+
+    Category: General
+
+   PRI-180: Incorrect handling of DISCONNECT with Progress Indicator #8
+   Reported by: Alexandr Dranchuk
+     * [2952e95715] Richard Mudgett -- q931.c: Fix DISCONNECT Progress
+       Indicator ie handling.
+     * [7da3366cec] Richard Mudgett -- q931.c: Substitute PROGRESS for
+       DISCONNECT with progress indicator #8
+   PRI-74: Unexpected Channel selection
+   Reported by: James Wilson
+     * [fc96191788] Richard Mudgett -- q931.c: Made not recognize ie 0x01 for
+       switches other than 4ESS, 5ESS, NI2, and DMS-100.
+   PRI-76: [patch] Limit octets received on Called Party Number and Calling
+   Party Number
+   Reported by: Alec Davis
+     * [5fda3d8c68] Richard Mudgett -- q931.c: Send STATUS messages when
+       receiving messages in the wrong call state.
+
+     ----------------------------------------------------------------------
+
+                      Commits Not Associated with an Issue
+
+                                 [Back to Top]
+
+   This is a list of all changes that went into this release that did not
+   reference a JIRA issue.
+
+   +------------------------------------------------------------------------+
+   | Revision   | Author          | Summary                                 |
+   |------------+-----------------+-----------------------------------------|
+   | 9a90caa65e | Kevin Harwell   | .version: Update for 1.5.0              |
+   |------------+-----------------+-----------------------------------------|
+   | 5414ca525e | Kevin Harwell   | .lastclean: Update for 1.5.0            |
+   |------------+-----------------+-----------------------------------------|
+   | c71499df29 | Kevin Harwell   | Adding .cleancount and .gitreview files |
+   |------------+-----------------+-----------------------------------------|
+   | 734e922301 | Richard Mudgett | Add .gitignore                          |
+   |------------+-----------------+-----------------------------------------|
+   | a9722804c1 | Richard Mudgett | q931.c: Tighten mandatory ie checks.    |
+   |------------+-----------------+-----------------------------------------|
+   | 6b2cc87b30 | Richard Mudgett | q931.c: Update ALERTING_NO_PROGRESS     |
+   |            |                 | conditional code.                       |
+   |------------+-----------------+-----------------------------------------|
+   |            |                 | q921.c: Send DM and DISC frames with    |
+   | af8a550ff9 | Richard Mudgett | only three data octets instead of an    |
+   |            |                 | extra fourth octet.                     |
+   +------------------------------------------------------------------------+
+
+     ----------------------------------------------------------------------
+
+                                Diffstat Results
+
+                                 [Back to Top]
+
+   This is a summary of the changes to the source code that went into this
+   release that was generated using the diffstat utility.
+
+ ChangeLog                  | 2056 ---------------------------------------------
+ b/.cleancount              |    1
+ b/.gitignore               |   12
+ b/.gitreview               |    4
+ b/.lastclean               |    1
+ b/.version                 |    2
+ b/pri_internal.h           |    7
+ b/pri_q931.h               |    3
+ b/q921.c                   |    4
+ b/q931.c                   |  383 ++++++--
+ libpri-1.4.15-summary.html |   61 -
+ libpri-1.4.15-summary.txt  |   91 -
+ 12 files changed, 325 insertions(+), 2300 deletions(-)
