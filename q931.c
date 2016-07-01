@@ -2351,7 +2351,30 @@ static int receive_connected_number(int full_ie, struct pri *ctrl, q931_call *ca
 		switch (i) {
 		case 0:
 			call->remote_id.number.plan = ie->data[i] & 0x7f;
-			break;
+
+			/*
+			 * Work around a bug in a Lucent switch implementation that
+			 * sets the extension bit in octet 3 even though octet 3a
+			 * is present.
+			 */
+			if (ie->data[i] & 0x80) {
+				/* Octet 3 extension bit is set */
+				if (ctrl->switchtype != PRI_SWITCH_LUCENT5E
+					&& ctrl->switchtype != PRI_SWITCH_ATT4ESS) {
+					/* Not a potentially buggy switch type. */
+					break;
+				}
+				if (!(ie->data[i + 1] & 0x80)) {
+					/*
+					 * The possible octet 3a doesn't have the extension
+					 * bit set.  It is likely not the erroneous octet 3a.
+					 */
+					break;
+				}
+			}
+			/* Octet 3a is present */
+			++i;
+			/* Fall through */
 		case 1:
 			/* Keep only the presentation and screening fields */
 			call->remote_id.number.presentation =
@@ -2393,7 +2416,35 @@ static void dump_connected_number(int full_ie, struct pri *ctrl, q931_ie *ie, in
 				prefix, ie2str(full_ie), len, ie->data[0] >> 7,
 				ton2str((ie->data[0] >> 4) & 0x07), (ie->data[0] >> 4) & 0x07,
 				npi2str(ie->data[0] & 0x0f), ie->data[0] & 0x0f);
-			break;
+
+			/*
+			 * Work around a bug in a Lucent switch implementation that
+			 * sets the extension bit in octet 3 even though octet 3a
+			 * is present.
+			 */
+			if (ie->data[i] & 0x80) {
+				/* Octet 3 extension bit is set */
+				if (ctrl->switchtype != PRI_SWITCH_LUCENT5E
+					&& ctrl->switchtype != PRI_SWITCH_ATT4ESS) {
+					/* Not a potentially buggy switch type. */
+					break;
+				}
+				if (!(ie->data[i + 1] & 0x80)) {
+					/*
+					 * The possible octet 3a doesn't have the extension
+					 * bit set.  It is likely not the erroneous octet 3a.
+					 */
+					break;
+				}
+				pri_message(ctrl, "\n");
+				pri_message(ctrl, "%c                             Switch bug workaround.\n",
+					prefix);
+				pri_message(ctrl, "%c                             Assuming octet 3a is present.",
+					prefix);
+			}
+			/* Octet 3a is present */
+			++i;
+			/* Fall through */
 		case 1: /* Octet 3a */
 			pri_message(ctrl, "\n");
 			pri_message(ctrl, "%c                             Ext: %d  Presentation: %s (%d)",
