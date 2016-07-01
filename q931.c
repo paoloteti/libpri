@@ -2340,6 +2340,7 @@ static int receive_connected_number(int full_ie, struct pri *ctrl, q931_call *ca
 {
 	int i = 0;
 
+	/* Reference Q.951 Section 5.4.1 for ie */
 	call->connected_number_in_message = 1;
 	call->remote_id.number.valid = 1;
 	call->remote_id.number.presentation =
@@ -2429,6 +2430,7 @@ static int receive_redirecting_number(int full_ie, struct pri *ctrl, q931_call *
 {
 	int i = 0;
 
+	/* Reference Q.952 Section 4.1.2 for ie */
 	call->redirecting_number_in_message = 1;
 	call->redirecting.from.number.valid = 1;
 	call->redirecting.from.number.presentation =
@@ -2507,6 +2509,7 @@ static int receive_redirection_number(int full_ie, struct pri *ctrl, q931_call *
 {
 	int i = 0;
 
+	/* Reference Q.952 Section 4.1.3 for ie */
 	call->redirection_number.valid = 1;
 	call->redirection_number.presentation =
 		PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
@@ -2650,6 +2653,7 @@ static int receive_calling_party_number(int full_ie, struct pri *ctrl, q931_call
 	int i = 0;
 	struct q931_party_number number;
 
+	/* Reference Q.931 Section 4.5.10 for ie */
 	q931_party_number_init(&number);
 	number.valid = 1;
 	number.presentation = PRI_PRES_ALLOWED | PRI_PRES_USER_NUMBER_UNSCREENED;
