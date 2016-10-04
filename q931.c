@@ -2356,11 +2356,20 @@ static int receive_connected_number(int full_ie, struct pri *ctrl, q931_call *ca
 			 * Work around a bug in a Lucent switch implementation that
 			 * sets the extension bit in octet 3 even though octet 3a
 			 * is present.
+			 *
+			 * The same issue was seen in a NI2 switch implementation.
+			 * It was probably a Lucent switch configured for NI2
+			 * operation.  To avoid further surprises, I'm going to
+			 * enable the work around for all North American switch
+			 * types.
 			 */
 			if (ie->data[i] & 0x80) {
 				/* Octet 3 extension bit is set */
 				if (ctrl->switchtype != PRI_SWITCH_LUCENT5E
-					&& ctrl->switchtype != PRI_SWITCH_ATT4ESS) {
+					&& ctrl->switchtype != PRI_SWITCH_ATT4ESS
+					&& ctrl->switchtype != PRI_SWITCH_NI1
+					&& ctrl->switchtype != PRI_SWITCH_NI2
+					&& ctrl->switchtype != PRI_SWITCH_DMS100) {
 					/* Not a potentially buggy switch type. */
 					break;
 				}
@@ -2421,11 +2430,20 @@ static void dump_connected_number(int full_ie, struct pri *ctrl, q931_ie *ie, in
 			 * Work around a bug in a Lucent switch implementation that
 			 * sets the extension bit in octet 3 even though octet 3a
 			 * is present.
+			 *
+			 * The same issue was seen in a NI2 switch implementation.
+			 * It was probably a Lucent switch configured for NI2
+			 * operation.  To avoid further surprises, I'm going to
+			 * enable the work around for all North American switch
+			 * types.
 			 */
 			if (ie->data[i] & 0x80) {
 				/* Octet 3 extension bit is set */
 				if (ctrl->switchtype != PRI_SWITCH_LUCENT5E
-					&& ctrl->switchtype != PRI_SWITCH_ATT4ESS) {
+					&& ctrl->switchtype != PRI_SWITCH_ATT4ESS
+					&& ctrl->switchtype != PRI_SWITCH_NI1
+					&& ctrl->switchtype != PRI_SWITCH_NI2
+					&& ctrl->switchtype != PRI_SWITCH_DMS100) {
 					/* Not a potentially buggy switch type. */
 					break;
 				}
