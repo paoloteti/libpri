@@ -1745,6 +1745,7 @@ static char *ra2str(int proto)
 {
 	static struct msgtype protos[] = {
 		{ PRI_RATE_ADAPT_9K6, "9.6 kbit/s" },
+		{ PRI_RATE_ADAPT_4K8, "4.8 kbit/s" },
 	};
 	return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
 }
