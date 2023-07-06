@@ -1725,7 +1725,7 @@ static char *mode2str(int mode)
 	return code2str(mode, modes, sizeof(modes) / sizeof(modes[0]));
 }
 
-static char *l12str(int proto)
+char *l12str(int proto)
 {
 	static struct msgtype protos[] = {
  		{ PRI_LAYER_1_ITU_RATE_ADAPT, "V.110 Rate Adaption" },
@@ -1741,7 +1741,7 @@ static char *l12str(int proto)
 	return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
 }
 
-static char *ra2str(int proto)
+char *ra2str(int proto)
 {
 	static struct msgtype protos[] = {
 		{ PRI_RATE_ADAPT_9K6, "9.6 kbit/s" },
@@ -1750,7 +1750,7 @@ static char *ra2str(int proto)
 	return code2str(proto, protos, sizeof(protos) / sizeof(protos[0]));
 }
 
-static char *l22str(int proto)
+char *l22str(int proto)
 {
 	static struct msgtype protos[] = {
 		{ LAYER_2_LAPB, "LAPB" },
@@ -10299,3 +10299,9 @@ int q931_call_setcrv(struct pri *ctrl, q931_call *call, int crv, int callmode)
 	}
 	return 0;
 }
+
+int q931_call_get_rateadaption(q931_call *call)
+{
+	return call->bc.rateadaption;
+}
+

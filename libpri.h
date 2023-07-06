@@ -2282,4 +2282,10 @@ enum PRI_TIMERS_AND_COUNTERS {
 /* Get PRI version */
 const char *pri_get_version(void);
 
+int q931_call_get_rateadaption(q931_call *call);
+
+char *l12str(int proto);
+char *ra2str(int proto);
+char *l22str(int proto);
+
 #endif
