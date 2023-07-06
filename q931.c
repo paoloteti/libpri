@@ -2004,17 +2004,6 @@ static int transmit_bearer_capability(int full_ie, struct pri *ctrl, q931_call *
 		ie->data[pos++] = call->bc.transmultiple | 0x80;
 	}
 
-	if ((tc & PRI_TRANS_CAP_DIGITAL) && (ctrl->switchtype == PRI_SWITCH_EUROISDN_E1) &&
-		(call->bc.transmoderate == TRANS_MODE_PACKET)) {
-		/* Apparently EuroISDN switches don't seem to like user layer 2/3 */
-		return 4;
-	}
-
-	if ((tc & PRI_TRANS_CAP_DIGITAL) && (call->bc.transmoderate == TRANS_MODE_64_CIRCUIT)) {
-		/* Unrestricted digital 64k data calls don't use user layer 2/3 */
-		return 4;
-	}
-
 	if (call->bc.transmoderate != TRANS_MODE_PACKET) {
 		/* If you have an AT&T 4ESS, you don't send any more info */
 		if ((ctrl->switchtype != PRI_SWITCH_ATT4ESS) && (call->bc.userl1 > -1)) {
@@ -2032,8 +2021,18 @@ static int transmit_bearer_capability(int full_ie, struct pri *ctrl, q931_call *
  		    ie->data[pos++] = call->bc.rateadaption | 0x80;
  		}
  	}
- 	
- 	
+
+	if ((tc & PRI_TRANS_CAP_DIGITAL) && (ctrl->switchtype == PRI_SWITCH_EUROISDN_E1) &&
+		(call->bc.transmoderate == TRANS_MODE_PACKET)) {
+		/* Apparently EuroISDN switches don't seem to like user layer 2/3 */
+		return 4;
+	}
+
+	if ((tc & PRI_TRANS_CAP_DIGITAL) && (call->bc.transmoderate == TRANS_MODE_64_CIRCUIT)) {
+		/* Unrestricted digital 64k data calls don't use user layer 2/3 */
+		return 4;
+	}
+
  	if (call->bc.userl2 != -1)
  		ie->data[pos++] = 0xc0 | (call->bc.userl2 & 0x1f);
  
