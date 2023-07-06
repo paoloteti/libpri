@@ -128,7 +128,8 @@ CFLAGS += -m32
 SOFLAGS += -m32
 endif
 
-all: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY) $(UTILITIES)
+all: $(STATIC_LIBRARY) $(DYNAMIC_LIBRARY)
+utilities: $(UTILITIES)
 
 update:
 	@if [ -d .svn ]; then \
