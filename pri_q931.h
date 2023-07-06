@@ -36,18 +36,20 @@ typedef enum q931_mode {
 	PACKET_MODE
 } q931_mode;
 
-typedef struct q931_h {
+typedef union q931_h {
 	unsigned char raw[0];
-	u_int8_t pd;		/* Protocol Discriminator */
+	struct {
+		u_int8_t pd;		/* Protocol Discriminator */
 #if __BYTE_ORDER == __BIG_ENDIAN
-	u_int8_t x0:4;
-	u_int8_t crlen:4;/*!< Call reference length */
+		u_int8_t x0:4;
+		u_int8_t crlen:4;/*!< Call reference length */
 #else
-	u_int8_t crlen:4;/*!< Call reference length */
-	u_int8_t x0:4;
+		u_int8_t crlen:4;/*!< Call reference length */
+		u_int8_t x0:4;
 #endif
-	u_int8_t contents[0];
-	u_int8_t crv[3];/*!< Call reference value */
+		u_int8_t contents[0];
+		u_int8_t crv[3];/*!< Call reference value */
+	};
 } __attribute__ ((packed)) q931_h;
 
 
